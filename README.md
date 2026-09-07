@@ -346,8 +346,8 @@ chown -R hona:hona /home/hona/.ssh && chmod 700 /home/hona/.ssh
 ### 3. Проект и настройки
 
 ```bash
-git clone https://github.com/khudoyorparpishoev0-ops/IT-ORDER.git /opt/hona-core
-cd /opt/hona-core
+git clone https://github.com/khudoyorparpishoev0-ops/IT-ORDER.git /opt/hona-order
+cd /opt/hona-order
 cp .env.example .env
 mkdir -p data/postgres data/backups data/caddy data/caddy-config
 ```
@@ -403,7 +403,7 @@ curl -s https://order.ithona.tj/health
 ```bash
 ./deploy/backup.sh
 crontab -e
-# 20 3 * * * cd /opt/hona-core && ./deploy/backup.sh >> data/backup.log 2>&1
+# 20 3 * * * cd /opt/hona-order && ./deploy/backup.sh >> data/backup.log 2>&1
 ```
 
 Копии складываются в `data/backups`, старше `BACKUP_KEEP_DAYS` удаляются.
@@ -417,7 +417,7 @@ crontab -e
 ### 6. Обновление
 
 ```bash
-cd /opt/hona-core
+cd /opt/hona-order
 ./deploy/backup.sh                 # сначала копия
 git pull origin main
 docker compose up -d --build
