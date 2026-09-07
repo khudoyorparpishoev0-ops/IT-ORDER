@@ -17,7 +17,13 @@ from fastapi import (
     status,
 )
 
-from app.api.deps import CurrentUser, DbSession, PeriodDep, RequirePermission
+from app.api.deps import (
+    CurrentUser,
+    DbSession,
+    PeriodDep,
+    RequirePermission,
+    bind_audit_actor,
+)
 from app.core.permissions import Permission, has_permission
 from app.core.time import local_date, utcnow
 from app.db.models import Employee, ExpenseRequest, RequestStatus
@@ -36,7 +42,9 @@ from app.schemas.request import (
 from app.services import requests as svc
 from app.services.notifications import notify_new_request
 
-router = APIRouter(prefix="/api/requests", tags=["requests"])
+router = APIRouter(
+    prefix="/api/requests", tags=["requests"], dependencies=[Depends(bind_audit_actor)]
+)
 
 can_decide = Depends(RequirePermission(Permission.DECIDE_REQUEST))
 can_pay = Depends(RequirePermission(Permission.PAY_REQUEST))

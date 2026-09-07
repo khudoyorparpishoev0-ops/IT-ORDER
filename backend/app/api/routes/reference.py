@@ -13,6 +13,7 @@ from app.api.deps import (
     DbSession,
     PeriodDep,
     RequirePermission,
+    bind_audit_actor,
 )
 from app.config import get_settings
 from app.core.errors import ValidationError
@@ -34,7 +35,11 @@ from app.services import mail_templates as templates
 from app.services import reference as svc
 from app.services.reports import team_overview
 
-router = APIRouter(prefix="/api", tags=["reference"])
+# Привязка действующего сотрудника — на уровне роутера: журнал должен
+# заполняться сам, а не по памяти автора нового эндпоинта.
+router = APIRouter(
+    prefix="/api", tags=["reference"], dependencies=[Depends(bind_audit_actor)]
+)
 
 manage = Depends(RequirePermission(Permission.MANAGE_REFERENCE))
 reports_access = Depends(RequirePermission(Permission.VIEW_REPORTS))

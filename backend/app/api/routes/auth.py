@@ -34,6 +34,7 @@ from app.schemas.auth import (
     TwoFactorIn,
 )
 from app.services import auth as svc
+from app.services.audit import write_audit
 from app.services import mail_templates as templates
 from app.services.notifications import panel_url
 
@@ -244,11 +245,37 @@ def disable_second_factor(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-def logout(response: Response) -> Response:
+def logout(request: Request, session: DbSession, response: Response) -> Response:
+    """Выход. Записывает в журнал, если сессия ещё действительна.
+
+    Требовать действующую сессию нельзя: у истёкшего токена выход должен
+    всё равно очистить cookie, иначе браузер останется с мусором.
+    """
+    employee = _employee_from_session(request, session)
+    if employee is not None:
+        write_audit(
+            session,
+            entity="employee",
+            entity_id=employee.id,
+            action="logout",
+            employee=employee,
+        )
     _clear_session_cookie(response)
     _clear_pending_cookie(response)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
+
+
+def _employee_from_session(request: Request, session) -> Employee | None:
+    """Сотрудник по cookie сессии — молча, без 401."""
+    token = request.cookies.get(get_settings().cookie_name)
+    if not token:
+        return None
+    try:
+        employee_id = token_subject(token)
+    except TokenError:
+        return None
+    return session.get(Employee, employee_id)
 
 
 @router.get("/me", response_model=CurrentUserOut)

@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.core.audit_context import Actor, set_actor
 from app.core.permissions import Permission, has_permission, permissions_for
 from app.core.security import TokenError, token_subject
 from app.db.models import Employee
@@ -78,6 +79,18 @@ class RequirePermission:
                 detail="Недостаточно прав для этого действия",
             )
         return user
+
+
+async def bind_audit_actor(user: CurrentUser) -> Employee:
+    """Кладёт действующего сотрудника в контекст запроса — для журнала.
+
+    Зависимость асинхронная намеренно: синхронная выполняется в отдельном
+    потоке с копией контекста, и запись до обработчика не дошла бы.
+    Подключается на уровне роутера, чтобы про журнал не нужно было помнить
+    в каждом новом эндпоинте.
+    """
+    set_actor(Actor(id=user.id, name=user.full_name))
+    return user
 
 
 def user_permissions(user: Employee) -> list[str]:

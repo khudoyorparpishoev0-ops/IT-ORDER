@@ -72,6 +72,24 @@ export type EmployeeInput = {
   active: boolean;
 };
 
+/** Строка журнала действий. Подписи собирает панель — см. src/data/audit.ts. */
+export type AuditEntry = {
+  id: number;
+  created_at: string;
+  entity: string;
+  entity_id: string;
+  action: string;
+  username: string | null;
+  employee_id: number | null;
+  ip: string | null;
+  details: string | null;
+};
+
+export type AuditActor = {
+  employee_id: number | null;
+  username: string;
+};
+
 export type TeamMember = {
   id: number;
   full_name: string;
@@ -227,7 +245,8 @@ export type Permission =
   | 'decide_request'
   | 'pay_request'
   | 'view_reports'
-  | 'manage_reference';
+  | 'manage_reference'
+  | 'view_audit';
 
 export type CurrentUser = {
   id: number;

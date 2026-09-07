@@ -16,7 +16,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.core.time import format_local_date, utcnow
+from app.core.audit_labels import action_label, entity_label
+from app.core.time import format_local_date, format_local_datetime, utcnow
 from app.db.models import PaymentMethod, RequestStatus
 from app.schemas.report import PaymentsRegister
 from app.schemas.request import RequestListItem
@@ -206,6 +207,43 @@ def requests_workbook(
     # показанного списка, а не обязательство компании.
     _money(ws, row, 6, total)
     ws.cell(row=row, column=6).font = Font(name=FONT_NAME, size=11, bold=True)
+
+    return _save(wb)
+
+
+def audit_workbook(entries: list) -> bytes:
+    """Журнал действий. Выгружается ровно то, что показано по фильтру."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Журнал"
+
+    columns = [
+        ("Дата и время", 20),
+        ("Сотрудник", 26),
+        ("Что", 16),
+        ("Действие", 34),
+        ("Запись", 16),
+        ("Пояснение", 34),
+        ("Адрес", 16),
+    ]
+    row = _write_title(
+        ws,
+        "Журнал действий",
+        f"IT-HONA ORDER · выгружено {format_local_date(utcnow())} · "
+        f"{len(entries)} записей",
+        len(columns),
+    )
+    _write_header(ws, row, columns)
+
+    for entry in entries:
+        row += 1
+        _text(ws, row, 1, format_local_datetime(entry.created_at))
+        _text(ws, row, 2, entry.username or "—")
+        _text(ws, row, 3, entity_label(entry.entity))
+        _text(ws, row, 4, action_label(entry.action))
+        _text(ws, row, 5, entry.entity_id)
+        _text(ws, row, 6, entry.details or "")
+        _text(ws, row, 7, entry.ip or "")
 
     return _save(wb)
 

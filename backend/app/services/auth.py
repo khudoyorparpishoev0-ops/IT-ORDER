@@ -84,11 +84,27 @@ def _register_failure(session: Session, employee: Employee) -> None:
     """
     settings = get_settings()
     employee.failed_logins += 1
+    # Пишем каждую неудачу: по журналу видно подбор пароля задолго до
+    # блокировки. Для несуществующей почты записи нет намеренно — иначе
+    # журнал забивался бы мусором с любого сканера.
+    write_audit(
+        session,
+        entity="employee",
+        entity_id=employee.id,
+        action="login_failed",
+        employee=employee,
+        details=f"попытка {employee.failed_logins} из {settings.max_failed_logins}",
+    )
     if employee.failed_logins >= settings.max_failed_logins:
         employee.locked_until = utcnow() + timedelta(minutes=settings.lockout_minutes)
         employee.failed_logins = 0
         write_audit(
-            session, entity="employee", entity_id=employee.id, action="login_locked"
+            session,
+            entity="employee",
+            entity_id=employee.id,
+            action="login_locked",
+            employee=employee,
+            details=f"на {settings.lockout_minutes} мин",
         )
         log.warning("Вход заблокирован для сотрудника %s", employee.id)
     session.commit()
@@ -169,9 +185,17 @@ def _domain_allowed(email: str | None) -> bool:
 
 
 def complete_login(session: Session, employee: Employee) -> None:
-    """Финальный шаг входа: отметка времени и сброс счётчика неудач."""
+    """Финальный шаг входа: отметка времени, сброс счётчика, запись в журнал."""
     employee.last_login_at = utcnow()
     _reset_failures(employee)
+    write_audit(
+        session,
+        entity="employee",
+        entity_id=employee.id,
+        action="login",
+        employee=employee,
+        details="со вторым фактором" if employee.totp_enabled else None,
+    )
     session.flush()
 
 
@@ -397,7 +421,12 @@ def unused_recovery_count(session: Session, employee: Employee) -> int:
 # Пароли
 # --------------------------------------------------------------------------
 def set_password(
-    session: Session, employee_id: int, password: str, *, actor: str | None = None
+    session: Session,
+    employee_id: int,
+    password: str,
+    *,
+    actor: str | None = None,
+    action: str = "set_password",
 ) -> Employee:
     employee = session.get(Employee, employee_id)
     if employee is None:
@@ -417,8 +446,9 @@ def set_password(
         session,
         entity="employee",
         entity_id=employee.id,
-        action="set_password",
+        action=action,
         username=actor,
+        employee=employee,
     )
     return employee
 
@@ -430,7 +460,11 @@ def change_own_password(
         raise AuthError("Текущий пароль указан неверно")
     if current == new:
         raise ConflictError("Новый пароль совпадает со старым")
-    return set_password(session, employee.id, new, actor=employee.full_name)
+    # Отдельное действие: в журнале «сменил себе» и «выдал администратор» —
+    # разные события, и разбирают их по-разному.
+    return set_password(
+        session, employee.id, new, actor=employee.full_name, action="password_changed"
+    )
 
 
 def rehash_if_needed(employee: Employee, password: str) -> None:

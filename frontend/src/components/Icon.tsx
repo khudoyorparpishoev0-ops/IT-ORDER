@@ -32,6 +32,7 @@ export type IconName =
   | 'ti-file-spreadsheet'
   | 'ti-file-type-pdf'
   | 'ti-clock-hour-4'
+  | 'ti-history'
   | 'ti-filter'
   | 'ti-server-2'
   | 'ti-device-cctv';
@@ -152,6 +153,10 @@ export function IconSprite() {
       <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
       <path d="M12 12l3 2"></path>
       <path d="M12 7v5"></path>
+      </symbol>
+      <symbol id="ti-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M12 8l0 4l2 2"></path>
+      <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
       </symbol>
       <symbol id="ti-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"></path>

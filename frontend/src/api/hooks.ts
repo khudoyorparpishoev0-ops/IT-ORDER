@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, query } from './client';
 import type {
   ApprovalQueueInfo,
+  AuditActor,
+  AuditEntry,
   BudgetInfo,
   DashboardStats,
   DecisionInput,
@@ -41,6 +43,8 @@ export const keys = {
   monthly: ['reports', 'monthly'] as const,
   payments: ['reports', 'payments'] as const,
   budget: ['reports', 'budget'] as const,
+  audit: ['audit'] as const,
+  auditActors: ['audit', 'actors'] as const,
 };
 
 export function useHealth() {
@@ -274,5 +278,50 @@ export function useDecision() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => invalidateRequests(qc),
+  });
+}
+
+export type AuditFilters = {
+  entity?: string;
+  action?: string;
+  employeeId?: number;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
+};
+
+/** Журнал действий. Доступен только с правом view_audit — иначе запрос
+ *  не отправляем вовсе, чтобы не ловить 403. */
+export function useAudit(filters: AuditFilters, enabled = true) {
+  return useQuery({
+    queryKey: [...keys.audit, filters] as const,
+    queryFn: () =>
+      api<Page<AuditEntry>>(
+        `/api/audit${query({
+          entity: filters.entity,
+          action: filters.action,
+          employee_id: filters.employeeId,
+          search: filters.search,
+          date_from: filters.dateFrom,
+          date_to: filters.dateTo,
+          limit: filters.limit,
+          offset: filters.offset,
+        })}`,
+      ),
+    enabled,
+    // Журнал дописывается постоянно, но читают его глазами — обновлять
+    // на каждый фокус окна незачем.
+    staleTime: 30_000,
+  });
+}
+
+export function useAuditActors(enabled = true) {
+  return useQuery({
+    queryKey: keys.auditActors,
+    queryFn: () => api<AuditActor[]>('/api/audit/actors'),
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }

@@ -330,7 +330,12 @@ class MonthlyBudget(Base):
 
 
 class AuditLog(Base):
-    """Кто и что изменил в справочниках и заявках."""
+    """Журнал: кто, что и когда сделал в системе.
+
+    Строки только добавляются. Правка и удаление записей журнала не
+    предусмотрены ни через API, ни через панель: журнал нужен именно тем,
+    что его нельзя переписать задним числом.
+    """
 
     __tablename__ = "audit_log"
 
@@ -338,12 +343,26 @@ class AuditLog(Base):
     entity: Mapped[ShortStr] = mapped_column(nullable=False)
     entity_id: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[ShortStr] = mapped_column(nullable=False)
-    #: Кто изменил. Заполняется из сессии с фазы 3.
+    #: Имя действующего сотрудника на момент действия. Хранится текстом:
+    #: человека могли переименовать или удалить, а журнал должен читаться.
     username: Mapped[str | None] = mapped_column(String(200))
+    #: Связь с карточкой — чтобы фильтровать по человеку, а не по строке.
+    #: Запись сотрудника удалили — ссылка обнуляется, имя остаётся.
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    #: Адрес, с которого пришёл запрос. Нужен разбору неудачных входов.
+    ip: Mapped[str | None] = mapped_column(String(45))
     details: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[CreatedAt]
 
-    __table_args__ = (Index("ix_audit_entity", "entity", "entity_id"),)
+    __table_args__ = (
+        Index("ix_audit_entity", "entity", "entity_id"),
+        # Журнал читают с конца и постранично — без индекса по времени
+        # сортировка каждый раз перебирала бы всю таблицу.
+        Index("ix_audit_created_at", "created_at"),
+        Index("ix_audit_employee", "employee_id"),
+    )
 
 
 __all__ = [

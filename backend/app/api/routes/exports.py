@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -13,7 +14,9 @@ from fastapi import APIRouter, Depends, Query, Response
 from app.api.deps import CurrentUser, DbSession, PeriodDep, RequirePermission
 from app.api.routes.requests import to_detail, to_list_item
 from app.core.permissions import Permission, has_permission
+from app.core.time import local_day_bounds
 from app.db.models import RequestStatus
+from app.services import audit as audit_svc
 from app.services import export_excel as xlsx
 from app.services import export_pdf as pdf
 from app.services import reports as reports_svc
@@ -23,8 +26,12 @@ from app.services.reference import get_project
 router = APIRouter(prefix="/api/exports", tags=["exports"])
 
 reports_access = Depends(RequirePermission(Permission.VIEW_REPORTS))
+audit_access = Depends(RequirePermission(Permission.VIEW_AUDIT))
 
 XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+#: Сколько строк журнала уходит в одну выгрузку.
+AUDIT_EXPORT_LIMIT = 5000
 
 
 def _attachment(content: bytes, filename: str, media_type: str) -> Response:
@@ -145,3 +152,36 @@ def request_pdf(session: DbSession, user: CurrentUser, request_id: int):
     detail = to_detail(session, request)
     content = pdf.request_pdf(detail)
     return _attachment(content, f"IT-HONA_{request.number}.pdf", "application/pdf")
+
+
+@router.get("/audit.xlsx", dependencies=[audit_access])
+def audit_xlsx(
+    session: DbSession,
+    entity: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    employee_id: int | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=200),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+):
+    """Журнал действий по тому же фильтру, что показан в панели.
+
+    Ограничение сверху жёсткое: журнал растёт бесконечно, и выгрузка «всего»
+    однажды положила бы и сервер, и Excel. Нужен больший период — сузьте
+    фильтр по датам.
+    """
+    entries, _ = audit_svc.list_audit(
+        session,
+        entity=entity,
+        action=action,
+        employee_id=employee_id,
+        search=search,
+        date_from=None if date_from is None else local_day_bounds(date_from)[0],
+        date_to=None if date_to is None else local_day_bounds(date_to)[1],
+        limit=AUDIT_EXPORT_LIMIT,
+    )
+    return _attachment(
+        xlsx.audit_workbook(entries),
+        xlsx.dated_filename("Журнал", extension="xlsx"),
+        XLSX_TYPE,
+    )

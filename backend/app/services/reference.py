@@ -47,7 +47,15 @@ def create_project(session: Session, data: ProjectCreate) -> Project:
     project = Project(name=data.name, active=data.active)
     session.add(project)
     session.flush()
-    write_audit(session, entity="project", entity_id=project.id, action="create")
+    # В пояснение кладём название: по журналу должно быть понятно, о ком
+    # или о чём речь, без похода в справочник за номером.
+    write_audit(
+        session,
+        entity="project",
+        entity_id=project.id,
+        action="create",
+        details=project.name,
+    )
     return project
 
 
@@ -67,7 +75,7 @@ def update_project(session: Session, project_id: int, data: ProjectUpdate) -> Pr
         entity="project",
         entity_id=project.id,
         action="update",
-        details=", ".join(changes),
+        details=f"{project.name} · {', '.join(changes)}" if changes else project.name,
     )
     return project
 
@@ -140,7 +148,13 @@ def create_employee(session: Session, data: EmployeeCreate) -> Employee:
     employee = Employee(**payload)
     session.add(employee)
     session.flush()
-    write_audit(session, entity="employee", entity_id=employee.id, action="create")
+    write_audit(
+        session,
+        entity="employee",
+        entity_id=employee.id,
+        action="create",
+        details=employee.full_name,
+    )
     return employee
 
 
@@ -166,7 +180,11 @@ def update_employee(session: Session, employee_id: int, data: EmployeeUpdate) ->
         entity="employee",
         entity_id=employee.id,
         action="update",
-        details=", ".join(changes),
+        details=(
+            f"{employee.full_name} · {', '.join(changes)}"
+            if changes
+            else employee.full_name
+        ),
     )
     return employee
 
@@ -188,8 +206,15 @@ def delete_employee(session: Session, employee_id: int) -> None:
             "У сотрудника есть заявки. Отключите его через active=false, "
             "а не удаляйте — история заявок должна сохранить автора."
         )
+    name = employee.full_name
     session.delete(employee)
-    write_audit(session, entity="employee", entity_id=employee_id, action="delete")
+    write_audit(
+        session,
+        entity="employee",
+        entity_id=employee_id,
+        action="delete",
+        details=name,
+    )
 
 
 def access_overview(session: Session) -> list[dict]:

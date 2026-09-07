@@ -8,6 +8,7 @@ import { Employees } from '@/pages/Employees';
 import { DesignSystem } from '@/pages/DesignSystem';
 import { Finance } from '@/pages/Finance';
 import { Help } from '@/pages/Help';
+import { Journal } from '@/pages/Journal';
 import { Login } from '@/pages/Login';
 import { NotFound } from '@/pages/NotFound';
 import { Reports } from '@/pages/Reports';
@@ -81,6 +82,14 @@ export function App() {
           element={
             <Guarded need="manage_reference">
               <Employees />
+            </Guarded>
+          }
+        />
+        <Route
+          path="journal"
+          element={
+            <Guarded need="view_audit">
+              <Journal />
             </Guarded>
           }
         />

@@ -32,6 +32,8 @@ class Permission(str, enum.Enum):
     VIEW_REPORTS = "view_reports"
     #: Заводить и править сотрудников и объекты.
     MANAGE_REFERENCE = "manage_reference"
+    #: Читать журнал действий: кто, что и когда делал в системе.
+    VIEW_AUDIT = "view_audit"
 
 
 _EMPLOYEE = frozenset({Permission.CREATE_REQUEST})

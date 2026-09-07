@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from app.api.errors import register_error_handlers
 from app.api.router import api_router
 from app.config import get_settings
+from app.core.audit_context import set_ip
 from app.core.logging import setup_logging
 from app.db.session import get_session_factory
 from app.services.auth import ensure_bootstrap_admin
@@ -58,6 +59,22 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
     register_error_handlers(app)
+
+    @app.middleware("http")
+    async def remember_client_ip(request: Request, call_next):
+        """Кладёт адрес клиента в контекст запроса — для журнала.
+
+        Панель отдаётся через nginx и Caddy, поэтому в request.client
+        всегда адрес прокси. Настоящий берём из первого звена
+        X-Forwarded-For: его выставляет наш же прокси. Заголовок можно
+        подделать, но за нашим прокси он перезаписывается, а сам по себе
+        адрес — справка для разбора, не пропуск.
+        """
+        forwarded = request.headers.get("x-forwarded-for", "")
+        client = forwarded.split(",")[0].strip() if forwarded else None
+        set_ip(client or (request.client.host if request.client else None))
+        return await call_next(request)
+
     app.include_router(api_router)
     return app
 

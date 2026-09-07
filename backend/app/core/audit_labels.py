@@ -1,0 +1,51 @@
+"""Понятные названия для журнала.
+
+Коды действий в базе короткие и латиницей — по ним удобно фильтровать и
+искать. Человеку в панели и в выгрузке показываем эти подписи. Такой же
+словарь есть во фронтенде (`src/data/audit.ts`) — добавили действие здесь,
+добавьте и там, иначе в интерфейсе останется голый код.
+"""
+
+from __future__ import annotations
+
+ENTITY_LABEL: dict[str, str] = {
+    "employee": "Сотрудник",
+    "project": "Объект",
+    "request": "Заявка",
+}
+
+ACTION_LABEL: dict[str, str] = {
+    # Доступ
+    "login": "Вход в систему",
+    "logout": "Выход",
+    "login_failed": "Неудачный вход",
+    "login_locked": "Вход заблокирован",
+    "password_changed": "Сменил себе пароль",
+    "set_password": "Пароль выдан администратором",
+    "password_reset_requested": "Запрошено восстановление пароля",
+    "password_reset_applied": "Пароль восстановлен по ссылке",
+    "totp_enabled": "Второй фактор включён",
+    "totp_disabled": "Второй фактор выключен",
+    "totp_reset_by_admin": "Второй фактор сброшен администратором",
+    "recovery_code_used": "Вход по коду восстановления",
+    "recovery_codes_reissued": "Коды восстановления перевыпущены",
+    "bootstrap_admin": "Создан стартовый администратор",
+    # Справочники
+    "create": "Создание",
+    "update": "Изменение",
+    "delete": "Удаление",
+    # Заявки
+    "submit": "Отправлена на согласование",
+    "approve": "Одобрена",
+    "reject": "Отклонена",
+    "auto_approve": "Одобрена автоматически",
+    "pay": "Выплата проведена",
+}
+
+
+def entity_label(entity: str) -> str:
+    return ENTITY_LABEL.get(entity, entity)
+
+
+def action_label(action: str) -> str:
+    return ACTION_LABEL.get(action, action)
