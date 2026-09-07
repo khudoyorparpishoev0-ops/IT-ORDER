@@ -1,4 +1,5 @@
 import { Icon } from '@/components/Icon';
+import { IthonaLogo, IthonaMark } from '@/components/Logo';
 import type { IconName } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -75,6 +76,41 @@ export function DesignSystem() {
       />
 
       <div style={{ display: 'grid', gap: 'var(--gap)' }}>
+        <section className="card">
+          <div className="label">ЛОГОТИП</div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 32,
+              flexWrap: 'wrap',
+              marginTop: 16,
+            }}
+          >
+            <IthonaLogo height={40} style={{ color: 'var(--logo)' }} />
+            <IthonaMark size={40} style={{ color: 'var(--logo)' }} />
+            <div
+              style={{
+                background: 'var(--forest)',
+                padding: '16px 24px',
+                borderRadius: 'var(--r-card)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 24,
+              }}
+            >
+              <IthonaLogo height={32} style={{ color: '#FFFFFF' }} />
+              <IthonaMark size={32} style={{ color: '#FFFFFF' }} />
+            </div>
+          </div>
+          <p className="caption" style={{ margin: '16px 0 0' }}>
+            Монохром: фирменный зелёный на светлом, белая выворотка на тёмном и
+            на зелёном. Знак без слова — там, где имя уже названо рядом: иконка
+            приложения, favicon, маркировка. Пропорции и отступ между знаком и
+            словом заданы в компоненте и меняться не должны.
+          </p>
+        </section>
+
         <section className="card">
           <div className="label">ПАЛИТРА</div>
           <div className="grid-auto" style={{ marginTop: 16 }}>

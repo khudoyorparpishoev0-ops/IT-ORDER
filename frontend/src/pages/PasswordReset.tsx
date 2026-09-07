@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { IthonaLogo } from '@/components/Logo';
 import { api } from '@/api/client';
 import { useAuthPolicy } from '@/api/auth';
 
@@ -22,10 +23,8 @@ export function PasswordReset({ token, onBack }: { token?: string; onBack: () =>
     >
       <div style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontWeight: 800, letterSpacing: '0.06em', fontSize: 24 }}>
-            IT-HONA
-          </div>
-          <div className="label" style={{ marginTop: 2 }}>
+          <IthonaLogo height={34} style={{ color: 'var(--logo)' }} />
+          <div className="label" style={{ marginTop: 10 }}>
             ORDER
           </div>
         </div>

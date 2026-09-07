@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Знак IT-HONA из бренд-бука. На тёмном фоне разрешена только белая версия. -->
   <rect width="32" height="32" fill="#0E3B21"/>
-  <path d="M8 9h3v5h6V9h3v14h-3v-6h-6v6H8z" fill="#22A74E"/>
+  <g transform="translate(6 7.31) scale(0.2381)">
+    <path d="M41.91 0L83.99 72.94H22.47L28.53 62.24H64.91L41.91 22.11L13.02 72.94H0Z" fill="#FFFFFF"/>
+  </g>
 </svg>

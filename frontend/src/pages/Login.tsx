@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { IthonaLogo } from '@/components/Logo';
 import { useAuth, useAuthPolicy } from '@/api/auth';
 import { TotpSetup } from '@/components/TotpSetup';
 import { PasswordReset } from './PasswordReset';
@@ -83,11 +84,8 @@ export function Login() {
     >
       <div style={{ width: '100%', maxWidth: pending === '2fa_setup_required' ? 520 : 400 }}>
         <div style={{ marginBottom: 24 }}>
-          {/* Стенд-ин логотипа, как в сайдбаре. */}
-          <div style={{ fontWeight: 800, letterSpacing: '0.06em', fontSize: 24 }}>
-            IT-HONA
-          </div>
-          <div className="label" style={{ marginTop: 2 }}>
+          <IthonaLogo height={34} style={{ color: 'var(--logo)' }} />
+          <div className="label" style={{ marginTop: 10 }}>
             ORDER
           </div>
         </div>
