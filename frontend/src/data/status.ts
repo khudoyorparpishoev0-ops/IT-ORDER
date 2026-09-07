@@ -1,4 +1,4 @@
-import type { RequestStatus } from './types';
+import type { RequestStatus } from '@/api/types';
 
 /** Оформление статусов. Точка-индикатор одинакова в обеих темах,
  *  фон и текст плашки — токены, переключаемые темой. */
@@ -38,6 +38,7 @@ export const STATUS: Record<
   },
 };
 
+/** Порядок фильтров в разделе «Заявки». */
 export const STATUS_ORDER: RequestStatus[] = [
   'pending',
   'approved',
@@ -45,3 +46,9 @@ export const STATUS_ORDER: RequestStatus[] = [
   'rejected',
   'draft',
 ];
+
+/** Способ выплаты словом. */
+export const PAYMENT_METHOD: Record<'card' | 'cash', string> = {
+  card: 'На карту',
+  cash: 'Наличными',
+};

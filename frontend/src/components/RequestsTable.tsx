@@ -1,16 +1,16 @@
 import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
 import { money } from '@/data/format';
-import type { ExpenseRequest } from '@/data/types';
+import type { RequestListItem } from '@/api/types';
 
 export type SortKey = 'name' | 'amount' | null;
 
 type Props = {
-  rows: ExpenseRequest[];
+  rows: RequestListItem[];
   sort: SortKey;
   dir: 1 | -1;
   onSort: (key: Exclude<SortKey, null>) => void;
-  onOpen: (r: ExpenseRequest) => void;
+  onOpen: (r: RequestListItem) => void;
   /** Показывать должность отдельной строкой (раздел «Заявки») */
   withRole?: boolean;
   minWidth?: number;
@@ -73,10 +73,10 @@ export function RequestsTable({
               }}
             >
               <td>
-                <div>{r.name}</div>
-                <div className="caption">{withRole ? `${r.role} · ${r.project}` : r.project}</div>
+                <div>{r.employee_name}</div>
+                <div className="caption">{withRole ? `${r.employee_position} · ${r.project_name}` : r.project_name}</div>
                 <div className="meta">
-                  {r.id} · {r.date}
+                  {r.number} · {r.date}
                 </div>
               </td>
               <td className="right num">{money(r.amount)}</td>

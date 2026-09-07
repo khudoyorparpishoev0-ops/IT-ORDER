@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { byName } from '@/data/format';
-import type { ExpenseRequest } from '@/data/types';
+import { byName, compareMoney } from '@/data/format';
+import type { RequestListItem } from '@/api/types';
 import type { SortKey } from '@/components/RequestsTable';
 
 /** Сортировка списка заявок: по имени (локаль ru) или по сумме, с инверсией. */
-export function useSortedRequests(source: ExpenseRequest[]) {
+export function useSortedRequests(source: RequestListItem[]) {
   const [sort, setSort] = useState<SortKey>(null);
   const [dir, setDir] = useState<1 | -1>(1);
 
@@ -20,7 +20,9 @@ export function useSortedRequests(source: ExpenseRequest[]) {
   const rows = useMemo(() => {
     if (!sort) return source;
     return [...source].sort((a, b) =>
-      sort === 'amount' ? (a.amount - b.amount) * dir : byName(a.name, b.name) * dir,
+      sort === 'amount'
+        ? compareMoney(a.amount, b.amount) * dir
+        : byName(a.employee_name, b.employee_name) * dir,
     );
   }, [source, sort, dir]);
 

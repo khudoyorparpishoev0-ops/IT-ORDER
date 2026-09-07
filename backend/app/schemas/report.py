@@ -1,0 +1,71 @@
+"""Схемы отчётов и сводок."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+from pydantic import BaseModel
+
+from app.db.models import PaymentMethod
+
+
+class DashboardStats(BaseModel):
+    """Четыре метрики на панели управления."""
+
+    total_requests: int
+    employees_count: int
+    approved_amount: Decimal
+    approved_count: int
+    pending_amount: Decimal
+    pending_count: int
+    budget_amount: Decimal | None
+    budget_used_pct: int | None
+
+
+class ApprovalQueueInfo(BaseModel):
+    """Баннер очереди на панели."""
+
+    count: int
+    oldest_employee: str | None
+    oldest_days: int | None
+    auto_approve_threshold: Decimal
+
+
+class ProjectShare(BaseModel):
+    project_id: int
+    name: str
+    amount: Decimal
+    pct: int
+
+
+class MonthFact(BaseModel):
+    year: int
+    month: int
+    label: str
+    #: Сумма в тысячах сомони — так подписаны столбцы в макете.
+    value: int
+
+
+class PaidRecord(BaseModel):
+    number: str
+    employee_name: str
+    project_name: str
+    amount: Decimal
+    method: PaymentMethod
+    document: str
+    paid_at: str
+
+
+class PaymentsRegister(BaseModel):
+    items: list[PaidRecord]
+    total: Decimal
+    summary: str
+
+
+class BudgetInfo(BaseModel):
+    month_limit: Decimal | None
+    used: Decimal
+    remaining: Decimal | None
+    used_pct: int | None
+    week_payout: Decimal
+    week_requests: int

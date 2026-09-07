@@ -1,18 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
-import { EXPENSE_LINES } from '@/data/mock';
+import { useRequest } from '@/api/hooks';
 import { money } from '@/data/format';
-import type { ExpenseRequest } from '@/data/types';
+import type { RequestListItem } from '@/api/types';
 
 type Props = {
-  request: ExpenseRequest | null;
+  request: RequestListItem | null;
   onClose: () => void;
   onOpenApprovals: () => void;
 };
 
 export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const { data: detail, isLoading } = useRequest(request?.id ?? null);
 
   useEffect(() => {
     if (!request) return;
@@ -43,7 +44,7 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Заявка ${request.id}`}
+        aria-label={`Заявка ${request.number}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -59,10 +60,10 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <div className="meta">
-              {request.id} · {request.date}
+              {request.number} · {request.date}
             </div>
             <div className="h3" style={{ marginTop: 4 }}>
-              {request.name}
+              {request.employee_name}
             </div>
           </div>
           <button
@@ -87,7 +88,7 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
         >
           <div>
             <dt className="label">ОБЪЕКТ</dt>
-            <dd style={{ margin: '4px 0 0' }}>{request.project}</dd>
+            <dd style={{ margin: '4px 0 0' }}>{request.project_name}</dd>
           </div>
           <div>
             <dt className="label">СУММА, TJS</dt>
@@ -110,35 +111,54 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
           </div>
         </dl>
 
-        <div className="table-wrap">
-          <table className="tbl" style={{ minWidth: 340 }}>
-            <thead>
-              <tr>
-                <th>ОПИСАНИЕ</th>
-                <th style={{ width: 64 }} className="right">
-                  КОЛ-ВО
-                </th>
-                <th style={{ width: 110 }} className="right">
-                  СУММА, TJS
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {EXPENSE_LINES.map((line) => (
-                <tr key={line.title}>
-                  <td>{line.title}</td>
-                  <td className="right num">{line.qty}</td>
-                  <td className="right num">{line.total}</td>
+        {isLoading && <div className="label">ЗАГРУЗКА СОСТАВА</div>}
+
+        {detail && (
+          <div className="table-wrap">
+            <table className="tbl" style={{ minWidth: 340 }}>
+              <thead>
+                <tr>
+                  <th>ОПИСАНИЕ</th>
+                  <th style={{ width: 64 }} className="right">
+                    КОЛ-ВО
+                  </th>
+                  <th style={{ width: 110 }} className="right">
+                    СУММА, TJS
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {detail.lines.map((line) => (
+                  <tr key={line.id}>
+                    <td>{line.title}</td>
+                    <td className="right num">{line.quantity}</td>
+                    <td className="right num">{money(line.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {detail?.decision_comment && (
+          <p
+            style={{
+              borderLeft: '2px solid var(--line)',
+              paddingLeft: 12,
+              margin: '16px 0 0',
+              color: 'var(--slate)',
+            }}
+          >
+            {detail.decision_comment}
+          </p>
+        )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-primary" onClick={onOpenApprovals}>
-            Открыть в согласовании
-          </button>
+          {request.status === 'pending' && (
+            <button type="button" className="btn btn-primary" onClick={onOpenApprovals}>
+              Открыть в согласовании
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Закрыть
           </button>

@@ -1,13 +1,26 @@
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
-import { NOTIFICATIONS, PROFILE } from '@/data/mock';
+import { useHealth } from '@/api/hooks';
+
+/** Профиль до фазы 3 не редактируется на сервере: вход ещё не сделан. */
+const PROFILE = [
+  { label: 'Имя и фамилия', value: 'Артём Ковалёв' },
+  { label: 'Рабочая почта', value: 'a.kovalev@it-hona.tj' },
+];
+
+const NOTIFICATIONS = [
+  { label: 'Новые заявки на утверждение', on: true },
+  { label: 'Напоминание о заявках старше 3 дней', on: true },
+  { label: 'Еженедельный отчёт по бюджету', on: false },
+];
 import { VARIANTS } from '@/shell/config';
 import type { ShellVariant, Theme } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
 
 export function Settings() {
   const { theme, setTheme, variant, setVariant } = useShell();
+  const health = useHealth();
   const [toggles, setToggles] = useState(NOTIFICATIONS.map((n) => n.on));
 
   return (
@@ -124,6 +137,29 @@ export function Settings() {
               </button>
             ))}
           </div>
+        </section>
+        <section className="card">
+          <div className="label">О СИСТЕМЕ</div>
+          <dl style={{ display: 'grid', gap: 12, marginTop: 16, margin: '16px 0 0' }}>
+            <div>
+              <dt className="caption">Часовой пояс расчётов</dt>
+              <dd className="num" style={{ margin: '2px 0 0' }}>
+                {health.data?.timezone ?? '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="caption">Состояние базы</dt>
+              <dd className="num" style={{ margin: '2px 0 0' }}>
+                {health.data?.database === 'ok' ? 'Доступна' : 'Недоступна'}
+              </dd>
+            </div>
+            <div>
+              <dt className="caption">Версия схемы</dt>
+              <dd className="num" style={{ margin: '2px 0 0' }}>
+                {health.data?.db_revision ?? '—'}
+              </dd>
+            </div>
+          </dl>
         </section>
       </div>
     </>

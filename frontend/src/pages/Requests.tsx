@@ -1,36 +1,56 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
-import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryState } from '@/components/QueryState';
 import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useSortedRequests } from '@/hooks/useSortedRequests';
-import { PERIOD_LABEL, REQUESTS, TOTAL_REQUESTS } from '@/data/mock';
+import { useRequests } from '@/api/hooks';
+import { monthAfterZa, periodLabel, plural } from '@/data/format';
 import { STATUS, STATUS_ORDER } from '@/data/status';
-import type { ExpenseRequest, RequestStatus } from '@/data/types';
+import type { RequestListItem, RequestStatus } from '@/api/types';
 
 type Filter = RequestStatus | 'all';
+
+const PAGE_SIZE = 20;
 
 export function Requests() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('all');
-  const [modal, setModal] = useState<ExpenseRequest | null>(null);
+  const [page, setPage] = useState(0);
+  const [allPeriods, setAllPeriods] = useState(false);
+  const [modal, setModal] = useState<RequestListItem | null>(null);
 
-  const filtered = filter === 'all' ? REQUESTS : REQUESTS.filter((r) => r.status === filter);
-  const { rows, sort, dir, onSort } = useSortedRequests(filtered);
+  const list = useRequests({
+    status: filter === 'all' ? undefined : filter,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    allPeriods,
+  });
+  const { rows, sort, dir, onSort } = useSortedRequests(list.data?.items ?? []);
+
+  const total = list.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const chips: { key: Filter; label: string }[] = [
     { key: 'all', label: 'Все' },
     ...STATUS_ORDER.map((k) => ({ key: k as Filter, label: STATUS[k].label })),
   ];
 
+  const setFilterAndReset = (key: Filter) => {
+    setFilter(key);
+    setPage(0);
+  };
+
   return (
     <>
       <PageHeader
-        kicker={PERIOD_LABEL}
+        kicker={periodLabel()}
         title="Заявки"
-        lead={`${rows.length} из ${TOTAL_REQUESTS} заявок показано · сентябрь 2026`}
+        lead={`${total} ${plural(total, 'заявка', 'заявки', 'заявок')} ${
+          allPeriods ? 'за всё время' : `за ${monthAfterZa()}`
+        }`}
         actions={
           <button type="button" className="btn btn-primary">
             <Icon name="ti-plus" />
@@ -54,22 +74,45 @@ export function Requests() {
             type="button"
             className="chip"
             aria-pressed={filter === c.key}
-            onClick={() => setFilter(c.key)}
+            onClick={() => setFilterAndReset(c.key)}
           >
             {c.label}
           </button>
         ))}
         <label style={{ marginLeft: 'auto' }}>
           <span className="sr-only">Период</span>
-          <select className="field" style={{ width: 'auto' }} defaultValue="Сентябрь 2026">
-            <option>Сентябрь 2026</option>
-            <option>Август 2026</option>
-            <option>Июль 2026</option>
+          <select
+            className="field"
+            style={{ width: 'auto' }}
+            value={allPeriods ? 'all' : 'current'}
+            onChange={(e) => {
+              setAllPeriods(e.target.value === 'all');
+              setPage(0);
+            }}
+          >
+            <option value="current">Текущий месяц</option>
+            <option value="all">Все периоды</option>
           </select>
         </label>
       </div>
 
-      {rows.length > 0 ? (
+      <QueryState
+        isLoading={list.isLoading}
+        error={list.error}
+        isEmpty={rows.length === 0}
+        emptyTitle="По выбранному фильтру заявок нет"
+        emptyNote="Измените статус или период — или сбросьте фильтр и посмотрите все заявки."
+        emptyAction={
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setFilterAndReset('all')}
+          >
+            Сбросить фильтр
+          </button>
+        }
+        onRetry={() => list.refetch()}
+      >
         <div className="panel">
           <RequestsTable
             rows={rows}
@@ -91,36 +134,44 @@ export function Requests() {
             }}
           >
             <span className="label">
-              ПОКАЗАНО {rows.length} ИЗ {TOTAL_REQUESTS}
+              ПОКАЗАНО {rows.length} ИЗ {total}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-icon" aria-label="Предыдущая страница">
+              <button
+                type="button"
+                className="btn btn-icon"
+                aria-label="Предыдущая страница"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
                 <Icon name="ti-chevron-left" />
               </button>
-              <button type="button" className="btn btn-primary btn-icon" aria-current="page">
-                1
-              </button>
-              <button type="button" className="btn btn-icon" aria-label="Страница 2">
-                2
-              </button>
-              <button type="button" className="btn btn-icon" aria-label="Следующая страница">
+              {Array.from({ length: pages }, (_, i) => i)
+                .slice(Math.max(0, page - 1), Math.max(0, page - 1) + 3)
+                .map((i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className={`btn btn-icon${i === page ? ' btn-primary' : ''}`}
+                    aria-current={i === page ? 'page' : undefined}
+                    onClick={() => setPage(i)}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              <button
+                type="button"
+                className="btn btn-icon"
+                aria-label="Следующая страница"
+                disabled={page >= pages - 1}
+                onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
+              >
                 <Icon name="ti-chevron-right" />
               </button>
             </div>
           </nav>
         </div>
-      ) : (
-        <EmptyState
-          kicker="НЕТ ДАННЫХ"
-          title="По выбранному фильтру заявок нет"
-          note="Измените статус или период — или сбросьте фильтр и посмотрите все заявки месяца."
-          action={
-            <button type="button" className="btn btn-secondary" onClick={() => setFilter('all')}>
-              Сбросить фильтр
-            </button>
-          }
-        />
-      )}
+      </QueryState>
 
       <RequestModal
         request={modal}

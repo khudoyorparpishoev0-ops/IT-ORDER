@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
+import { QueryState } from '@/components/QueryState';
 import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useSortedRequests } from '@/hooks/useSortedRequests';
-import { DASHBOARD_STATS, PERIOD_LABEL, REQUESTS } from '@/data/mock';
-import type { ExpenseRequest } from '@/data/types';
+import { useDashboard, useQueueInfo, useRequests } from '@/api/hooks';
+import { money, monthAfterZa, periodLabel, plural, somoni } from '@/data/format';
+import type { RequestListItem } from '@/api/types';
 import { useShell } from '@/shell/ShellContext';
 import { VARIANTS } from '@/shell/config';
 
@@ -14,19 +16,18 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { variant } = useShell();
   const tableFirst = VARIANTS[variant].tableFirst;
-  const [modal, setModal] = useState<ExpenseRequest | null>(null);
-  const [query, setQuery] = useState('');
 
+  const [modal, setModal] = useState<RequestListItem | null>(null);
+  const [search, setSearch] = useState('');
+
+  const stats = useDashboard();
+  const queue = useQueueInfo();
   // Вариант B показывает все заявки периода, вариант C — четыре последние.
-  const source = tableFirst ? REQUESTS : REQUESTS.slice(0, 4);
-  const filtered = query.trim()
-    ? source.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase()))
-    : source;
-  const { rows, sort, dir, onSort } = useSortedRequests(filtered);
+  const list = useRequests({ search: search.trim() || undefined, limit: tableFirst ? 50 : 4 });
+  const { rows, sort, dir, onSort } = useSortedRequests(list.data?.items ?? []);
 
   const metrics = (
     <section
-      key="metrics"
       aria-label="Ключевые метрики"
       style={{
         order: tableFirst ? 3 : 1,
@@ -36,7 +37,52 @@ export function Dashboard() {
         border: '1px solid var(--line)',
       }}
     >
-      {DASHBOARD_STATS.map((s, i) => (
+      {[
+        {
+          label: 'ВСЕГО ЗАЯВОК',
+          value: String(stats.data?.total_requests ?? '—'),
+          note: stats.data
+            ? `за ${monthAfterZa()}, ${stats.data.employees_count} ${plural(
+                stats.data.employees_count,
+                'сотрудник',
+                'сотрудника',
+                'сотрудников',
+              )}`
+            : '',
+        },
+        {
+          label: 'ОДОБРЕНО, TJS',
+          value: money(stats.data?.approved_amount),
+          note: stats.data
+            ? `${stats.data.approved_count} ${plural(
+                stats.data.approved_count,
+                'заявка',
+                'заявки',
+                'заявок',
+              )}, ждут выплаты`
+            : '',
+        },
+        {
+          label: 'НА УТВЕРЖДЕНИИ, TJS',
+          value: money(stats.data?.pending_amount),
+          note: stats.data
+            ? `${stats.data.pending_count} ${plural(
+                stats.data.pending_count,
+                'заявка ждёт',
+                'заявки ждут',
+                'заявок ждут',
+              )} решения`
+            : '',
+        },
+        {
+          label: 'БЮДЖЕТ МЕСЯЦА, TJS',
+          value: money(stats.data?.budget_amount),
+          note:
+            stats.data?.budget_used_pct !== null && stats.data?.budget_used_pct !== undefined
+              ? `использовано ${stats.data.budget_used_pct}%`
+              : 'бюджет не задан',
+        },
+      ].map((s, i) => (
         <div
           key={s.label}
           style={{
@@ -55,9 +101,9 @@ export function Dashboard() {
     </section>
   );
 
-  const banner = (
+  const q = queue.data;
+  const banner = q && q.count > 0 && (
     <section
-      key="banner"
       className="clip-corner"
       style={{
         order: 2,
@@ -77,9 +123,23 @@ export function Dashboard() {
           style={{ width: 8, height: 8, background: 'var(--dot-warn)', marginTop: 10 }}
         />
         <div>
-          <div className="h3">4 заявки ждут вашего решения</div>
+          <div className="h3">
+            {q.count} {plural(q.count, 'заявка ждёт', 'заявки ждут', 'заявок ждут')} вашего
+            решения
+          </div>
           <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>
-            Самая давняя — от Ивана Петрова, 3 дня назад. Порог автоодобрения — 500,00 сомони
+            {/* Имя даём через двоеточие: русская фамилия после предлога
+                потребовала бы склонения, а надёжно склонять её мы не можем. */}
+            {q.oldest_employee && (
+              <>
+                Самая давняя заявка: {q.oldest_employee},{' '}
+                {q.oldest_days
+                  ? `${q.oldest_days} ${plural(q.oldest_days, 'день', 'дня', 'дней')} назад`
+                  : 'сегодня'}
+                .{' '}
+              </>
+            )}
+            Порог автоодобрения — {somoni(q.auto_approve_threshold)}
           </div>
         </div>
       </div>
@@ -90,7 +150,7 @@ export function Dashboard() {
   );
 
   const table = (
-    <section key="table" className="panel" style={{ order: tableFirst ? 1 : 3 }}>
+    <section className="panel" style={{ order: tableFirst ? 1 : 3 }}>
       <div
         style={{
           padding: 'var(--pad)',
@@ -102,7 +162,9 @@ export function Dashboard() {
           flexWrap: 'wrap',
         }}
       >
-        <h2 className="h3">{tableFirst ? 'Заявки за сентябрь' : 'Последние заявки'}</h2>
+        <h2 className="h3">
+          {tableFirst ? `Заявки за ${monthAfterZa()}` : 'Последние заявки'}
+        </h2>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span className="sr-only">Поиск по сотруднику</span>
@@ -114,8 +176,8 @@ export function Dashboard() {
               className="field"
               style={{ paddingLeft: 40, width: 240 }}
               placeholder="Поиск по сотруднику"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </label>
           <button type="button" className="btn btn-secondary" onClick={() => navigate('/requests')}>
@@ -123,16 +185,51 @@ export function Dashboard() {
           </button>
         </div>
       </div>
-      <RequestsTable rows={rows} sort={sort} dir={dir} onSort={onSort} onOpen={setModal} />
+
+      <QueryState
+        isLoading={list.isLoading}
+        error={list.error}
+        isEmpty={rows.length === 0}
+        emptyTitle={search ? 'По запросу заявок нет' : 'Заявок за период пока нет'}
+        emptyNote={
+          search
+            ? 'Проверьте фамилию сотрудника или очистите поиск.'
+            : 'Как только сотрудники подадут заявки, они появятся здесь.'
+        }
+        emptyAction={
+          search && (
+            <button type="button" className="btn btn-secondary" onClick={() => setSearch('')}>
+              Очистить поиск
+            </button>
+          )
+        }
+        onRetry={() => list.refetch()}
+      >
+        <RequestsTable rows={rows} sort={sort} dir={dir} onSort={onSort} onOpen={setModal} />
+      </QueryState>
     </section>
   );
 
   return (
     <>
       <PageHeader
-        kicker={PERIOD_LABEL}
+        kicker={periodLabel()}
         title="Панель управления"
-        lead="Команда из 12 сотрудников, 24 заявки за период"
+        lead={
+          stats.data
+            ? `Команда из ${stats.data.employees_count} ${plural(
+                stats.data.employees_count,
+                'сотрудника',
+                'сотрудников',
+                'сотрудников',
+              )}, ${stats.data.total_requests} ${plural(
+                stats.data.total_requests,
+                'заявка',
+                'заявки',
+                'заявок',
+              )} за период`
+            : undefined
+        }
         actions={
           <>
             <button type="button" className="btn btn-secondary">

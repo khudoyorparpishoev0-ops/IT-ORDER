@@ -1,5 +1,5 @@
 import { STATUS } from '@/data/status';
-import type { RequestStatus } from '@/data/types';
+import type { RequestStatus } from '@/api/types';
 
 /** Статус всегда цвет + слово: точка-индикатор и подпись. */
 export function StatusBadge({ status }: { status: RequestStatus }) {
