@@ -20,7 +20,11 @@ from app.config import get_settings
 from app.core.email_policy import EmailPolicyError, ensure_corporate, normalize
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.security import (
+    TokenError,
+    create_password_reset_token,
     hash_password,
+    password_fingerprint,
+    read_password_reset_token,
     needs_rehash,
     validate_password_strength,
     verify_password,
@@ -503,3 +507,84 @@ def ensure_bootstrap_admin(session: Session) -> None:
 
 #: Хэш заведомо несуществующего пароля — для выравнивания времени ответа.
 _DUMMY_HASH = hash_password("несуществующий пароль для выравнивания времени")
+
+
+# --------------------------------------------------------------------------
+# Восстановление пароля по почте
+# --------------------------------------------------------------------------
+def build_password_reset(session: Session, email: str) -> tuple[Employee, str] | None:
+    """Готовит ссылку восстановления.
+
+    Возвращает None, если такого адреса нет или вход по нему невозможен.
+    Вызывающий в любом случае отвечает одинаково: разный ответ выдал бы,
+    кто заведён в системе.
+    """
+    value = normalize(email)
+    employee = session.scalar(
+        select(Employee).where(func.lower(Employee.email) == value)
+    )
+    if employee is None or not employee.can_sign_in:
+        return None
+    if not _domain_allowed(employee.email):
+        return None
+
+    token = create_password_reset_token(
+        employee.id, password_hash=employee.password_hash
+    )
+    write_audit(
+        session,
+        entity="employee",
+        entity_id=employee.id,
+        action="password_reset_requested",
+    )
+    return employee, token
+
+
+def apply_password_reset(session: Session, token: str, new_password: str) -> Employee:
+    """Применяет ссылку из письма и ставит новый пароль."""
+    try:
+        employee_id, fingerprint = read_password_reset_token(token)
+    except TokenError as exc:
+        raise AuthError(
+            "Ссылка недействительна или устарела. Запросите восстановление заново."
+        ) from exc
+
+    employee = session.get(Employee, employee_id)
+    if employee is None or not employee.active:
+        raise AuthError("Учётная запись недоступна")
+
+    if password_fingerprint(employee.password_hash) != fingerprint:
+        # Пароль уже сменили — эта ссылка отработала или устарела.
+        raise AuthError(
+            "Ссылка уже использована. Запросите восстановление заново."
+        )
+
+    set_password(session, employee.id, new_password, actor=employee.full_name)
+    # Блокировку снимаем: человек подтвердил доступ к почте.
+    _reset_failures(employee)
+    write_audit(
+        session,
+        entity="employee",
+        entity_id=employee.id,
+        action="password_reset_applied",
+        username=employee.full_name,
+    )
+    session.flush()
+    return employee
+
+
+def approvers_to_notify(session: Session) -> list[Employee]:
+    """Кому слать письмо о новой заявке.
+
+    Только тем, кто вправе принимать решения и не отключил уведомления.
+    """
+    from app.core.permissions import Permission, has_permission
+
+    candidates = session.scalars(
+        select(Employee).where(
+            Employee.active.is_(True),
+            Employee.notify_new_requests.is_(True),
+            Employee.email.is_not(None),
+        )
+    )
+    return [e for e in candidates if has_permission(e.role, Permission.DECIDE_REQUEST)]

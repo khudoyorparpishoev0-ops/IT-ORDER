@@ -66,6 +66,7 @@ def needs_rehash(password_hash: str) -> bool:
 #: полный доступ.
 TOKEN_SESSION = "session"
 TOKEN_PENDING_2FA = "pending_2fa"
+TOKEN_PASSWORD_RESET = "password_reset"
 
 #: Промежуточный токен живёт минуты: он лишь удерживает шаг входа.
 PENDING_2FA_MINUTES = 10
@@ -99,12 +100,49 @@ def create_pending_2fa_token(subject: int) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
+def create_password_reset_token(subject: int, *, password_hash: str | None) -> str:
+    """Ссылка восстановления пароля.
+
+    В токен кладётся отпечаток текущего хэша пароля: как только пароль
+    сменился, все выданные ссылки перестают работать. Иначе одну и ту же
+    ссылку из письма можно было бы применить повторно.
+    """
+    settings = get_settings()
+    now = utcnow()
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "typ": TOKEN_PASSWORD_RESET,
+        "pwd": password_fingerprint(password_hash),
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.password_reset_ttl_minutes),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def password_fingerprint(password_hash: str | None) -> str:
+    """Короткий отпечаток хэша. Сам хэш в токен не кладём."""
+    import hashlib
+
+    return hashlib.sha256((password_hash or "").encode()).hexdigest()[:16]
+
+
+def read_password_reset_token(token: str) -> tuple[int, str]:
+    """Возвращает (id сотрудника, отпечаток пароля) из ссылки."""
+    payload = decode_token(token)
+    if payload.get("typ") != TOKEN_PASSWORD_RESET:
+        raise TokenError("Ссылка недействительна")
+    try:
+        return int(payload["sub"]), str(payload["pwd"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TokenError("Ссылка повреждена") from exc
+
+
 def decode_token(token: str) -> dict[str, Any]:
     settings = get_settings()
     try:
         return jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError as exc:
-        raise TokenError("Сессия истекла, войдите заново") from exc
+        raise TokenError("Срок действия истёк") from exc
     except jwt.PyJWTError as exc:
         raise TokenError("Недействительный токен сессии") from exc
 

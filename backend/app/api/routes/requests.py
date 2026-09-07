@@ -7,7 +7,15 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
 
 from app.api.deps import CurrentUser, DbSession, PeriodDep, RequirePermission
 from app.core.permissions import Permission, has_permission
@@ -26,6 +34,7 @@ from app.schemas.request import (
     RequestUpdate,
 )
 from app.services import requests as svc
+from app.services.notifications import notify_new_request
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
@@ -137,7 +146,12 @@ def get_request(session: DbSession, user: CurrentUser, request_id: int):
 
 
 @router.post("", response_model=RequestDetail, status_code=status.HTTP_201_CREATED)
-def create_request(session: DbSession, user: CurrentUser, data: RequestCreate):
+def create_request(
+    session: DbSession,
+    user: CurrentUser,
+    data: RequestCreate,
+    background: BackgroundTasks,
+):
     """Заявку подают от своего имени. От чужого — только с отдельным правом."""
     if data.employee_id != user.id and not has_permission(
         user.role, Permission.CREATE_REQUEST_FOR_OTHERS
@@ -147,7 +161,25 @@ def create_request(session: DbSession, user: CurrentUser, data: RequestCreate):
     request = svc.create_request(session, data)
     session.flush()
     request = svc.get_request(session, request.id, full=True)
-    return to_detail(session, request)
+    detail = to_detail(session, request)
+
+    # Письмо согласующим — после ответа клиенту: SMTP занимает секунды,
+    # а автор не должен ждать почтовый сервер.
+    if request.status is RequestStatus.PENDING:
+        background.add_task(_notify_later, request.id)
+    return detail
+
+
+def _notify_later(request_id: int) -> None:
+    """Отправка в фоне идёт в собственной сессии: сессия запроса
+    к этому моменту уже закрыта."""
+    from app.db.session import get_session_factory
+
+    session = get_session_factory()()
+    try:
+        notify_new_request(session, request_id)
+    finally:
+        session.close()
 
 
 @router.patch("/{request_id}", response_model=RequestDetail)
@@ -167,7 +199,9 @@ def update_request(
 
 
 @router.post("/{request_id}/submit", response_model=RequestDetail)
-def submit_request(session: DbSession, user: CurrentUser, request_id: int):
+def submit_request(
+    session: DbSession, user: CurrentUser, request_id: int, background: BackgroundTasks
+):
     request = svc.get_request(session, request_id, full=True)
     _ensure_can_view(user, request)
     if request.employee_id != user.id and not has_permission(
@@ -176,7 +210,10 @@ def submit_request(session: DbSession, user: CurrentUser, request_id: int):
         raise _forbidden()
 
     svc.submit_request(session, request, actor=user.full_name)
-    return to_detail(session, request)
+    detail = to_detail(session, request)
+    if request.status is RequestStatus.PENDING:
+        background.add_task(_notify_later, request.id)
+    return detail
 
 
 @router.post(

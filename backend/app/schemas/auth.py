@@ -48,6 +48,7 @@ class CurrentUserOut(BaseModel):
     two_factor_enabled: bool
     two_factor_required: bool
     recovery_codes_left: int
+    notifications: NotificationPrefsOut
 
 
 class TotpSetupOut(BaseModel):
@@ -90,6 +91,32 @@ class AuthPolicyOut(BaseModel):
 
     email_domains: list[str]
     domains_hint: str
+    #: Работает ли восстановление пароля. Без настроенной почты письмо
+    #: отправить некуда, и предлагать эту кнопку не нужно.
+    password_reset_available: bool
+
+
+class PasswordResetRequestIn(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmIn(BaseModel):
+    token: str = Field(min_length=1, max_length=2048)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class NotificationPrefsIn(BaseModel):
+    new_requests: bool | None = None
+    stale_requests: bool | None = None
+    weekly_budget: bool | None = None
+
+
+class NotificationPrefsOut(BaseModel):
+    new_requests: bool
+    stale_requests: bool
+    weekly_budget: bool
+    #: false — почта не настроена, письма не уйдут при любых переключателях.
+    mail_configured: bool
 
 
 LoginResult.model_rebuild()

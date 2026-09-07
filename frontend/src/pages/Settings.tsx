@@ -8,11 +8,12 @@ import { ROLE_LABEL } from '@/shell/config';
 import { RecoveryCodes } from '@/components/RecoveryCodes';
 import { TotpSetup } from '@/components/TotpSetup';
 
+/** Ключи совпадают с полями API. */
 const NOTIFICATIONS = [
-  { label: 'Новые заявки на утверждение', on: true },
-  { label: 'Напоминание о заявках старше 3 дней', on: true },
-  { label: 'Еженедельный отчёт по бюджету', on: false },
-];
+  { key: 'new_requests', label: 'Новые заявки на утверждение' },
+  { key: 'stale_requests', label: 'Напоминание о заявках старше 3 дней' },
+  { key: 'weekly_budget', label: 'Еженедельный отчёт по бюджету' },
+] as const;
 import { VARIANTS } from '@/shell/config';
 import type { ShellVariant, Theme } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
@@ -21,7 +22,6 @@ export function Settings() {
   const { theme, setTheme, variant, setVariant, flash } = useShell();
   const { user } = useAuth();
   const health = useHealth();
-  const [toggles, setToggles] = useState(NOTIFICATIONS.map((n) => n.on));
 
   return (
     <>
@@ -109,52 +109,7 @@ export function Settings() {
           </div>
         </section>
 
-        <section className="card">
-          <div className="label">УВЕДОМЛЕНИЯ</div>
-          <div style={{ display: 'grid', marginTop: 16 }}>
-            {NOTIFICATIONS.map((n, i) => (
-              <button
-                key={n.label}
-                type="button"
-                role="checkbox"
-                aria-checked={toggles[i]}
-                onClick={() =>
-                  setToggles((prev) => prev.map((v, j) => (j === i ? !v : v)))
-                }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  minHeight: 44,
-                  padding: '0 4px',
-                  border: 'none',
-                  background: 'transparent',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                {/* Тумблеры-«таблетки» брендбук запрещает — только квадратный чекбокс. */}
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 20,
-                    height: 20,
-                    flex: 'none',
-                    display: 'grid',
-                    placeItems: 'center',
-                    borderRadius: 'var(--r-field)',
-                    border: toggles[i] ? '1px solid var(--green)' : '1px solid var(--grey)',
-                    background: toggles[i] ? 'var(--green)' : 'transparent',
-                    color: '#FFFFFF',
-                  }}
-                >
-                  <Icon name="ti-check" size={14} style={{ opacity: toggles[i] ? 1 : 0 }} />
-                </span>
-                {n.label}
-              </button>
-            ))}
-          </div>
-        </section>
+        <NotificationsCard onFlash={flash} />
         <section className="card">
           <div className="label">О СИСТЕМЕ</div>
           <dl style={{ display: 'grid', gap: 12, marginTop: 16, margin: '16px 0 0' }}>
@@ -481,5 +436,146 @@ function TwoFactorCard({
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Уведомления на почту. Переключатели сохраняются сразу: отдельная кнопка
+ * «Сохранить» для трёх флажков — лишний шаг, о котором забывают.
+ */
+function NotificationsCard({
+  onFlash,
+}: {
+  onFlash: (text: string, color: string) => void;
+}) {
+  const { user, refresh, can } = useAuth();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  if (!user) return null;
+  const prefs = user.notifications;
+
+  const toggle = async (key: (typeof NOTIFICATIONS)[number]['key']) => {
+    setSaving(key);
+    try {
+      await api('/api/auth/notifications', {
+        method: 'PATCH',
+        body: JSON.stringify({ [key]: !prefs[key] }),
+      });
+      refresh();
+    } catch (err) {
+      onFlash(
+        err instanceof Error ? err.message : 'Не удалось сохранить настройку',
+        'var(--dot-err)',
+      );
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <section className="card">
+      <div className="label">УВЕДОМЛЕНИЯ НА ПОЧТУ</div>
+
+      {!prefs.mail_configured && (
+        <p className="caption" style={{ margin: '16px 0 0', color: 'var(--dot-warn)' }}>
+          Почта не настроена — письма не отправляются, какие бы переключатели ни
+          стояли. Настройки SMTP задаёт администратор сервера.
+        </p>
+      )}
+
+      <div style={{ display: 'grid', marginTop: 16 }}>
+        {NOTIFICATIONS.map((n) => {
+          const on = prefs[n.key];
+          return (
+            <button
+              key={n.key}
+              type="button"
+              role="checkbox"
+              aria-checked={on}
+              disabled={saving !== null}
+              onClick={() => toggle(n.key)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                minHeight: 44,
+                padding: '0 4px',
+                border: 'none',
+                background: 'transparent',
+                textAlign: 'left',
+                cursor: saving ? 'progress' : 'pointer',
+                opacity: prefs.mail_configured ? 1 : 0.6,
+              }}
+            >
+              {/* Тумблеры-«таблетки» брендбук запрещает — только квадратный чекбокс. */}
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 20,
+                  height: 20,
+                  flex: 'none',
+                  display: 'grid',
+                  placeItems: 'center',
+                  borderRadius: 'var(--r-field)',
+                  border: on ? '1px solid var(--green)' : '1px solid var(--grey)',
+                  background: on ? 'var(--green)' : 'transparent',
+                  color: '#FFFFFF',
+                }}
+              >
+                <Icon name="ti-check" size={14} style={{ opacity: on ? 1 : 0 }} />
+              </span>
+              {n.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="caption" style={{ margin: '16px 0 0' }}>
+        Напоминания о залежавшихся заявках и еженедельная сводка появятся, когда
+        будет включён планировщик.
+      </p>
+
+      {can('manage_reference') && <MailCheck onFlash={onFlash} />}
+    </section>
+  );
+}
+
+/**
+ * Проверка настроек почты. Письмо приходит самому администратору,
+ * а ошибка SMTP показывается с причиной — иначе непонятно, почему
+ * уведомления не доходят.
+ */
+function MailCheck({
+  onFlash,
+}: {
+  onFlash: (text: string, color: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const check = async () => {
+    setBusy(true);
+    try {
+      await api('/api/mail/test', { method: 'POST' });
+      onFlash('Проверочное письмо отправлено вам на почту', 'var(--dot-ok)');
+    } catch (err) {
+      onFlash(
+        err instanceof Error ? err.message : 'Не удалось отправить письмо',
+        'var(--dot-err)',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      style={{ marginTop: 16 }}
+      disabled={busy}
+      onClick={check}
+    >
+      {busy ? 'Отправляем…' : 'Отправить проверочное письмо'}
+    </button>
   );
 }

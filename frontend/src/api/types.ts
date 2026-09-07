@@ -196,6 +196,15 @@ export type CurrentUser = {
   /** Роль обязана иметь второй фактор: отключить его нельзя. */
   two_factor_required: boolean;
   recovery_codes_left: number;
+  notifications: NotificationPrefs;
+};
+
+export type NotificationPrefs = {
+  new_requests: boolean;
+  stale_requests: boolean;
+  weekly_budget: boolean;
+  /** false — почта не настроена, письма не уйдут при любых переключателях. */
+  mail_configured: boolean;
 };
 
 export type LoginInput = {
@@ -226,6 +235,8 @@ export type AuthPolicy = {
   email_domains: string[];
   /** Подсказка вида «@it-hona.tj». */
   domains_hint: string;
+  /** Без настроенной почты письмо отправить некуда. */
+  password_reset_available: boolean;
 };
 
 export type DecisionInput = {

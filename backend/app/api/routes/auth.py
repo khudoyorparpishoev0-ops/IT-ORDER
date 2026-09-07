@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 
 from app.api.deps import CurrentUser, DbSession, user_permissions
 from app.config import get_settings
@@ -16,8 +16,13 @@ from app.core.security import (
     token_subject,
 )
 from app.db.models import Employee
+from app.core.mail import send_quietly
 from app.schemas.auth import (
     AuthPolicyOut,
+    NotificationPrefsIn,
+    NotificationPrefsOut,
+    PasswordResetConfirmIn,
+    PasswordResetRequestIn,
     CurrentUserOut,
     LoginIn,
     LoginResult,
@@ -29,6 +34,8 @@ from app.schemas.auth import (
     TwoFactorIn,
 )
 from app.services import auth as svc
+from app.services import mail_templates as templates
+from app.services.notifications import panel_url
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -45,6 +52,16 @@ def _to_out(session, employee: Employee) -> CurrentUserOut:
         two_factor_enabled=employee.totp_enabled,
         two_factor_required=svc.requires_2fa(employee),
         recovery_codes_left=svc.unused_recovery_count(session, employee),
+        notifications=_prefs(employee),
+    )
+
+
+def _prefs(employee: Employee) -> NotificationPrefsOut:
+    return NotificationPrefsOut(
+        new_requests=employee.notify_new_requests,
+        stale_requests=employee.notify_stale_requests,
+        weekly_budget=employee.notify_weekly_budget,
+        mail_configured=get_settings().mail_enabled,
     )
 
 
@@ -134,6 +151,7 @@ def policy():
     return AuthPolicyOut(
         email_domains=list(settings.email_domains),
         domains_hint=allowed_domains_hint(),
+        password_reset_available=settings.mail_enabled,
     )
 
 
@@ -245,3 +263,64 @@ def change_password(session: DbSession, user: CurrentUser, data: PasswordChangeI
         session, user, data.current_password, data.new_password
     )
     return _to_out(session, employee)
+
+
+@router.post(
+    "/password-reset/request",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    response_class=Response,
+)
+def request_password_reset(
+    session: DbSession,
+    data: PasswordResetRequestIn,
+    background: BackgroundTasks,
+    response: Response,
+) -> Response:
+    """Отправляет ссылку восстановления.
+
+    Ответ одинаков для существующего и несуществующего адреса: разный
+    выдал бы, кто заведён в системе.
+    """
+    prepared = svc.build_password_reset(session, data.email)
+    if prepared is not None:
+        employee, token = prepared
+        letter = templates.password_reset(
+            full_name=employee.full_name,
+            url=panel_url(f"/reset-password?token={token}"),
+        )
+        letter.to = employee.email or ""
+        # В фоне: отправку письма клиент ждать не должен, а неудача
+        # не меняет ответ — иначе по нему станет видно, кто заведён.
+        background.add_task(send_quietly, letter)
+
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
+
+
+@router.post("/password-reset/confirm", response_model=CurrentUserOut)
+def confirm_password_reset(session: DbSession, data: PasswordResetConfirmIn):
+    """Ставит новый пароль по ссылке из письма.
+
+    Сессию не выдаёт: второй фактор остаётся на месте, и войти по одному
+    лишь доступу к почте нельзя.
+    """
+    employee = svc.apply_password_reset(session, data.token, data.new_password)
+    return _to_out(session, employee)
+
+
+@router.patch("/notifications", response_model=CurrentUserOut)
+def update_notifications(
+    session: DbSession, user: CurrentUser, data: NotificationPrefsIn
+):
+    changes = data.model_dump(exclude_unset=True)
+    mapping = {
+        "new_requests": "notify_new_requests",
+        "stale_requests": "notify_stale_requests",
+        "weekly_budget": "notify_weekly_budget",
+    }
+    for key, value in changes.items():
+        if value is not None:
+            setattr(user, mapping[key], value)
+    session.flush()
+    return _to_out(session, user)

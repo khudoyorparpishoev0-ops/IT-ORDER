@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth, useAuthPolicy } from '@/api/auth';
 import { TotpSetup } from '@/components/TotpSetup';
+import { PasswordReset } from './PasswordReset';
 
 /**
  * Вход. Единственный экран вне общего шелла: сайдбар без известного
@@ -19,6 +20,11 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Ссылка из письма приходит с токеном в адресе.
+  const resetToken = new URLSearchParams(window.location.search).get('token');
+  const [recovering, setRecovering] = useState(
+    window.location.pathname === '/reset-password',
+  );
 
   const fail = (err: unknown, fallback: string) =>
     setError(err instanceof Error ? err.message : fallback);
@@ -50,6 +56,20 @@ export function Login() {
     setPassword('');
     await cancelPending();
   };
+
+  if (recovering) {
+    return (
+      <PasswordReset
+        token={resetToken ?? undefined}
+        onBack={() => {
+          setRecovering(false);
+          // Токен из адреса убираем: перезагрузка не должна снова
+          // открывать форму смены пароля по использованной ссылке.
+          window.history.replaceState(null, '', '/');
+        }}
+      />
+    );
+  }
 
   return (
     <main
@@ -128,10 +148,22 @@ export function Login() {
               {isBusy ? 'Проверяем…' : 'Войти'}
             </button>
 
+            {policy.data?.password_reset_available && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ width: '100%', marginTop: 8 }}
+                onClick={() => setRecovering(true)}
+              >
+                Забыли пароль?
+              </button>
+            )}
+
             <p className="caption" style={{ margin: '16px 0 0' }}>
-              Вход только с корпоративной почты{' '}
-              {policy.data?.domains_hint ? `(${policy.data.domains_hint})` : ''}. Забыли
-              пароль — обратитесь к администратору системы.
+              Вход только с корпоративной почты
+              {policy.data?.domains_hint ? ` (${policy.data.domains_hint})` : ''}.
+              {!policy.data?.password_reset_available &&
+                ' Забыли пароль — обратитесь к администратору системы.'}
             </p>
           </form>
         )}

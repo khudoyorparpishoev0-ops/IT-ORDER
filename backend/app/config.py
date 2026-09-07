@@ -95,6 +95,56 @@ class Settings(BaseSettings):
         default=15, ge=1, description="Насколько блокируется вход после серии ошибок."
     )
 
+    # --- Почта (Zoho Mail) ---
+    smtp_host: str = Field(
+        default="smtp.zoho.com",
+        description=(
+            "SMTP-сервер. У Zoho он зависит от региона аккаунта: "
+            "smtp.zoho.com (США), smtp.zoho.eu (Европа), smtp.zoho.in (Индия), "
+            "smtp.zoho.com.au, smtp.zohocloud.ca. Неверный регион даёт "
+            "ошибку аутентификации, хотя логин и пароль правильные."
+        ),
+    )
+    smtp_port: int = Field(default=465, ge=1, le=65535)
+    smtp_security: str = Field(
+        default="ssl",
+        description="ssl (порт 465) или starttls (порт 587). У Zoho работают оба.",
+    )
+    smtp_user: str = Field(
+        default="",
+        description="Полный адрес ящика: у Zoho логин — это адрес целиком.",
+    )
+    smtp_password: str = Field(
+        default="",
+        description=(
+            "Пароль приложения из Zoho, а не пароль от аккаунта. Если у "
+            "аккаунта включён второй фактор — обычный пароль SMTP не примет."
+        ),
+    )
+    mail_from: str = Field(
+        default="",
+        description=(
+            "Адрес отправителя. Должен принадлежать проверенному домену "
+            "Zoho, иначе письма будут отклонены. Пусто — берётся SMTP_USER."
+        ),
+    )
+    mail_from_name: str = "IT-HONA CORE"
+    smtp_timeout_seconds: int = Field(default=15, ge=1)
+
+    public_base_url: str = Field(
+        default="",
+        description=(
+            "Адрес панели снаружи, например https://core.it-hona.tj. "
+            "Нужен для ссылок в письмах: без него ссылку восстановления "
+            "пароля некуда вести."
+        ),
+    )
+    password_reset_ttl_minutes: int = Field(
+        default=30,
+        ge=5,
+        description="Срок жизни ссылки восстановления пароля.",
+    )
+
     #: Первый администратор создаётся при старте, если в базе нет ни одного.
     bootstrap_admin_email: str = ""
     bootstrap_admin_password: str = ""
@@ -131,6 +181,18 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
+    def mail_enabled(self) -> bool:
+        """Почта настроена. Без неё письма не отправляются, а функции,
+        которые на них опираются, честно сообщают об этом."""
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+
+    @computed_field
+    @property
+    def mail_sender(self) -> str:
+        return self.mail_from or self.smtp_user
+
+    @computed_field
+    @property
     def roles_requiring_2fa(self) -> frozenset[str]:
         """Роли с обязательной двухфакторной аутентификацией."""
         raw = {r.strip().lower() for r in self.require_2fa_roles.split(",") if r.strip()}
@@ -146,6 +208,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SECRET_KEY не задан. Сгенерируйте: openssl rand -hex 32"
             )
+        if self.smtp_security not in ("ssl", "starttls"):
+            raise ValueError("SMTP_SECURITY должен быть ssl или starttls")
         return self
 
 

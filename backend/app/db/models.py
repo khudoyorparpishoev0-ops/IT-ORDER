@@ -122,6 +122,14 @@ class Employee(Base):
     failed_logins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[Timestamp | None]
 
+    #: Письмо о новой заявке на согласование. Приходит только тем, кто
+    #: вправе принимать решения.
+    notify_new_requests: Mapped[bool] = mapped_column(default=True, nullable=False)
+    #: Напоминание о заявках, залежавшихся дольше трёх дней.
+    notify_stale_requests: Mapped[bool] = mapped_column(default=True, nullable=False)
+    #: Еженедельная сводка по бюджету.
+    notify_weekly_budget: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     created_at: Mapped[CreatedAt]
 
     requests: Mapped[list[ExpenseRequest]] = relationship(back_populates="employee")

@@ -15,6 +15,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 os.environ.setdefault("POSTGRES_DB", "hona_core_test")
 os.environ.setdefault("APP_ENV", "development")
+# Почта в тестах «настроена»: отправку перехватывает фикстура mailbox,
+# в сеть тесты не ходят. Без этих значений эндпоинты справедливо
+# отказываются отправлять письма.
+os.environ.setdefault("SMTP_USER", "core@it-hona.tj")
+os.environ.setdefault("SMTP_PASSWORD", "тестовый-пароль-приложения")
+os.environ.setdefault("PUBLIC_BASE_URL", "https://core.it-hona.tj")
 
 from app.api.deps import get_db  # noqa: E402
 from app.config import get_settings  # noqa: E402
@@ -68,6 +74,59 @@ def client(session) -> Iterator[TestClient]:
         yield c
         _TOTP_SECRETS.pop(c, None)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_outgoing_mail():
+    """Ни один тест не должен ходить в сеть.
+
+    Без этого тесты, задевающие уведомления, пытались достучаться до
+    настоящего SMTP и ждали таймаута — прогон растягивался на минуты.
+    Фикстуры mailbox и broken_mail подменяют транспорт своим.
+    """
+    from app.core import mail
+
+    class Silent:
+        def send(self, message) -> None:
+            pass
+
+    mail.set_transport(Silent())
+    yield
+    mail.set_transport(None)
+
+
+@pytest.fixture
+def mailbox(monkeypatch):
+    """Перехватывает отправку почты. В сеть тесты не ходят."""
+    from email.message import EmailMessage
+
+    from app.core import mail
+
+    sent: list[EmailMessage] = []
+
+    class Collecting:
+        def send(self, message: EmailMessage) -> None:
+            sent.append(message)
+
+    mail.set_transport(Collecting())
+    # Фоновые задачи FastAPI выполняются в том же процессе, поэтому
+    # письма попадают сюда же.
+    yield sent
+    mail.set_transport(None)
+
+
+@pytest.fixture
+def broken_mail():
+    """Почтовый сервер недоступен: проверяем, что это не ломает действия."""
+    from app.core import mail
+
+    class Failing:
+        def send(self, message) -> None:
+            raise mail.MailError("SMTP недоступен")
+
+    mail.set_transport(Failing())
+    yield
+    mail.set_transport(None)
 
 
 @pytest.fixture

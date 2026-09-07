@@ -14,6 +14,9 @@ from app.api.deps import (
     PeriodDep,
     RequirePermission,
 )
+from app.config import get_settings
+from app.core.errors import ValidationError
+from app.core.mail import MailError, send
 from app.core.permissions import Permission
 from app.schemas.auth import PasswordSetIn
 from app.schemas.reference import (
@@ -26,6 +29,7 @@ from app.schemas.reference import (
     TeamMemberOut,
 )
 from app.services import auth as auth_svc
+from app.services import mail_templates as templates
 from app.services import reference as svc
 from app.services.reports import team_overview
 
@@ -99,6 +103,33 @@ def set_employee_password(
     return auth_svc.set_password(
         session, employee_id, data.password, actor=user.full_name
     )
+
+
+@router.post(
+    "/mail/test", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    response_class=Response, dependencies=[manage],
+)
+def send_test_mail(user: CurrentUser, response: Response) -> Response:
+    """Проверочное письмо себе: показывает, верно ли настроен SMTP.
+
+    Ошибку не глушим — администратор должен увидеть причину, а не гадать,
+    почему письмо не пришло.
+    """
+    settings = get_settings()
+    if not settings.mail_enabled:
+        raise ValidationError(
+            "Почта не настроена: заполните SMTP_HOST, SMTP_USER и SMTP_PASSWORD"
+        )
+    if not user.email:
+        raise ValidationError("У вас не заполнена рабочая почта")
+
+    try:
+        send(templates.test_letter(to=user.email))
+    except MailError as exc:
+        raise ValidationError(str(exc)) from exc
+
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @router.post(
