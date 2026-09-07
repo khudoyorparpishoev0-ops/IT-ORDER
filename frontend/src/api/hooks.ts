@@ -107,17 +107,21 @@ export function useRequest(id: number | null) {
   });
 }
 
-export function useDashboard() {
+/** `enabled` выключает запрос, когда у роли нет права на отчёты:
+ *  иначе панель стучалась бы в закрытый эндпоинт и получала 403. */
+export function useDashboard(enabled = true) {
   return useQuery({
     queryKey: keys.dashboard,
     queryFn: () => api<DashboardStats>('/api/reports/dashboard'),
+    enabled,
   });
 }
 
-export function useQueueInfo() {
+export function useQueueInfo(enabled = true) {
   return useQuery({
     queryKey: keys.queue,
     queryFn: () => api<ApprovalQueueInfo>('/api/reports/queue'),
+    enabled,
   });
 }
 

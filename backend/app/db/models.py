@@ -35,9 +35,9 @@ class RequestStatus(str, enum.Enum):
 class EmployeeRole(str, enum.Enum):
     """Роль в согласовании.
 
-    Предположение до подтверждения заказчиком: EMPLOYEE подаёт заявки,
-    MANAGER согласует, FINANCE проводит оплату, ADMIN может всё.
-    Реальная проверка прав появится в фазе 3 вместе со входом.
+    EMPLOYEE подаёт заявки и видит только свои. MANAGER согласует чужие,
+    FINANCE проводит выплаты, ADMIN ведёт справочники и может всё.
+    Права проверяются в app/core/permissions.py.
     """
 
     EMPLOYEE = "employee"
@@ -102,9 +102,20 @@ class Employee(Base):
     #: Месячный лимит расходов в сомони. NULL — лимит не задан.
     monthly_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+    #: Хэш пароля (Argon2id). NULL — сотрудник заведён, но входить не может:
+    #: так заводятся те, кто только фигурирует в заявках.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    last_login_at: Mapped[Timestamp | None]
+
     created_at: Mapped[CreatedAt]
 
     requests: Mapped[list[ExpenseRequest]] = relationship(back_populates="employee")
+
+    @property
+    def can_sign_in(self) -> bool:
+        """Войти может активный сотрудник с почтой и заданным паролем."""
+        return bool(self.active and self.email and self.password_hash)
 
     __table_args__ = (
         CheckConstraint(

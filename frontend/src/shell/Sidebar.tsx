@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
-import { APP_VERSION, NAV, VARIANTS } from './config';
+import { APP_VERSION, NAV, ROLE_LABEL, VARIANTS } from './config';
 import { useShell } from './ShellContext';
+import { useAuth } from '@/api/auth';
 
 type Props = { open: boolean; onNavigate: () => void };
 
 export function Sidebar({ open, onNavigate }: Props) {
   const { variant, theme, toggleTheme } = useShell();
+  const { user, can, logout } = useAuth();
   const lightShell = VARIANTS[variant].lightSidebar;
 
   const bg = lightShell ? 'var(--paper)' : 'var(--forest)';
@@ -46,7 +48,7 @@ export function Sidebar({ open, onNavigate }: Props) {
 
       <nav aria-label="Разделы" style={{ padding: 8, flex: 1, overflowY: 'auto' }}>
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 2 }}>
-          {NAV.map((item) => (
+          {NAV.filter((item) => !item.need || can(item.need)).map((item) => (
             <li key={item.to}>
               <NavLink
                 to={item.to}
@@ -104,6 +106,7 @@ export function Sidebar({ open, onNavigate }: Props) {
             style={{
               width: 36,
               height: 36,
+              flex: 'none',
               display: 'grid',
               placeItems: 'center',
               border: btnBorder,
@@ -120,6 +123,7 @@ export function Sidebar({ open, onNavigate }: Props) {
             style={{
               width: 36,
               height: 36,
+              flex: 'none',
               display: 'grid',
               placeItems: 'center',
               background: lightShell ? 'var(--st-ok-bg)' : '#186B36',
@@ -129,13 +133,60 @@ export function Sidebar({ open, onNavigate }: Props) {
               fontSize: 13,
             }}
           >
-            АК
+            {initials(user?.full_name)}
           </div>
-          <span className="mono" style={{ fontSize: 11, opacity: 0.7, marginLeft: 'auto' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user?.full_name ?? '—'}
+            </div>
+            <div className="mono" style={{ fontSize: 11, opacity: 0.7 }}>
+              {user ? (ROLE_LABEL[user.role] ?? user.role) : ''}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            style={{
+              flex: 1,
+              height: 36,
+              border: btnBorder,
+              borderRadius: 'var(--r-field)',
+              background: 'transparent',
+              color: 'inherit',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Выйти
+          </button>
+          <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>
             {APP_VERSION}
           </span>
         </div>
       </div>
     </aside>
   );
+}
+
+/** Инициалы для квадратного аватара. */
+function initials(name?: string): string {
+  if (!name) return '—';
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((part) => part[0] ?? '')
+    .join('')
+    .toUpperCase();
 }

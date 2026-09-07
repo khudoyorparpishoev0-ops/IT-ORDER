@@ -173,6 +173,32 @@ export type BudgetInfo = {
   week_requests: number;
 };
 
+/** Права, которые сервер выдаёт роли. Панель по ним прячет разделы;
+ *  решение всё равно принимает сервер на каждом запросе. */
+export type Permission =
+  | 'view_all_requests'
+  | 'create_request'
+  | 'create_request_for_others'
+  | 'decide_request'
+  | 'pay_request'
+  | 'view_reports'
+  | 'manage_reference';
+
+export type CurrentUser = {
+  id: number;
+  full_name: string;
+  position: string;
+  email: string | null;
+  role: EmployeeRole;
+  permissions: Permission[];
+  last_login_at: string | null;
+};
+
+export type LoginInput = {
+  email: string;
+  password: string;
+};
+
 export type DecisionInput = {
   approve: boolean;
   comment?: string | null;

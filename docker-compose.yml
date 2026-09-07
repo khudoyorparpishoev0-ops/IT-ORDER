@@ -33,7 +33,12 @@ services:
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Dushanbe}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       AUTO_APPROVE_THRESHOLD: ${AUTO_APPROVE_THRESHOLD:-500.00}
-      SECRET_KEY: ${SECRET_KEY:-}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY не задан в .env — openssl rand -hex 32}
+      SESSION_LIFETIME_MINUTES: ${SESSION_LIFETIME_MINUTES:-720}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Администратор}
     depends_on:
       db:
         condition: service_healthy

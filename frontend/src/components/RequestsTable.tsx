@@ -1,5 +1,6 @@
 import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
+import { useAuth } from '@/api/auth';
 import { money } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 
@@ -25,6 +26,9 @@ export function RequestsTable({
   withRole = false,
   minWidth = 520,
 }: Props) {
+  const { can } = useAuth();
+  // «Рассмотреть» обещает действие, которого у сотрудника нет.
+  const canDecide = can('decide_request');
   const ariaSort = (key: Exclude<SortKey, null>) =>
     sort === key ? (dir === 1 ? 'ascending' : 'descending') : 'none';
 
@@ -88,7 +92,7 @@ export function RequestsTable({
                   <span
                     style={{ fontSize: 13, fontWeight: 600, color: 'var(--green-d)' }}
                   >
-                    {r.status === 'pending' ? 'Рассмотреть →' : 'Открыть →'}
+                    {r.status === 'pending' && canDecide ? 'Рассмотреть →' : 'Открыть →'}
                   </span>
                 </div>
               </td>

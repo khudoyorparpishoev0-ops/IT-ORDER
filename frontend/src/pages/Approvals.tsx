@@ -6,6 +6,7 @@ import { useDecision, useRequest, useRequests } from '@/api/hooks';
 import { money, periodLabel, somoni } from '@/data/format';
 import type { RequestStatus } from '@/api/types';
 import { useShell } from '@/shell/ShellContext';
+import { useAuth } from '@/api/auth';
 
 type Decision = 'approve' | 'reject';
 
@@ -15,11 +16,9 @@ const TABS: { key: RequestStatus; label: string }[] = [
   { key: 'rejected', label: 'Отклонены' },
 ];
 
-/** До входа (фаза 3) имя согласующего берём отсюда. */
-const CURRENT_MANAGER = 'Артём Ковалёв';
-
 export function Approvals() {
   const { flash } = useShell();
+  const { user } = useAuth();
   const [tab, setTab] = useState<RequestStatus>('pending');
   const [activeId, setActiveId] = useState<number | null>(null);
   const [decision, setDecision] = useState<Decision>('approve');
@@ -56,12 +55,12 @@ export function Approvals() {
       setError('Комментарий обязателен при отклонении заявки');
       return;
     }
+    // actor не передаём: сервер берёт имя согласующего из сессии.
     decide.mutate(
       {
         id: active.id,
         approve,
         comment: comment.trim() || null,
-        actor: CURRENT_MANAGER,
       },
       {
         onSuccess: () => {
@@ -309,7 +308,20 @@ export function Approvals() {
             )}
           </div>
 
-          {active && active.status === 'pending' && (
+          {active && active.status === 'pending' && active.employee_id === user?.id && (
+            <section
+              className="card"
+              style={{ flex: '1 1 300px', minWidth: 0, position: 'sticky', top: 88 }}
+            >
+              <div className="label">ВАША ЗАЯВКА</div>
+              <p style={{ marginTop: 16, color: 'var(--slate)' }}>
+                Собственную заявку согласовать нельзя. Решение примет другой
+                руководитель.
+              </p>
+            </section>
+          )}
+
+          {active && active.status === 'pending' && active.employee_id !== user?.id && (
             <section
               className="card"
               aria-label="Решение по заявке"

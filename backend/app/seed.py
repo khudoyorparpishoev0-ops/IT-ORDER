@@ -18,6 +18,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 
 from app.core.logging import setup_logging
+from app.core.security import hash_password
 from app.core.time import utcnow
 from app.db.models import (
     Employee,
@@ -36,6 +37,10 @@ log = logging.getLogger("seed")
 
 PROJECTS = ["Вилла Колхозная", "Рекова 132", "Офис на 7 этаже", "Речь"]
 
+#: Пароль демонстрационных учётных записей. Только для показа: в рабочей
+#: базе seed не запускают, а пароли назначает администратор.
+DEMO_PASSWORD = "hona-demo-2026"
+
 EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str]] = [
     ("Иван Петров", "Мастер-отделочник", "i.petrov@it-hona.tj", EmployeeRole.EMPLOYEE, "5000.00"),
     ("Мария Сидорова", "Дизайнер", "m.sidorova@it-hona.tj", EmployeeRole.EMPLOYEE, "4000.00"),
@@ -46,6 +51,8 @@ EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str]] = [
     ("Дмитрий Соколов", "Инженер", "d.sokolov@it-hona.tj", EmployeeRole.EMPLOYEE, "4000.00"),
     ("Анна Лебедева", "Архитектор", "a.lebedeva@it-hona.tj", EmployeeRole.EMPLOYEE, "5000.00"),
     ("Артём Ковалёв", "Руководитель отдела", "a.kovalev@it-hona.tj", EmployeeRole.MANAGER, None),
+    ("Нигина Рахимова", "Бухгалтер", "n.rahimova@it-hona.tj", EmployeeRole.FINANCE, None),
+    ("Администратор", "Администратор системы", "admin@it-hona.tj", EmployeeRole.ADMIN, None),
 ]
 
 #: (сотрудник, объект, строки расхода, решение, выплата)
@@ -103,6 +110,7 @@ def seed() -> None:
                     email=email,
                     role=role,
                     monthly_limit=Decimal(limit) if limit else None,
+                    password_hash=hash_password(DEMO_PASSWORD),
                 )
                 session.add(person)
                 session.flush()
@@ -171,6 +179,12 @@ def seed() -> None:
             len(projects),
             len(employees),
             len(SCENARIO),
+        )
+        log.warning(
+            "Вход в демо-режиме: admin@it-hona.tj (администратор), "
+            "a.kovalev@it-hona.tj (руководитель), n.rahimova@it-hona.tj "
+            "(финансы), пароль у всех «%s». Только для показа.",
+            DEMO_PASSWORD,
         )
     except Exception:
         session.rollback()

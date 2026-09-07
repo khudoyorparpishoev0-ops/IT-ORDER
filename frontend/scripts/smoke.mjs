@@ -1,11 +1,12 @@
 /**
- * Дымовой прогон панели: открывает все разделы в обеих темах и обоих
- * вариантах шелла, снимает скриншоты и падает при ошибке в консоли
- * или ответе >= 400.
+ * Дымовой прогон панели: входит под каждой ролью, открывает доступные ей
+ * разделы в обеих темах и обоих вариантах шелла, снимает скриншоты и падает
+ * при ошибке в консоли или неожиданном ответе сервера.
  *
- * Запуск:  npm run build && npm run preview &   (порт 4173)
+ * Запуск:  npm run build && npm run preview &   (порт 4173, API на :8000)
  *          npm run smoke
  * Путь к Chromium — PW_CHROMIUM, иначе берётся браузер Playwright.
+ * Учётные данные — SMOKE_PASSWORD (по умолчанию пароль демо-набора).
  */
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
@@ -13,24 +14,51 @@ import { mkdir } from 'node:fs/promises';
 const BASE = process.env.SMOKE_BASE ?? 'http://127.0.0.1:4173';
 const OUT = process.env.SHOT_DIR ?? './.shots';
 const EXECUTABLE = process.env.PW_CHROMIUM;
+const PASSWORD = process.env.SMOKE_PASSWORD ?? 'hona-demo-2026';
 
-const ALL = [
+const COMMON = [
   ['/', 'dashboard'],
   ['/requests', 'requests'],
-  ['/approvals', 'approvals'],
-  ['/reports', 'reports'],
-  ['/team', 'team'],
-  ['/finance', 'finance'],
   ['/settings', 'settings'],
   ['/help', 'help'],
   ['/system', 'system'],
+];
+
+const REPORTS = [
+  ['/reports', 'reports'],
+  ['/team', 'team'],
+  ['/finance', 'finance'],
+];
+
+const ROLES = [
+  {
+    label: 'manager',
+    email: 'a.kovalev@it-hona.tj',
+    routes: [...COMMON, ['/approvals', 'approvals'], ...REPORTS],
+    // Руководитель видит очередь согласования и сводки.
+    expectNav: ['Согласование', 'Отчёты', 'Команда', 'Финансы'],
+  },
+  {
+    label: 'finance',
+    email: 'n.rahimova@it-hona.tj',
+    routes: [...COMMON, ...REPORTS],
+    expectNav: ['Отчёты', 'Команда', 'Финансы'],
+    forbiddenNav: ['Согласование'],
+  },
+  {
+    label: 'employee',
+    email: 'i.petrov@it-hona.tj',
+    routes: COMMON,
+    forbiddenNav: ['Согласование', 'Отчёты', 'Команда', 'Финансы'],
+  },
 ];
 
 await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch(EXECUTABLE ? { executablePath: EXECUTABLE } : {});
 const problems = [];
 
-async function run(label, theme, variant, routes) {
+async function run(role, theme, variant, { screenshots = true } = {}) {
+  const tag = `${role.label}-${theme}-${variant}`;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await ctx.addInitScript(
     ([t, v]) => {
@@ -40,24 +68,56 @@ async function run(label, theme, variant, routes) {
     [theme, variant],
   );
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => problems.push(`[${label}] pageerror ${e.message}`));
-  page.on('requestfailed', (r) => problems.push(`[${label}] failed ${r.url()}`));
+  page.on('pageerror', (e) => problems.push(`[${tag}] pageerror ${e.message}`));
+  page.on('requestfailed', (r) => {
+    // Переход на другую страницу отменяет незавершённые загрузки шрифтов —
+    // это не сбой, а обычное поведение браузера.
+    const reason = r.failure()?.errorText ?? '';
+    if (reason.includes('ERR_ABORTED')) return;
+    problems.push(`[${tag}] failed ${r.url()} (${reason})`);
+  });
   page.on('response', (r) => {
-    if (r.status() >= 400) problems.push(`[${label}] ${r.status()} ${r.url()}`);
+    // 401 на /api/auth/me до входа — штатная проверка сессии, не ошибка.
+    if (r.status() >= 400 && !r.url().endsWith('/api/auth/me')) {
+      problems.push(`[${tag}] ${r.status()} ${r.url()}`);
+    }
   });
 
-  for (const [route, name] of routes) {
-    await page.goto(BASE + route, { waitUntil: 'networkidle' });
-    await page.screenshot({ path: `${OUT}/${label}-${name}.png`, fullPage: true });
-    const h1 = await page.locator('h1').first().textContent();
-    console.log(`${label} ${route} → ${h1}`);
+  await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+  await page.getByLabel('Рабочая почта').fill(role.email);
+  await page.getByLabel('Пароль').fill(PASSWORD);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.waitForSelector('nav[aria-label="Разделы"]', { timeout: 10_000 });
+
+  const nav = await page.locator('nav[aria-label="Разделы"]').innerText();
+  for (const item of role.expectNav ?? []) {
+    if (!nav.includes(item)) problems.push(`[${tag}] в меню нет раздела «${item}»`);
   }
+  for (const item of role.forbiddenNav ?? []) {
+    if (nav.includes(item)) problems.push(`[${tag}] раздел «${item}» виден без прав`);
+  }
+
+  for (const [route, name] of role.routes) {
+    await page.goto(BASE + route, { waitUntil: 'networkidle' });
+    if (screenshots) {
+      await page.screenshot({ path: `${OUT}/${tag}-${name}.png`, fullPage: true });
+    }
+    const h1 = await page.locator('h1').first().textContent();
+    console.log(`${tag} ${route} → ${h1}`);
+  }
+
   await ctx.close();
 }
 
-await run('B-light', 'light', 'dispatch', ALL);
-await run('B-dark', 'dark', 'dispatch', ALL);
-await run('C-light', 'light', 'light', ALL);
+// Разрешённые разделы каждой роли — в светлой теме варианта B.
+for (const role of ROLES) {
+  await run(role, 'light', 'dispatch');
+}
+// Тёмная тема и вариант C проверяются на самой полной роли.
+const manager = ROLES[0];
+await run(manager, 'dark', 'dispatch');
+await run(manager, 'light', 'light');
+
 await browser.close();
 
 if (problems.length) {

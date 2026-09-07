@@ -8,10 +8,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.services.auth import AuthError
 
 log = logging.getLogger(__name__)
 
 _STATUS = {
+    AuthError: 401,
     NotFoundError: 404,
     ConflictError: 409,
     ValidationError: 422,

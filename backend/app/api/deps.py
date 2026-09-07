@@ -1,4 +1,4 @@
-"""Зависимости FastAPI.
+"""Зависимости FastAPI: сессия базы, текущий пользователь, проверка прав.
 
 Здесь НЕ добавлять `from __future__ import annotations`: FastAPI не
 разворачивает отложенные аннотации в зависимостях-классах.
@@ -7,9 +7,13 @@
 from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import Depends, Query
+from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
+from app.core.permissions import Permission, has_permission, permissions_for
+from app.core.security import TokenError, token_subject
+from app.db.models import Employee
 from app.db.session import get_session_factory
 from app.services.reports import current_period
 
@@ -28,6 +32,56 @@ def get_db() -> Iterator[Session]:
 
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+def get_current_user(request: Request, session: DbSession) -> Employee:
+    """Текущий сотрудник по токену из httpOnly cookie.
+
+    Роль перечитывается из базы, а не берётся из токена: понижение прав
+    должно действовать сразу, а не после истечения сессии.
+    """
+    token = request.cookies.get(get_settings().cookie_name)
+    if not token:
+        raise _unauthorized("Требуется вход")
+
+    try:
+        employee_id = token_subject(token)
+    except TokenError as exc:
+        raise _unauthorized(str(exc)) from exc
+
+    employee = session.get(Employee, employee_id)
+    if employee is None or not employee.active:
+        raise _unauthorized("Учётная запись недоступна")
+    return employee
+
+
+CurrentUser = Annotated[Employee, Depends(get_current_user)]
+
+
+class RequirePermission:
+    """Зависимость-страж: пускает только с нужным правом.
+
+    Использование:  dependencies=[Depends(RequirePermission(Permission.X))]
+    """
+
+    def __init__(self, permission: Permission) -> None:
+        self.permission = permission
+
+    def __call__(self, user: CurrentUser) -> Employee:
+        if not has_permission(user.role, self.permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав для этого действия",
+            )
+        return user
+
+
+def user_permissions(user: Employee) -> list[str]:
+    return sorted(p.value for p in permissions_for(user.role))
 
 
 class Period:

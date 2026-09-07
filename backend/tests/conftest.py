@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from decimal import Decimal
+from functools import lru_cache
 
 import pytest
 from fastapi.testclient import TestClient
@@ -76,18 +77,95 @@ def project(session) -> Project:
     return p
 
 
+#: Пароль всех тестовых учётных записей.
+TEST_PASSWORD = "тестовый-пароль-подлиннее"
+
+
+def make_employee(session, **kwargs) -> Employee:
+    """Сотрудник с возможностью входа. Пароль хэшируется один раз на модуль:
+    Argon2 намеренно медленный, и хэширование в каждом тесте съедает прогон."""
+    defaults = dict(
+        position="Сотрудник",
+        role=EmployeeRole.EMPLOYEE,
+        password_hash=_password_hash(),
+    )
+    person = Employee(**{**defaults, **kwargs})
+    session.add(person)
+    session.flush()
+    return person
+
+
+@lru_cache(maxsize=1)
+def _password_hash() -> str:
+    from app.core.security import hash_password
+
+    return hash_password(TEST_PASSWORD)
+
+
 @pytest.fixture
 def employee(session) -> Employee:
-    e = Employee(
+    return make_employee(
+        session,
         full_name="Иван Петров",
         position="Мастер-отделочник",
         email="i.petrov@it-hona.tj",
         role=EmployeeRole.EMPLOYEE,
         monthly_limit=Decimal("5000.00"),
     )
-    session.add(e)
-    session.flush()
-    return e
+
+
+@pytest.fixture
+def manager(session) -> Employee:
+    return make_employee(
+        session,
+        full_name="Артём Ковалёв",
+        position="Руководитель отдела",
+        email="a.kovalev@it-hona.tj",
+        role=EmployeeRole.MANAGER,
+    )
+
+
+@pytest.fixture
+def finance(session) -> Employee:
+    return make_employee(
+        session,
+        full_name="Нигина Рахимова",
+        position="Бухгалтер",
+        email="n.rahimova@it-hona.tj",
+        role=EmployeeRole.FINANCE,
+    )
+
+
+@pytest.fixture
+def admin(session) -> Employee:
+    return make_employee(
+        session,
+        full_name="Администратор",
+        position="Администратор системы",
+        email="admin@it-hona.tj",
+        role=EmployeeRole.ADMIN,
+    )
+
+
+@pytest.fixture
+def login(client):
+    """Вход в клиента под указанным сотрудником. Cookie остаётся в клиенте."""
+
+    def _login(person: Employee) -> None:
+        response = client.post(
+            "/api/auth/login",
+            json={"email": person.email, "password": TEST_PASSWORD},
+        )
+        assert response.status_code == 200, response.text
+
+    return _login
+
+
+@pytest.fixture
+def as_manager(client, manager, login):
+    """Клиент, вошедший руководителем — самая частая роль в тестах API."""
+    login(manager)
+    return client
 
 
 @pytest.fixture

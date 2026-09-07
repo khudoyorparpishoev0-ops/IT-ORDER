@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, computed_field
+from pydantic import Field, PostgresDsn, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,8 +41,31 @@ class Settings(BaseSettings):
         description="Префикс номера заявки: РЗ-2419.",
     )
 
-    # --- Безопасность (используется с фазы 3) ---
-    secret_key: str = ""
+    # --- Безопасность ---
+    secret_key: str = Field(
+        default="",
+        description=(
+            "Секрет подписи сессий. Обязателен в production: без него "
+            "приложение не стартует. Генерация: openssl rand -hex 32"
+        ),
+    )
+    session_lifetime_minutes: int = Field(
+        default=12 * 60,
+        ge=5,
+        description="Срок жизни сессии. Рабочий день плюс запас.",
+    )
+    cookie_name: str = "hona_session"
+    cookie_secure: bool = Field(
+        default=True,
+        description=(
+            "Отдавать cookie только по HTTPS. В локальной разработке по HTTP "
+            "поставить false, иначе браузер cookie не сохранит."
+        ),
+    )
+    #: Первый администратор создаётся при старте, если в базе нет ни одного.
+    bootstrap_admin_email: str = ""
+    bootstrap_admin_password: str = ""
+    bootstrap_admin_name: str = "Администратор"
 
     @computed_field
     @property
@@ -62,6 +85,16 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
+
+    @model_validator(mode="after")
+    def check_production_secrets(self) -> "Settings":
+        """В production пустой secret_key означает, что любой сможет
+        подписать себе токен администратора. Падаем на старте, а не потом."""
+        if not self.is_development and not self.secret_key:
+            raise ValueError(
+                "SECRET_KEY не задан. Сгенерируйте: openssl rand -hex 32"
+            )
+        return self
 
 
 @lru_cache

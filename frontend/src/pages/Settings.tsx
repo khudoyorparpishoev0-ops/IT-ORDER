@@ -2,12 +2,9 @@ import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { useHealth } from '@/api/hooks';
-
-/** Профиль до фазы 3 не редактируется на сервере: вход ещё не сделан. */
-const PROFILE = [
-  { label: 'Имя и фамилия', value: 'Артём Ковалёв' },
-  { label: 'Рабочая почта', value: 'a.kovalev@it-hona.tj' },
-];
+import { useAuth } from '@/api/auth';
+import { api } from '@/api/client';
+import { ROLE_LABEL } from '@/shell/config';
 
 const NOTIFICATIONS = [
   { label: 'Новые заявки на утверждение', on: true },
@@ -19,7 +16,8 @@ import type { ShellVariant, Theme } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
 
 export function Settings() {
-  const { theme, setTheme, variant, setVariant } = useShell();
+  const { theme, setTheme, variant, setVariant, flash } = useShell();
+  const { user } = useAuth();
   const health = useHealth();
   const [toggles, setToggles] = useState(NOTIFICATIONS.map((n) => n.on));
 
@@ -39,17 +37,32 @@ export function Settings() {
       >
         <section className="card">
           <div className="label">ПРОФИЛЬ</div>
-          <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
-            {PROFILE.map((f) => (
-              <label key={f.label}>
-                <div className="caption" style={{ marginBottom: 4 }}>
-                  {f.label}
-                </div>
-                <input className="field" defaultValue={f.value} />
-              </label>
-            ))}
-          </div>
+          <dl style={{ display: 'grid', gap: 16, margin: '16px 0 0' }}>
+            <div>
+              <dt className="caption">Имя и фамилия</dt>
+              <dd style={{ margin: '2px 0 0', fontWeight: 600 }}>{user?.full_name}</dd>
+            </div>
+            <div>
+              <dt className="caption">Должность</dt>
+              <dd style={{ margin: '2px 0 0' }}>{user?.position || '—'}</dd>
+            </div>
+            <div>
+              <dt className="caption">Рабочая почта</dt>
+              <dd className="num" style={{ margin: '2px 0 0' }}>{user?.email ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="caption">Роль</dt>
+              <dd style={{ margin: '2px 0 0' }}>
+                {user ? (ROLE_LABEL[user.role] ?? user.role) : '—'}
+              </dd>
+            </div>
+          </dl>
+          <p className="caption" style={{ margin: '16px 0 0' }}>
+            Имя, должность и роль меняет администратор системы.
+          </p>
         </section>
+
+        <PasswordCard onDone={() => flash('Пароль изменён', 'var(--dot-ok)')} />
 
         <section className="card">
           <div className="label">ТЕМА ОФОРМЛЕНИЯ</div>
@@ -211,5 +224,102 @@ function SquareRadio({
       </span>
       <span style={{ fontWeight: 600 }}>{label}</span>
     </button>
+  );
+}
+
+/** Смена собственного пароля. Требует текущий — иначе оставленная без
+ *  присмотра сессия позволила бы захватить учётную запись. */
+function PasswordCard({ onDone }: { onDone: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (next !== repeat) {
+      setError('Новый пароль и повтор не совпадают');
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      await api('/api/auth/password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: current, new_password: next }),
+      });
+      setCurrent('');
+      setNext('');
+      setRepeat('');
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сменить пароль');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="card">
+      <div className="label">СМЕНА ПАРОЛЯ</div>
+      <form onSubmit={submit} style={{ display: 'grid', gap: 16, marginTop: 16 }}>
+        <label>
+          <div className="caption" style={{ marginBottom: 4 }}>
+            Текущий пароль
+          </div>
+          <input
+            className="field"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+          />
+        </label>
+        <label>
+          <div className="caption" style={{ marginBottom: 4 }}>
+            Новый пароль
+          </div>
+          <input
+            className={`field${error ? ' field-error' : ''}`}
+            type="password"
+            autoComplete="new-password"
+            required
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+          />
+        </label>
+        <label>
+          <div className="caption" style={{ marginBottom: 4 }}>
+            Повторите новый пароль
+          </div>
+          <input
+            className={`field${error ? ' field-error' : ''}`}
+            type="password"
+            autoComplete="new-password"
+            required
+            value={repeat}
+            onChange={(e) => setRepeat(e.target.value)}
+          />
+        </label>
+        {error && (
+          <div className="field-error-text" role="alert">
+            {error}
+          </div>
+        )}
+        <p className="caption" style={{ margin: 0 }}>
+          Возьмите фразу от десяти символов: длинную проще запомнить и труднее
+          подобрать.
+        </p>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={saving || !current || !next || !repeat}
+        >
+          {saving ? 'Сохраняем…' : 'Сменить пароль'}
+        </button>
+      </form>
+    </section>
   );
 }

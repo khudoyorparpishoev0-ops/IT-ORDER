@@ -10,18 +10,23 @@ import { useDashboard, useQueueInfo, useRequests } from '@/api/hooks';
 import { money, monthAfterZa, periodLabel, plural, somoni } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 import { useShell } from '@/shell/ShellContext';
+import { useAuth } from '@/api/auth';
 import { VARIANTS } from '@/shell/config';
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { variant } = useShell();
+  const { user, can } = useAuth();
   const tableFirst = VARIANTS[variant].tableFirst;
+  // Сводки по чужим расходам видит только руководитель, финансы и админ.
+  const seesReports = can('view_reports');
+  const seesQueue = can('decide_request');
 
   const [modal, setModal] = useState<RequestListItem | null>(null);
   const [search, setSearch] = useState('');
 
-  const stats = useDashboard();
-  const queue = useQueueInfo();
+  const stats = useDashboard(seesReports);
+  const queue = useQueueInfo(seesQueue);
   // Вариант B показывает все заявки периода, вариант C — четыре последние.
   const list = useRequests({ search: search.trim() || undefined, limit: tableFirst ? 50 : 4 });
   const { rows, sort, dir, onSort } = useSortedRequests(list.data?.items ?? []);
@@ -216,7 +221,9 @@ export function Dashboard() {
         kicker={periodLabel()}
         title="Панель управления"
         lead={
-          stats.data
+          !seesReports
+            ? `${user?.full_name ?? ''} · ${user?.position ?? ''}`
+            : stats.data
             ? `Команда из ${stats.data.employees_count} ${plural(
                 stats.data.employees_count,
                 'сотрудника',
@@ -245,8 +252,8 @@ export function Dashboard() {
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
-        {metrics}
-        {banner}
+        {seesReports && metrics}
+        {seesQueue && banner}
         {table}
       </div>
 

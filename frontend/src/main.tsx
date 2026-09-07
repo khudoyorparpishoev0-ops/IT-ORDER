@@ -1,21 +1,41 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import './styles/fonts';
 
 import './styles/tokens.css';
 import './styles/base.css';
 import { App } from './App';
+import { AuthProvider } from './api/auth';
+import { ApiError } from './api/client';
 import { ShellProvider } from './shell/ShellContext';
 
+/**
+ * Сессия может истечь между запросами, и тогда 401 приходит в любой хук.
+ * Обрабатываем это один раз здесь: сбрасываем сведения о входе, и панель
+ * сама показывает экран входа — вместо проверки в каждом компоненте.
+ */
+function onUnauthorized(error: unknown): void {
+  if (error instanceof ApiError && error.status === 401) {
+    queryClient.setQueryData(['auth', 'me'], null);
+  }
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: onUnauthorized }),
+  mutationCache: new MutationCache({ onError: onUnauthorized }),
   defaultOptions: {
     queries: {
       // Панель работает в LAN: лишние повторы только маскируют реальную
-      // недоступность API, поэтому один повтор и без перезапроса по фокусу.
-      retry: 1,
+      // недоступность API. Отказ по правам повторять тем более незачем.
+      retry: (count, error) => {
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+          return false;
+        }
+        return count < 1;
+      },
       refetchOnWindowFocus: false,
       staleTime: 30_000,
     },
@@ -29,9 +49,11 @@ createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ShellProvider>
-          <App />
-        </ShellProvider>
+        <AuthProvider>
+          <ShellProvider>
+            <App />
+          </ShellProvider>
+        </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import DbSession, PeriodDep
+from app.api.deps import DbSession, PeriodDep, RequirePermission
+from app.core.permissions import Permission
 from app.schemas.report import (
     ApprovalQueueInfo,
     BudgetInfo,
@@ -15,7 +16,13 @@ from app.schemas.report import (
 )
 from app.services import reports as svc
 
-router = APIRouter(prefix="/api/reports", tags=["reports"])
+# Отчёты видят руководитель, финансы и администратор. Рядовой сотрудник —
+# нет: сводки по чужим расходам не его дело.
+router = APIRouter(
+    prefix="/api/reports",
+    tags=["reports"],
+    dependencies=[Depends(RequirePermission(Permission.VIEW_REPORTS))],
+)
 
 
 @router.get("/dashboard", response_model=DashboardStats)
