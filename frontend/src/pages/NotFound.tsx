@@ -9,7 +9,7 @@ export function NotFound() {
       <PageHeader title="Раздел не найден" />
       <EmptyState
         kicker="НЕТ ДАННЫХ"
-        title="Такой страницы в CORE нет"
+        title="Такой страницы в ORDER нет"
         note="Проверьте адрес или вернитесь на панель управления."
         action={
           <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>

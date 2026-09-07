@@ -88,7 +88,7 @@ export function Login() {
             IT-HONA
           </div>
           <div className="label" style={{ marginTop: 2 }}>
-            CORE
+            ORDER
           </div>
         </div>
 

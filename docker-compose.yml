@@ -1,4 +1,4 @@
-# HONA CORE — платформа заявок на расходы.
+# HONA ORDER — платформа заявок на расходы.
 # Персистентные данные лежат в папках хоста, именованные тома не используем.
 services:
   db:
@@ -38,7 +38,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-ithona.tj}
       REQUIRE_2FA_ROLES: ${REQUIRE_2FA_ROLES:-admin,finance}
-      TOTP_ISSUER: ${TOTP_ISSUER:-IT-HONA CORE}
+      TOTP_ISSUER: ${TOTP_ISSUER:-IT-HONA ORDER}
       MAX_FAILED_LOGINS: ${MAX_FAILED_LOGINS:-8}
       LOCKOUT_MINUTES: ${LOCKOUT_MINUTES:-15}
       SMTP_HOST: ${SMTP_HOST:-smtp.zoho.com}
@@ -47,7 +47,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-IT-HONA CORE}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-IT-HONA ORDER}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}

@@ -43,7 +43,7 @@ export function Reports() {
             ? `Больше всего расходов за ${monthAfterZa()} — объект «${leader.name}»`
             : `Расходы за ${monthAfterZa()}`
         }
-        lead={`Источник: CORE · данные на ${formatDate(new Date().toISOString())}`}
+        lead={`Источник: ORDER · данные на ${formatDate(new Date().toISOString())}`}
         actions={
           <>
             <button

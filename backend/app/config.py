@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     # --- Приложение ---
-    app_name: str = "HONA CORE"
+    app_name: str = "HONA ORDER"
     app_env: str = Field(default="production", description="production | development")
     app_timezone: str = Field(
         default="Asia/Dushanbe",
@@ -81,7 +81,7 @@ class Settings(BaseSettings):
         ),
     )
     totp_issuer: str = Field(
-        default="IT-HONA CORE",
+        default="IT-HONA ORDER",
         description="Название системы в приложении-аутентификаторе.",
     )
     max_failed_logins: int = Field(
@@ -129,7 +129,7 @@ class Settings(BaseSettings):
             "Zoho, иначе письма будут отклонены. Пусто — берётся SMTP_USER."
         ),
     )
-    mail_from_name: str = "IT-HONA CORE"
+    mail_from_name: str = "IT-HONA ORDER"
     smtp_timeout_seconds: int = Field(default=15, ge=1)
 
     public_base_url: str = Field(

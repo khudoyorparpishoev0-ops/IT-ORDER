@@ -26,7 +26,7 @@ export function PasswordReset({ token, onBack }: { token?: string; onBack: () =>
             IT-HONA
           </div>
           <div className="label" style={{ marginTop: 2 }}>
-            CORE
+            ORDER
           </div>
         </div>
         {token ? <SetNewPassword token={token} onBack={onBack} /> : <RequestLink onBack={onBack} />}

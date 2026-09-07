@@ -42,7 +42,7 @@ export function Sidebar({ open, onNavigate }: Props) {
           className="mono"
           style={{ fontSize: 11, letterSpacing: '0.16em', opacity: 0.7, marginTop: 2 }}
         >
-          CORE
+          ORDER
         </div>
       </div>
 

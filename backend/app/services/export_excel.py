@@ -126,7 +126,7 @@ def payments_workbook(
     row = _write_title(
         ws,
         f"Реестр выплат за {period_title(year, month)}{scope}",
-        f"IT-HONA CORE · выгружено {format_local_date(utcnow())} · {register.summary}",
+        f"IT-HONA ORDER · выгружено {format_local_date(utcnow())} · {register.summary}",
         len(columns),
     )
     _write_header(ws, row, columns)
@@ -176,7 +176,7 @@ def requests_workbook(
     row = _write_title(
         ws,
         f"Заявки на расходы {scope}",
-        f"IT-HONA CORE · выгружено {format_local_date(utcnow())} · "
+        f"IT-HONA ORDER · выгружено {format_local_date(utcnow())} · "
         f"{len(items)} записей",
         len(columns),
     )

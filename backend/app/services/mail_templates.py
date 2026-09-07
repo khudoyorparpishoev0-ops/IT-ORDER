@@ -19,7 +19,7 @@ LINE = "#E3E7E3"
 MIST = "#F5F7F5"
 
 FOOTER_TEXT = (
-    "Это письмо отправлено системой IT-HONA CORE. Отвечать на него не нужно."
+    "Это письмо отправлено системой IT-HONA ORDER. Отвечать на него не нужно."
 )
 
 
@@ -46,7 +46,7 @@ def _wrap(title: str, body_html: str, action: tuple[str, str] | None = None) -> 
       <span style="color:#FFFFFF;font-weight:bold;letter-spacing:0.06em">
         IT-HONA</span>
       <span style="color:#FFFFFF;opacity:0.7;font-size:12px;
-        letter-spacing:0.16em"> CORE</span>
+        letter-spacing:0.16em"> ORDER</span>
     </td></tr>
     <tr><td style="padding:24px">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"
@@ -68,7 +68,7 @@ def password_reset(*, full_name: str, url: str) -> Letter:
     text = (
         f"{full_name}, здравствуйте.\n\n"
         "Кто-то запросил восстановление пароля для вашей учётной записи "
-        "в IT-HONA CORE. Чтобы задать новый пароль, откройте ссылку:\n\n"
+        "в IT-HONA ORDER. Чтобы задать новый пароль, откройте ссылку:\n\n"
         f"{url}\n\n"
         f"Ссылка действует {minutes} мин и срабатывает один раз.\n\n"
         "Если вы этого не запрашивали — просто удалите письмо. Пароль "
@@ -86,7 +86,7 @@ def password_reset(*, full_name: str, url: str) -> Letter:
         action=("Задать новый пароль", url),
     )
     return Letter(
-        to="", subject="Восстановление пароля · IT-HONA CORE", text=text, html=html
+        to="", subject="Восстановление пароля · IT-HONA ORDER", text=text, html=html
     )
 
 
@@ -130,13 +130,13 @@ def request_awaiting_approval(
 def test_letter(*, to: str) -> Letter:
     """Проверочное письмо: подтверждает, что SMTP настроен верно."""
     text = (
-        "Это проверочное письмо из IT-HONA CORE.\n\n"
+        "Это проверочное письмо из IT-HONA ORDER.\n\n"
         "Если вы его получили, отправка почты настроена правильно.\n\n"
         f"{FOOTER_TEXT}"
     )
     html = _wrap(
         "Проверка почты",
         "<p style=\"margin:0\">Если вы читаете это письмо, отправка почты "
-        "из IT-HONA CORE настроена правильно.</p>",
+        "из IT-HONA ORDER настроена правильно.</p>",
     )
-    return Letter(to=to, subject="Проверка почты · IT-HONA CORE", text=text, html=html)
+    return Letter(to=to, subject="Проверка почты · IT-HONA ORDER", text=text, html=html)

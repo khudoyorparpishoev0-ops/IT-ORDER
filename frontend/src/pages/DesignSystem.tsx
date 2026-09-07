@@ -71,7 +71,7 @@ export function DesignSystem() {
       <PageHeader
         kicker="ЭТАЛОН"
         title="Дизайн-система"
-        lead="Токены и компоненты HONA CORE по брендбуку IT-HONA rev. 1.0"
+        lead="Токены и компоненты HONA ORDER по брендбуку IT-HONA rev. 1.0"
       />
 
       <div style={{ display: 'grid', gap: 'var(--gap)' }}>

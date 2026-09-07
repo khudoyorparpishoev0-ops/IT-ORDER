@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Резервная копия базы HONA CORE.
+# Резервная копия базы HONA ORDER.
 #
 # Запуск с хоста, из папки проекта:
 #   ./deploy/backup.sh

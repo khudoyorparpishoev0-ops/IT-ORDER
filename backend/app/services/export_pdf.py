@@ -137,7 +137,7 @@ def _footer(canvas, doc) -> None:
     canvas.setFont(MONO, 7)
     canvas.setFillColor(SLATE)
     width, _ = doc.pagesize
-    canvas.drawString(15 * mm, 10 * mm, "IT-HONA CORE · ВНУТРЕННИЙ ДОКУМЕНТ")
+    canvas.drawString(15 * mm, 10 * mm, "IT-HONA ORDER · ВНУТРЕННИЙ ДОКУМЕНТ")
     canvas.drawRightString(width - 15 * mm, 10 * mm, f"СТР. {canvas.getPageNumber()}")
     canvas.setStrokeColor(LINE)
     canvas.setLineWidth(0.5)
@@ -162,7 +162,7 @@ def payments_pdf(
         topMargin=15 * mm,
         bottomMargin=20 * mm,
         title=f"Реестр выплат {period_title(year, month)}",
-        author="IT-HONA CORE",
+        author="IT-HONA ORDER",
     )
 
     scope = f" · {project}" if project else ""
@@ -171,7 +171,7 @@ def payments_pdf(
         Paragraph(f"Выплаты за {period_title(year, month)}{scope}", st["title"]),
         Spacer(1, 3 * mm),
         Paragraph(
-            f"Источник: CORE · выгружено {format_local_date(utcnow())} · "
+            f"Источник: ORDER · выгружено {format_local_date(utcnow())} · "
             f"{register.summary}",
             st["source"],
         ),
@@ -260,7 +260,7 @@ def request_pdf(detail) -> bytes:
         topMargin=15 * mm,
         bottomMargin=20 * mm,
         title=f"Заявка {detail.number}",
-        author="IT-HONA CORE",
+        author="IT-HONA ORDER",
     )
 
     story: list = [

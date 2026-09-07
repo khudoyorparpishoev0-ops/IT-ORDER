@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Восстановление базы HONA CORE из копии.
+# Восстановление базы HONA ORDER из копии.
 #
 #   ./deploy/restore.sh data/backups/hona_core_2026-09-07_03-20.sql.gz
 #
