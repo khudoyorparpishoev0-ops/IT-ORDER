@@ -121,3 +121,15 @@ def test_policy_endpoint_is_public(client) -> None:
     body = client.get("/api/auth/policy").json()
     assert body["email_domains"] == ["it-hona.tj"]
     assert body["domains_hint"] == "@it-hona.tj"
+
+
+def test_demo_data_follows_configured_domain(monkeypatch) -> None:
+    """Демо-адреса берут домен из настроек.
+
+    С захардкоженным доменом демо-набор оказался бы бесполезен у любого
+    заказчика, кроме одного: вход по этим адресам не прошёл бы проверку.
+    """
+    from app.config import get_settings
+    from app.seed import demo_domain
+
+    assert demo_domain() == get_settings().email_domains[0]

@@ -63,7 +63,7 @@ class Settings(BaseSettings):
         ),
     )
     allowed_email_domains: str = Field(
-        default="it-hona.tj",
+        default="ithona.tj",
         description=(
             "Домены корпоративной почты через запятую. Войти и завести "
             "сотрудника можно только с адресом из этого списка. Пустая "
@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     public_base_url: str = Field(
         default="",
         description=(
-            "Адрес панели снаружи, например https://core.it-hona.tj. "
+            "Адрес панели снаружи, например https://order.ithona.tj. "
             "Нужен для ссылок в письмах: без него ссылку восстановления "
             "пароля некуда вести."
         ),

@@ -15,6 +15,9 @@ const BASE = process.env.SMOKE_BASE ?? 'http://127.0.0.1:4173';
 const OUT = process.env.SHOT_DIR ?? './.shots';
 const EXECUTABLE = process.env.PW_CHROMIUM;
 const PASSWORD = process.env.SMOKE_PASSWORD ?? 'hona-demo-2026';
+// Домен демо-адресов берётся из ALLOWED_EMAIL_DOMAINS; здесь он должен
+// совпадать с тем, под которым загружены демо-данные.
+const DOMAIN = process.env.SMOKE_DOMAIN ?? 'ithona.tj';
 
 const COMMON = [
   ['/', 'dashboard'],
@@ -36,14 +39,14 @@ const REPORTS = [
 const ROLES = [
   {
     label: 'manager',
-    email: 'a.kovalev@it-hona.tj',
+    email: `a.kovalev@${DOMAIN}`,
     routes: [...COMMON, ['/approvals', 'approvals'], ...REPORTS],
     // Руководитель видит очередь согласования и сводки.
     expectNav: ['Согласование', 'Отчёты', 'Команда', 'Финансы'],
   },
   {
     label: 'employee',
-    email: 'i.petrov@it-hona.tj',
+    email: `i.petrov@${DOMAIN}`,
     routes: COMMON,
     forbiddenNav: ['Согласование', 'Отчёты', 'Команда', 'Финансы'],
   },

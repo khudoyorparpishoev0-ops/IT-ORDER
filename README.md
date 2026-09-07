@@ -64,9 +64,14 @@ python scripts/build_pdf_fonts.py
 ## Вход
 
 Войти можно только с корпоративной почты (`ALLOWED_EMAIL_DOMAINS`,
-по умолчанию `@it-hona.tj`). Личные ящики не проходят ни при заведении
+по умолчанию `@ithona.tj`). Личные ящики не проходят ни при заведении
 сотрудника, ни при входе: почта здесь одновременно логин и подтверждение,
 что человек работает в компании.
+
+> **`ALLOWED_EMAIL_DOMAINS` — это домен почты, а не домен панели.**
+> Укажите тот, в котором реально заведены ящики в Zoho. Ошибка здесь
+> закрывает вход всем, включая администратора: адрес стартового
+> администратора тоже проверяется по этому списку.
 
 **Двухфакторный вход** — код из приложения-аутентификатора (Google
 Authenticator, Aegis, 1Password и любое другое, TOTP по RFC 6238).
@@ -211,7 +216,7 @@ docker compose up -d --build
 администратор: заполните в `.env` перед первым запуском
 
 ```
-BOOTSTRAP_ADMIN_EMAIL=admin@it-hona.tj
+BOOTSTRAP_ADMIN_EMAIL=admin@ithona.tj
 BOOTSTRAP_ADMIN_PASSWORD=длинная-фраза-минимум-десять-символов
 ```
 
@@ -228,9 +233,10 @@ docker compose exec api python -m app.seed
 ```
 
 Скрипт добавляет 4 объекта, 11 сотрудников и 10 заявок в разных статусах.
-Все демо-учётные записи получают пароль `hona-demo-2026`: администратор
-`admin@it-hona.tj`, руководитель `a.kovalev@it-hona.tj`, финансы
-`n.rahimova@it-hona.tj`, сотрудник `i.petrov@it-hona.tj`.
+Все демо-учётные записи получают пароль `hona-demo-2026`. Адреса берут
+первый домен из `ALLOWED_EMAIL_DOMAINS`, то есть при настройке по умолчанию:
+администратор `admin@ithona.tj`, руководитель `a.kovalev@ithona.tj`,
+финансы `n.rahimova@ithona.tj`, сотрудник `i.petrov@ithona.tj`.
 
 **В рабочую базу не запускать:** данные условные, пароль общеизвестный.
 Повторный запуск на непустой базе ничего не делает.
@@ -326,11 +332,11 @@ chown -R hona:hona /home/hona/.ssh && chmod 700 /home/hona/.ssh
 
 ### 2. Домен
 
-Заведите A-запись на IP сервера, например `core.it-hona.tj`. Без домена
+Заведите A-запись на IP сервера — `order.ithona.tj`. Без домена
 сертификат Let's Encrypt не выпустить, а `COOKIE_SECURE=true` требует HTTPS
 — по обычному http браузер не сохранит cookie сессии и вход не сработает.
 
-Проверить, что запись разошлась: `dig +short core.it-hona.tj`
+Проверить, что запись разошлась: `dig +short order.ithona.tj`
 
 ### 3. Проект и настройки
 
@@ -346,10 +352,10 @@ mkdir -p data/postgres data/backups data/caddy data/caddy-config
 ```bash
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
 SECRET_KEY=$(openssl rand -hex 32)
-APP_DOMAIN=core.it-hona.tj
-ACME_EMAIL=admin@it-hona.tj
-PUBLIC_BASE_URL=https://core.it-hona.tj
-BOOTSTRAP_ADMIN_EMAIL=admin@it-hona.tj
+APP_DOMAIN=order.ithona.tj
+ACME_EMAIL=admin@ithona.tj
+PUBLIC_BASE_URL=https://order.ithona.tj
+BOOTSTRAP_ADMIN_EMAIL=admin@ithona.tj
 BOOTSTRAP_ADMIN_PASSWORD=длинная-фраза-минимум-десять-символов
 ```
 
@@ -361,7 +367,7 @@ BOOTSTRAP_ADMIN_PASSWORD=длинная-фраза-минимум-десять-�
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 docker compose logs -f caddy   # ждём выпуска сертификата
-curl -s https://core.it-hona.tj/health
+curl -s https://order.ithona.tj/health
 ```
 
 Первая сборка на 2 ГБ RAM занимает несколько минут. Если сборка фронтенда

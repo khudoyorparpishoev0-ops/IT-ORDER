@@ -18,6 +18,9 @@ os.environ.setdefault("APP_ENV", "development")
 # Почта в тестах «настроена»: отправку перехватывает фикстура mailbox,
 # в сеть тесты не ходят. Без этих значений эндпоинты справедливо
 # отказываются отправлять письма.
+# Домен почты в тестах фиксирован и не зависит от домена заказчика:
+# смена ALLOWED_EMAIL_DOMAINS в .env не должна ломать прогон.
+os.environ.setdefault("ALLOWED_EMAIL_DOMAINS", "it-hona.tj")
 os.environ.setdefault("SMTP_USER", "core@it-hona.tj")
 os.environ.setdefault("SMTP_PASSWORD", "тестовый-пароль-приложения")
 os.environ.setdefault("PUBLIC_BASE_URL", "https://core.it-hona.tj")

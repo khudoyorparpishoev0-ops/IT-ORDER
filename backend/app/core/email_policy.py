@@ -47,6 +47,6 @@ def ensure_corporate(email: str) -> str:
 
 
 def allowed_domains_hint() -> str:
-    """Подсказка для интерфейса: «@it-hona.tj»."""
+    """Подсказка для интерфейса: «@ithona.tj»."""
     domains = get_settings().email_domains
     return ", ".join(f"@{d}" for d in domains) if domains else ""

@@ -16,6 +16,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+from app.config import get_settings
 from app.core.logging import setup_logging
 from app.core.security import hash_password
 from app.core.time import utcnow
@@ -40,18 +41,29 @@ PROJECTS = ["Вилла Колхозная", "Рекова 132", "Офис на 
 #: базе seed не запускают, а пароли назначает администратор.
 DEMO_PASSWORD = "hona-demo-2026"
 
-EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str]] = [
-    ("Иван Петров", "Мастер-отделочник", "i.petrov@it-hona.tj", EmployeeRole.EMPLOYEE, "5000.00"),
-    ("Мария Сидорова", "Дизайнер", "m.sidorova@it-hona.tj", EmployeeRole.EMPLOYEE, "4000.00"),
-    ("Сергей Никитин", "Прораб", "s.nikitin@it-hona.tj", EmployeeRole.EMPLOYEE, "8000.00"),
-    ("Екатерина Волкова", "Менеджер проекта", "e.volkova@it-hona.tj", EmployeeRole.EMPLOYEE, "6000.00"),
-    ("Алексей Морозов", "Электрик", "a.morozov@it-hona.tj", EmployeeRole.EMPLOYEE, "3000.00"),
-    ("Ольга Кузнецова", "Снабженец", "o.kuznetsova@it-hona.tj", EmployeeRole.EMPLOYEE, "10000.00"),
-    ("Дмитрий Соколов", "Инженер", "d.sokolov@it-hona.tj", EmployeeRole.EMPLOYEE, "4000.00"),
-    ("Анна Лебедева", "Архитектор", "a.lebedeva@it-hona.tj", EmployeeRole.EMPLOYEE, "5000.00"),
-    ("Артём Ковалёв", "Руководитель отдела", "a.kovalev@it-hona.tj", EmployeeRole.MANAGER, None),
-    ("Нигина Рахимова", "Бухгалтер", "n.rahimova@it-hona.tj", EmployeeRole.FINANCE, None),
-    ("Администратор", "Администратор системы", "admin@it-hona.tj", EmployeeRole.ADMIN, None),
+def demo_domain() -> str:
+    """Домен для демо-адресов.
+
+    Берём из настроек, а не пишем в коде: с чужим доменом вход по этим
+    адресам не сработал бы и весь демо-набор оказался бы бесполезен.
+    """
+    domains = get_settings().email_domains
+    return domains[0] if domains else "example.com"
+
+
+#: (ФИО, должность, локальная часть почты, роль, лимит)
+EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str | None]] = [
+    ("Иван Петров", "Мастер-отделочник", "i.petrov", EmployeeRole.EMPLOYEE, "5000.00"),
+    ("Мария Сидорова", "Дизайнер", "m.sidorova", EmployeeRole.EMPLOYEE, "4000.00"),
+    ("Сергей Никитин", "Прораб", "s.nikitin", EmployeeRole.EMPLOYEE, "8000.00"),
+    ("Екатерина Волкова", "Менеджер проекта", "e.volkova", EmployeeRole.EMPLOYEE, "6000.00"),
+    ("Алексей Морозов", "Электрик", "a.morozov", EmployeeRole.EMPLOYEE, "3000.00"),
+    ("Ольга Кузнецова", "Снабженец", "o.kuznetsova", EmployeeRole.EMPLOYEE, "10000.00"),
+    ("Дмитрий Соколов", "Инженер", "d.sokolov", EmployeeRole.EMPLOYEE, "4000.00"),
+    ("Анна Лебедева", "Архитектор", "a.lebedeva", EmployeeRole.EMPLOYEE, "5000.00"),
+    ("Артём Ковалёв", "Руководитель отдела", "a.kovalev", EmployeeRole.MANAGER, None),
+    ("Нигина Рахимова", "Бухгалтер", "n.rahimova", EmployeeRole.FINANCE, None),
+    ("Администратор", "Администратор системы", "admin", EmployeeRole.ADMIN, None),
 ]
 
 #: (сотрудник, объект, строки расхода, решение, выплата)
@@ -99,8 +111,10 @@ def seed() -> None:
                 session.flush()
             projects[name] = project
 
+        domain = demo_domain()
         employees: dict[str, Employee] = {}
-        for full_name, position, email, role, limit in EMPLOYEES:
+        for full_name, position, mailbox, role, limit in EMPLOYEES:
+            email = f"{mailbox}@{domain}"
             person = session.scalar(select(Employee).where(Employee.email == email))
             if person is None:
                 person = Employee(
@@ -182,9 +196,12 @@ def seed() -> None:
             len(SCENARIO),
         )
         log.warning(
-            "Вход в демо-режиме: admin@it-hona.tj (администратор), "
-            "a.kovalev@it-hona.tj (руководитель), n.rahimova@it-hona.tj "
-            "(финансы), пароль у всех «%s». Только для показа.",
+            "Вход в демо-режиме: admin@%s (администратор), a.kovalev@%s "
+            "(руководитель), n.rahimova@%s (финансы), пароль у всех «%s». "
+            "Только для показа.",
+            domain,
+            domain,
+            domain,
             DEMO_PASSWORD,
         )
     except Exception:
