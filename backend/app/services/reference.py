@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from decimal import Decimal
+
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.email_policy import EmailPolicyError, ensure_corporate
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.config import get_settings
+from app.core.money import to_decimal
 from app.db.models import (
     Employee,
     EmployeeRole,
@@ -23,6 +26,10 @@ from app.schemas.reference import (
 )
 from app.services.audit import write_audit
 
+#: Статусы, в которых заявка уже считается расходом. Держим ссылкой на
+#: единственное определение — в сервисе заявок.
+from app.services.requests import SPENT_STATUSES  # noqa: E402
+
 
 # --------------------------------------------------------------------------
 # Объекты
@@ -32,6 +39,72 @@ def list_projects(session: Session, *, only_active: bool = False) -> list[Projec
     if only_active:
         stmt = stmt.where(Project.active.is_(True))
     return list(session.scalars(stmt))
+
+
+def projects_overview(
+    session: Session, *, only_active: bool = False
+) -> list[tuple[Project, int, Decimal]]:
+    """Объекты вместе с числом заявок и расходом по каждому.
+
+    Одним запросом с группировкой: по запросу на объект — это N+1 на
+    каждой отрисовке списка. Считаются заявки, дошедшие хотя бы до
+    согласования: черновик и отклонённая деньгами не являются.
+    """
+    counted = (
+        select(
+            ExpenseRequest.project_id.label("project_id"),
+            func.count().label("cnt"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            ExpenseRequest.status.in_(SPENT_STATUSES),
+                            ExpenseRequest.amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("spent"),
+        )
+        .group_by(ExpenseRequest.project_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            Project,
+            func.coalesce(counted.c.cnt, 0),
+            func.coalesce(counted.c.spent, 0),
+        )
+        .outerjoin(counted, counted.c.project_id == Project.id)
+        .order_by(Project.name)
+    )
+    if only_active:
+        stmt = stmt.where(Project.active.is_(True))
+    return [
+        (project, int(cnt), to_decimal(spent))
+        for project, cnt, spent in session.execute(stmt).all()
+    ]
+
+
+def project_totals(session: Session, project_id: int) -> tuple[int, Decimal]:
+    """Число заявок и расход по одному объекту."""
+    count, spent = session.execute(
+        select(
+            func.count(),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (ExpenseRequest.status.in_(SPENT_STATUSES), ExpenseRequest.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        ).where(ExpenseRequest.project_id == project_id)
+    ).one()
+    return int(count), to_decimal(spent)
 
 
 def get_project(session: Session, project_id: int) -> Project:

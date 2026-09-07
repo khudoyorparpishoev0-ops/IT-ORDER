@@ -34,6 +34,15 @@ export type Project = {
   id: number;
   name: string;
   active: boolean;
+  /** Сколько заявок ссылается на объект — по нему видно, что в работе. */
+  requests_count: number;
+  /** Потрачено по объекту за всё время. */
+  spent: Money;
+};
+
+export type ProjectInput = {
+  name: string;
+  active: boolean;
 };
 
 export type Employee = {

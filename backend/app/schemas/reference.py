@@ -15,6 +15,12 @@ class ProjectOut(ORMModel):
     id: int
     name: str
     active: bool
+    #: Сколько заявок ссылается на объект. По нему видно, можно ли объект
+    #: отключать и что он вообще в работе. Заполняется роутером.
+    requests_count: int = 0
+    #: Потрачено по объекту за всё время — по заявкам, которые дошли
+    #: хотя бы до согласования.
+    spent: Decimal = Decimal("0.00")
 
 
 class ProjectCreate(BaseModel):

@@ -11,6 +11,7 @@ import { Help } from '@/pages/Help';
 import { Journal } from '@/pages/Journal';
 import { Login } from '@/pages/Login';
 import { NotFound } from '@/pages/NotFound';
+import { Projects } from '@/pages/Projects';
 import { Reports } from '@/pages/Reports';
 import { Requests } from '@/pages/Requests';
 import { Settings } from '@/pages/Settings';
@@ -105,6 +106,14 @@ export function App() {
           element={
             <Guarded need="manage_reference">
               <Employees />
+            </Guarded>
+          }
+        />
+        <Route
+          path="projects"
+          element={
+            <Guarded need="manage_reference">
+              <Projects />
             </Guarded>
           }
         />

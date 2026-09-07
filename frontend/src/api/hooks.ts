@@ -21,6 +21,7 @@ import type {
   PaymentInput,
   PaymentsRegister,
   Project,
+  ProjectInput,
   ProjectShare,
   RequestDetail,
   RequestInput,
@@ -128,6 +129,34 @@ export function useResetEmployee2fa() {
 export function useDeleteEmployee() {
   return useEmployeeMutation((id: number) =>
     api<void>(`/api/employees/${id}`, { method: 'DELETE' }),
+  );
+}
+
+/** Правка справочника объектов задевает списки и сводки по объектам. */
+function useProjectMutation<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      for (const key of [keys.projects, keys.byProject, keys.requests]) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+    },
+  });
+}
+
+export function useCreateProject() {
+  return useProjectMutation((data: ProjectInput) =>
+    api<Project>('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
+  );
+}
+
+export function useUpdateProject() {
+  return useProjectMutation(({ id, ...data }: Partial<ProjectInput> & { id: number }) =>
+    api<Project>(`/api/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   );
 }
 

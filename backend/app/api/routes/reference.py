@@ -49,7 +49,19 @@ reports_access = Depends(RequirePermission(Permission.VIEW_REPORTS))
 def list_projects(
     session: DbSession, _: CurrentUser, only_active: bool = Query(default=False)
 ):
-    return svc.list_projects(session, only_active=only_active)
+    """Объекты со счётчиком заявок и расходом — по ним видно, что в работе."""
+    return [
+        ProjectOut(
+            id=project.id,
+            name=project.name,
+            active=project.active,
+            requests_count=count,
+            spent=spent,
+        )
+        for project, count, spent in svc.projects_overview(
+            session, only_active=only_active
+        )
+    ]
 
 
 @router.post(
@@ -59,12 +71,23 @@ def list_projects(
     dependencies=[manage],
 )
 def create_project(session: DbSession, data: ProjectCreate):
-    return svc.create_project(session, data)
+    project = svc.create_project(session, data)
+    # Новый объект ещё ни в одной заявке не участвует.
+    return ProjectOut(id=project.id, name=project.name, active=project.active)
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectOut, dependencies=[manage])
 def update_project(session: DbSession, project_id: int, data: ProjectUpdate):
-    return svc.update_project(session, project_id, data)
+    project = svc.update_project(session, project_id, data)
+    session.flush()
+    count, spent = svc.project_totals(session, project.id)
+    return ProjectOut(
+        id=project.id,
+        name=project.name,
+        active=project.active,
+        requests_count=count,
+        spent=spent,
+    )
 
 
 @router.get("/employees", response_model=list[EmployeeOut])
