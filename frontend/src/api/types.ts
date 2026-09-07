@@ -91,6 +91,26 @@ export type ExpenseLine = {
   total: Money;
 };
 
+/** Строка сметы при заведении заявки. Сумма считается сервером. */
+export type ExpenseLineInput = {
+  title: string;
+  quantity: number;
+  price: Money;
+};
+
+export type RequestInput = {
+  employee_id: number;
+  project_id: number;
+  lines: ExpenseLineInput[];
+  /** true — сразу на согласование, false — оставить черновиком. */
+  submit: boolean;
+};
+
+export type PaymentInput = {
+  method: PaymentMethod;
+  document: string;
+};
+
 export type RequestEvent = {
   kind: EventKind;
   text: string;

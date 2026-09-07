@@ -16,10 +16,12 @@ import type {
   Health,
   MonthFact,
   Page,
+  PaymentInput,
   PaymentsRegister,
   Project,
   ProjectShare,
   RequestDetail,
+  RequestInput,
   RequestListItem,
   RequestStatus,
   TeamMember,
@@ -217,6 +219,51 @@ export function useBudget() {
   });
 }
 
+/** Всё, что зависит от заявок и их статусов. Сбрасываем разом: заявка
+ *  меняет и списки, и сводки, и бюджет, и расход по сотруднику. */
+function invalidateRequests(qc: ReturnType<typeof useQueryClient>) {
+  for (const key of [
+    keys.requests,
+    keys.dashboard,
+    keys.queue,
+    keys.byProject,
+    keys.monthly,
+    keys.payments,
+    keys.budget,
+    keys.team,
+  ]) {
+    qc.invalidateQueries({ queryKey: key });
+  }
+}
+
+export function useCreateRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: RequestInput) =>
+      api<RequestDetail>('/api/requests', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => invalidateRequests(qc),
+  });
+}
+
+/** Проведение выплаты. Заявка меняет статус, поэтому сбрасываем то же самое. */
+export function usePayRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: PaymentInput & { id: number }) =>
+      api<RequestDetail>(`/api/requests/${id}/payment`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_data, variables) => {
+      invalidateRequests(qc);
+      qc.invalidateQueries({ queryKey: keys.request(variables.id) });
+    },
+  });
+}
+
 /** Решение по заявке. После успеха сбрасываем всё, что зависит от статусов. */
 export function useDecision() {
   const qc = useQueryClient();
@@ -226,17 +273,6 @@ export function useDecision() {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    onSuccess: () => {
-      for (const key of [
-        keys.requests,
-        keys.dashboard,
-        keys.queue,
-        keys.byProject,
-        keys.budget,
-        keys.team,
-      ]) {
-        qc.invalidateQueries({ queryKey: key });
-      }
-    },
+    onSuccess: () => invalidateRequests(qc),
   });
 }

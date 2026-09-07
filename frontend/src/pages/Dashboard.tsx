@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
+import { NewRequestModal } from '@/components/NewRequestModal';
 import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useDownload } from '@/hooks/useDownload';
@@ -24,6 +25,7 @@ export function Dashboard() {
   const seesQueue = can('decide_request');
 
   const [modal, setModal] = useState<RequestListItem | null>(null);
+  const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const { download, busy } = useDownload();
 
@@ -250,7 +252,11 @@ export function Dashboard() {
               <Icon name="ti-download" />
               {busy ? 'Готовим…' : 'Экспорт'}
             </button>
-            <button type="button" className="btn btn-primary">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setCreating(true)}
+            >
               <Icon name="ti-plus" />
               Новая заявка
             </button>
@@ -263,6 +269,8 @@ export function Dashboard() {
         {seesQueue && banner}
         {table}
       </div>
+
+      {creating && <NewRequestModal onClose={() => setCreating(false)} />}
 
       <RequestModal
         request={modal}

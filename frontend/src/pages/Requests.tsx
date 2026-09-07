@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
+import { NewRequestModal } from '@/components/NewRequestModal';
 import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useDownload } from '@/hooks/useDownload';
@@ -18,10 +19,17 @@ const PAGE_SIZE = 20;
 
 export function Requests() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<Filter>('all');
+  // Статус читается из адреса: с «Финансов» сюда приходят по ссылке на
+  // одобренные заявки, и ссылку должно быть видно в адресной строке.
+  const [params, setParams] = useSearchParams();
+  const fromUrl = params.get('status') as Filter | null;
+  const [filter, setFilter] = useState<Filter>(
+    fromUrl && (STATUS_ORDER as readonly string[]).includes(fromUrl) ? fromUrl : 'all',
+  );
   const [page, setPage] = useState(0);
   const [allPeriods, setAllPeriods] = useState(false);
   const [modal, setModal] = useState<RequestListItem | null>(null);
+  const [creating, setCreating] = useState(false);
   const { download, busy } = useDownload();
 
   const list = useRequests({
@@ -43,6 +51,7 @@ export function Requests() {
   const setFilterAndReset = (key: Filter) => {
     setFilter(key);
     setPage(0);
+    setParams(key === 'all' ? {} : { status: key }, { replace: true });
   };
 
   return (
@@ -70,7 +79,11 @@ export function Requests() {
               <Icon name="ti-file-spreadsheet" />
               {busy ? 'Готовим…' : 'Excel'}
             </button>
-            <button type="button" className="btn btn-primary">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setCreating(true)}
+            >
               <Icon name="ti-plus" />
               Новая заявка
             </button>
@@ -191,6 +204,8 @@ export function Requests() {
           </nav>
         </div>
       </QueryState>
+
+      {creating && <NewRequestModal onClose={() => setCreating(false)} />}
 
       <RequestModal
         request={modal}

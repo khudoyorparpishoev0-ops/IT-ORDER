@@ -1,5 +1,7 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
+import { Overlay } from '@/components/Overlay';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { useAuth } from '@/api/auth';
@@ -721,37 +723,6 @@ function Confirm({
   );
 }
 
-/**
- * Поле с подписью и пояснением. Подпись связана с полем через id, а не
- * обёрнута вокруг него: иначе в доступное имя поля попадают и пояснение,
- * и кнопки рядом — экранный диктор читает мешанину, а тесты не находят
- * поле по названию.
- */
-function Field({
-  label,
-  note,
-  children,
-}: {
-  label: string;
-  note?: string;
-  children: (id: string) => React.ReactNode;
-}) {
-  const id = useId();
-  return (
-    <div>
-      <label className="caption" htmlFor={id} style={{ display: 'block', marginBottom: 4 }}>
-        {label}
-      </label>
-      {children(id)}
-      {note && (
-        <div className="caption" style={{ marginTop: 4 }}>
-          {note}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Тумблеры-«таблетки» брендбук запрещает — только квадратный чекбокс. */
 function SquareCheck({
   label,
@@ -806,59 +777,6 @@ function SquareCheck({
           {note}
         </div>
       )}
-    </div>
-  );
-}
-
-function Overlay({
-  label,
-  onClose,
-  children,
-}: {
-  label: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        background: 'rgba(16,22,19,0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: 600,
-          maxHeight: '86vh',
-          overflowY: 'auto',
-          background: 'var(--paper)',
-          borderRadius: 'var(--r-card)',
-          boxShadow: 'var(--sh2)',
-          padding: 'var(--pad)',
-        }}
-      >
-        {children}
-      </div>
     </div>
   );
 }

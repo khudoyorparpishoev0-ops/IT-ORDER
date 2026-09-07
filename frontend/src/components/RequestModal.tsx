@@ -1,7 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
-import { useRequest } from '@/api/hooks';
+import { Field } from './Field';
+import { useAuth } from '@/api/auth';
+import { usePayRequest, useRequest } from '@/api/hooks';
+import { useShell } from '@/shell/ShellContext';
+import type { PaymentMethod } from '@/api/types';
 import { useDownload } from '@/hooks/useDownload';
 import { money } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
@@ -14,6 +18,7 @@ type Props = {
 
 export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const { can } = useAuth();
   const { data: detail, isLoading } = useRequest(request?.id ?? null);
   const { download, busy } = useDownload();
 
@@ -155,6 +160,17 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
           </p>
         )}
 
+        {request.status === 'approved' && can('pay_request') && (
+          <PaymentForm id={request.id} onDone={onClose} />
+        )}
+
+        {detail?.payment && (
+          <p className="caption" style={{ margin: '16px 0 0' }}>
+            Выплачено {money(detail.payment.amount)} TJS, документ{' '}
+            <span className="num">{detail.payment.document}</span>.
+          </p>
+        )}
+
         <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
           {request.status === 'pending' && (
             <button type="button" className="btn btn-primary" onClick={onOpenApprovals}>
@@ -178,5 +194,86 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Проведение выплаты. Доступно финансам и администратору по одобренной
+ * заявке. Номер документа обязателен: без него в реестре выплат нечего
+ * сверять с банковской выпиской.
+ */
+function PaymentForm({ id, onDone }: { id: number; onDone: () => void }) {
+  const { flash } = useShell();
+  const pay = usePayRequest();
+  const [method, setMethod] = useState<PaymentMethod>('card');
+  const [document, setDocument] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await pay.mutateAsync({ id, method, document: document.trim() });
+      flash('Выплата проведена', 'var(--dot-ok)');
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось провести выплату');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      style={{ marginTop: 24, borderTop: '1px solid var(--line)', paddingTop: 24, display: 'grid', gap: 16 }}
+    >
+      <div className="label">ВЫПЛАТА</div>
+
+      <Field label="Способ">
+        {(fieldId) => (
+          <select
+            id={fieldId}
+            className="field"
+            value={method}
+            onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+          >
+            <option value="card">Перевод на карту</option>
+            <option value="cash">Наличные</option>
+          </select>
+        )}
+      </Field>
+
+      <Field label="Документ" note="Номер платёжного поручения или расходного ордера.">
+        {(fieldId) => (
+          <input
+            id={fieldId}
+            className="field num"
+            required
+            maxLength={64}
+            placeholder="ПП-0412"
+            value={document}
+            onChange={(e) => setDocument(e.target.value)}
+          />
+        )}
+      </Field>
+
+      {error && (
+        <div className="field-error-text" role="alert">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={saving || !document.trim()}
+        style={{ justifySelf: 'start' }}
+      >
+        {saving ? 'Проводим…' : 'Провести выплату'}
+      </button>
+    </form>
   );
 }

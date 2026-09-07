@@ -391,9 +391,6 @@ export function Approvals() {
                 <button type="button" className="btn btn-secondary" onClick={reset}>
                   Отмена
                 </button>
-                <button type="button" className="btn btn-ghost">
-                  Запросить уточнение у сотрудника
-                </button>
               </div>
             </section>
           )}

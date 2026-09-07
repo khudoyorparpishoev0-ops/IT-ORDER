@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Bar } from '@/components/Bar';
 import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
@@ -59,14 +60,15 @@ export function Finance() {
               )}{' '}
               ждут перечисления
             </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ marginTop: 24 }}
-              disabled={!data?.week_requests}
-            >
-              Отправить в оплату
-            </button>
+            {data?.week_requests ? (
+              <Link className="btn btn-primary" style={{ marginTop: 24 }} to="/requests?status=approved">
+                Перейти к одобренным
+              </Link>
+            ) : (
+              <p className="caption" style={{ margin: '24px 0 0' }}>
+                Одобренных заявок в очереди нет.
+              </p>
+            )}
           </section>
         </div>
       </QueryState>
@@ -78,11 +80,6 @@ export function Finance() {
           kicker="ЧЕРНОВИК · В РАБОТЕ"
           title="Банковские реквизиты не подключены"
           note="Реквизиты заполняются после подтверждения владельцем бренда и финансовым отделом."
-          action={
-            <button type="button" className="btn btn-secondary">
-              Подключить счёт
-            </button>
-          }
         />
       </div>
     </>
