@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
 import { useRequest } from '@/api/hooks';
+import { useDownload } from '@/hooks/useDownload';
 import { money } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 
@@ -14,6 +15,7 @@ type Props = {
 export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const { data: detail, isLoading } = useRequest(request?.id ?? null);
+  const { download, busy } = useDownload();
 
   useEffect(() => {
     if (!request) return;
@@ -159,6 +161,17 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
               Открыть в согласовании
             </button>
           )}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy !== null}
+            onClick={() =>
+              download('pdf', `/api/exports/requests/${request.id}.pdf`)
+            }
+          >
+            <Icon name="ti-file-type-pdf" />
+            {busy ? 'Готовим…' : 'PDF'}
+          </button>
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Закрыть
           </button>

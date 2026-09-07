@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
 from app.core.money import to_decimal
+from app.core.text import count_with_word, days
 from app.core.time import format_local_date, local_date, month_bounds, utcnow
 from app.db.models import (
     Employee,
@@ -243,10 +244,11 @@ def payments_register(
     if payments:
         first = format_local_date(payments[-1].paid_at)
         last = format_local_date(payments[0].paid_at)
+        summary = count_with_word(len(payments), "выплата", "выплаты", "выплат")
+        summary += f" с {first} по {last}"
         lag = _average_payout_lag(payments)
-        summary = f"{len(payments)} выплат с {first} по {last}"
         if lag is not None:
-            summary += f" · средний срок от одобрения до выплаты {lag} дн."
+            summary += f" · средний срок от одобрения до выплаты {days(lag)}"
     else:
         summary = "За период выплат не было"
 
@@ -254,9 +256,14 @@ def payments_register(
 
 
 def _average_payout_lag(payments: list[Payment]) -> int | None:
-    """Средний срок от одобрения до выплаты, в днях."""
+    """Средний срок от одобрения до выплаты, в днях.
+
+    Дата платёжного документа может оказаться раньше даты решения: выплату
+    проводят задним числом. Отрицательный срок в отчёте выглядит ошибкой,
+    поэтому такие записи считаем нулевыми, а не вычитаем из среднего.
+    """
     lags = [
-        (p.paid_at - p.request.decided_at).days
+        max(0, (p.paid_at - p.request.decided_at).days)
         for p in payments
         if p.request.decided_at is not None
     ]

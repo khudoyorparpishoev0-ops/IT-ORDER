@@ -2,3 +2,5 @@
 pytest==8.3.4
 pytest-asyncio==0.25.0
 httpx==0.28.1
+# Нужен только для scripts/build_pdf_fonts.py, в образ не попадает
+fonttools[woff]==4.55.3

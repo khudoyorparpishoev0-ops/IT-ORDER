@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
+import { useDownload } from '@/hooks/useDownload';
 import { useSortedRequests } from '@/hooks/useSortedRequests';
 import { useDashboard, useQueueInfo, useRequests } from '@/api/hooks';
 import { money, monthAfterZa, periodLabel, plural, somoni } from '@/data/format';
@@ -24,6 +25,7 @@ export function Dashboard() {
 
   const [modal, setModal] = useState<RequestListItem | null>(null);
   const [search, setSearch] = useState('');
+  const { download, busy } = useDownload();
 
   const stats = useDashboard(seesReports);
   const queue = useQueueInfo(seesQueue);
@@ -239,9 +241,14 @@ export function Dashboard() {
         }
         actions={
           <>
-            <button type="button" className="btn btn-secondary">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy !== null}
+              onClick={() => download('requests', '/api/exports/requests.xlsx')}
+            >
               <Icon name="ti-download" />
-              Экспорт
+              {busy ? 'Готовим…' : 'Экспорт'}
             </button>
             <button type="button" className="btn btn-primary">
               <Icon name="ti-plus" />

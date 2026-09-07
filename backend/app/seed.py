@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -168,7 +167,9 @@ def seed() -> None:
                             else PaymentMethod.CASH
                         ),
                         document=document,
-                        paid_at=utcnow() - timedelta(days=2),
+                        # Выплата проходит после решения, иначе срок
+                        # «от одобрения до выплаты» получается отрицательным.
+                        paid_at=utcnow(),
                         actor="ФИНАНСЫ",
                     ),
                 )

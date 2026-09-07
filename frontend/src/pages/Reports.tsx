@@ -9,6 +9,7 @@ import {
   useProjectShares,
   useProjects,
 } from '@/api/hooks';
+import { useDownload } from '@/hooks/useDownload';
 import { formatDate, money, monthAfterZa } from '@/data/format';
 import { PAYMENT_METHOD } from '@/data/status';
 
@@ -22,6 +23,7 @@ const SHARE_TINTS = [
 
 export function Reports() {
   const [projectId, setProjectId] = useState<number | undefined>();
+  const { download, busy } = useDownload();
 
   const shares = useProjectShares();
   const months = useMonthlyFacts();
@@ -44,13 +46,27 @@ export function Reports() {
         lead={`Источник: CORE · данные на ${formatDate(new Date().toISOString())}`}
         actions={
           <>
-            <button type="button" className="btn btn-secondary">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy !== null}
+              onClick={() =>
+                download('xlsx', '/api/exports/payments.xlsx', { project_id: projectId })
+              }
+            >
               <Icon name="ti-file-spreadsheet" />
-              Excel
+              {busy === 'xlsx' ? 'Готовим…' : 'Excel'}
             </button>
-            <button type="button" className="btn btn-secondary">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy !== null}
+              onClick={() =>
+                download('pdf', '/api/exports/payments.pdf', { project_id: projectId })
+              }
+            >
               <Icon name="ti-file-type-pdf" />
-              PDF
+              {busy === 'pdf' ? 'Готовим…' : 'PDF'}
             </button>
           </>
         }
@@ -186,9 +202,18 @@ export function Reports() {
                 ))}
               </select>
             </label>
-            <button type="button" className="btn btn-secondary">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy !== null}
+              onClick={() =>
+                download('register', '/api/exports/payments.xlsx', {
+                  project_id: projectId,
+                })
+              }
+            >
               <Icon name="ti-download" />
-              Реестр выплат
+              {busy === 'register' ? 'Готовим…' : 'Реестр выплат'}
             </button>
           </div>
         </div>

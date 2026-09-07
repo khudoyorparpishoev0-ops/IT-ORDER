@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
+import { useDownload } from '@/hooks/useDownload';
 import { useSortedRequests } from '@/hooks/useSortedRequests';
 import { useRequests } from '@/api/hooks';
 import { monthAfterZa, periodLabel, plural } from '@/data/format';
@@ -21,6 +22,7 @@ export function Requests() {
   const [page, setPage] = useState(0);
   const [allPeriods, setAllPeriods] = useState(false);
   const [modal, setModal] = useState<RequestListItem | null>(null);
+  const { download, busy } = useDownload();
 
   const list = useRequests({
     status: filter === 'all' ? undefined : filter,
@@ -52,10 +54,27 @@ export function Requests() {
           allPeriods ? 'за всё время' : `за ${monthAfterZa()}`
         }`}
         actions={
-          <button type="button" className="btn btn-primary">
-            <Icon name="ti-plus" />
-            Новая заявка
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy !== null}
+              onClick={() =>
+                // Выгружается текущий фильтр, а не только открытая страница.
+                download('xlsx', '/api/exports/requests.xlsx', {
+                  status: filter === 'all' ? undefined : filter,
+                  all_periods: allPeriods,
+                })
+              }
+            >
+              <Icon name="ti-file-spreadsheet" />
+              {busy ? 'Готовим…' : 'Excel'}
+            </button>
+            <button type="button" className="btn btn-primary">
+              <Icon name="ti-plus" />
+              Новая заявка
+            </button>
+          </>
         }
       />
 
