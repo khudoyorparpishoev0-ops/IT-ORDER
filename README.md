@@ -378,8 +378,11 @@ BOOTSTRAP_ADMIN_PASSWORD=длинная-фраза-минимум-десять-�
 
 ### 4. Запуск
 
+`COMPOSE_FILE` в `.env` уже перечисляет оба файла, поэтому длинных ключей
+`-f` не нужно:
+
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose up -d --build
 docker compose logs -f caddy   # ждём выпуска сертификата
 curl -s https://order.ithona.tj/health
 ```
@@ -412,7 +415,7 @@ crontab -e
 cd /opt/hona-core
 ./deploy/backup.sh                 # сначала копия
 git pull origin main
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose up -d --build
 ```
 
 Миграции применяются автоматически при старте контейнера `api`, под

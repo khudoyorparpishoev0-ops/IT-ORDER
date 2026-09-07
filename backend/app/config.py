@@ -1,8 +1,9 @@
 """Единственная точка чтения переменных окружения."""
 
 from functools import lru_cache
+from urllib.parse import quote
 
-from pydantic import Field, PostgresDsn, computed_field, model_validator
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -153,16 +154,23 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def database_url(self) -> str:
-        """DSN для SQLAlchemy. Пароль сюда попадает, в логи — нет."""
-        dsn = PostgresDsn.build(
-            scheme="postgresql+psycopg",
-            username=self.postgres_user,
-            password=self.postgres_password,
-            host=self.postgres_host,
-            port=self.postgres_port,
-            path=self.postgres_db,
+        """DSN для SQLAlchemy. Пароль сюда попадает, в логи — нет.
+
+        Логин и пароль экранируются: случайный пароль из `openssl rand
+        -base64` содержит «/», «+» и «=», а они значимы в URL. Без
+        экранирования «/» обрывает адрес хоста, и приложение падает
+        на старте с невнятной ошибкой разбора порта.
+        """
+        user = quote(self.postgres_user, safe="")
+        password = quote(self.postgres_password, safe="")
+        host = self.postgres_host
+        # Unix-сокет тоже начинается со «/» и требует экранирования.
+        if host.startswith("/"):
+            host = quote(host, safe="")
+        return (
+            f"postgresql+psycopg://{user}:{password}"
+            f"@{host}:{self.postgres_port}/{quote(self.postgres_db, safe='')}"
         )
-        return str(dsn)
 
     @computed_field
     @property
