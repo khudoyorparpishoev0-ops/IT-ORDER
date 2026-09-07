@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { IthonaLogo } from '@/components/Logo';
+import { IthonaLogoStacked } from '@/components/Logo';
 import { useAuth, useAuthPolicy } from '@/api/auth';
 import { TotpSetup } from '@/components/TotpSetup';
 import { PasswordReset } from './PasswordReset';
@@ -84,7 +84,7 @@ export function Login() {
     >
       <div style={{ width: '100%', maxWidth: pending === '2fa_setup_required' ? 520 : 400 }}>
         <div style={{ marginBottom: 24 }}>
-          <IthonaLogo height={34} style={{ color: 'var(--logo)' }} />
+          <IthonaLogoStacked height={64} style={{ color: 'var(--logo)' }} />
           <div className="label" style={{ marginTop: 10 }}>
             ORDER
           </div>

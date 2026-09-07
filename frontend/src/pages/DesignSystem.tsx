@@ -1,5 +1,5 @@
 import { Icon } from '@/components/Icon';
-import { IthonaLogo, IthonaMark } from '@/components/Logo';
+import { IthonaLogo, IthonaLogoStacked, IthonaMark } from '@/components/Logo';
 import type { IconName } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -87,7 +87,8 @@ export function DesignSystem() {
               marginTop: 16,
             }}
           >
-            <IthonaLogo height={40} style={{ color: 'var(--logo)' }} />
+            <IthonaLogoStacked height={72} style={{ color: 'var(--logo)' }} />
+            <IthonaLogo height={34} style={{ color: 'var(--logo)' }} />
             <IthonaMark size={40} style={{ color: 'var(--logo)' }} />
             <div
               style={{
@@ -99,15 +100,18 @@ export function DesignSystem() {
                 gap: 24,
               }}
             >
-              <IthonaLogo height={32} style={{ color: '#FFFFFF' }} />
-              <IthonaMark size={32} style={{ color: '#FFFFFF' }} />
+              <IthonaLogoStacked height={56} style={{ color: '#FFFFFF' }} />
+              <IthonaLogo height={28} style={{ color: '#FFFFFF' }} />
+              <IthonaMark size={28} style={{ color: '#FFFFFF' }} />
             </div>
           </div>
           <p className="caption" style={{ margin: '16px 0 0' }}>
-            Монохром: фирменный зелёный на светлом, белая выворотка на тёмном и
-            на зелёном. Знак без слова — там, где имя уже названо рядом: иконка
-            приложения, favicon, маркировка. Пропорции и отступ между знаком и
-            словом заданы в компоненте и меняться не должны.
+            Слева направо: основная вертикальная композиция, горизонтальная
+            для узких мест и знак без слова — там, где имя уже названо рядом
+            (иконка приложения, favicon, маркировка). Монохром: фирменный
+            зелёный на светлом, белая выворотка на тёмном и на зелёном.
+            Геометрия взята из официальных файлов бренд-пакета, пропорции и
+            отступы менять нельзя.
           </p>
         </section>
 
