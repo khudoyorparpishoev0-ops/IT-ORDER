@@ -300,17 +300,103 @@ alembic check        # «No new upgrade operations detected» — схема с�
 
 Целевой сервер: Ubuntu 22.04, 2 ядра, 2 ГБ RAM, 30 ГБ SSD.
 
-1. Обновить систему, создать пользователя без прав root, включить вход по
-   SSH-ключу и выключить вход root по паролю.
-2. Открыть в фаерволе только 22, 80 и 443:
-   `ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw enable`
-3. Поставить Docker и Docker Compose.
-4. Склонировать репозиторий, заполнить `.env`, поднять стек.
-5. Поставить HTTPS перед панелью (Caddy или nginx с certbot). Панель доступна
-   из интернета, поэтому вход обязателен до открытия доступа сотрудникам.
+### 1. Подготовка системы
 
-Сборка фронтенда на 2 ГБ RAM проходит, но при нехватке памяти собирайте образ
-на рабочей машине или в CI и переносите готовый.
+```bash
+# Если apt ругается на прерванный dpkg — сначала это:
+dpkg --configure -a
+
+apt update && apt upgrade -y
+ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw enable
+curl -fsSL https://get.docker.com | sh
+```
+
+Порт панели (8080) в фаерволе **не открывается**: снаружи работает только
+Caddy на 80 и 443, а панель слушает на `127.0.0.1`.
+
+Работать под root не нужно — заведите пользователя и вход по ключу:
+
+```bash
+adduser hona && usermod -aG docker,sudo hona
+mkdir -p /home/hona/.ssh && cp ~/.ssh/authorized_keys /home/hona/.ssh/
+chown -R hona:hona /home/hona/.ssh && chmod 700 /home/hona/.ssh
+# После проверки входа под hona отключите вход root по паролю:
+#   PermitRootLogin prohibit-password  в /etc/ssh/sshd_config
+```
+
+### 2. Домен
+
+Заведите A-запись на IP сервера, например `core.it-hona.tj`. Без домена
+сертификат Let's Encrypt не выпустить, а `COOKIE_SECURE=true` требует HTTPS
+— по обычному http браузер не сохранит cookie сессии и вход не сработает.
+
+Проверить, что запись разошлась: `dig +short core.it-hona.tj`
+
+### 3. Проект и настройки
+
+```bash
+git clone https://github.com/khudoyorparpishoev0-ops/IT-ORDER.git /opt/hona-core
+cd /opt/hona-core
+cp .env.example .env
+mkdir -p data/postgres data/backups data/caddy data/caddy-config
+```
+
+Заполните в `.env` обязательное:
+
+```bash
+POSTGRES_PASSWORD=$(openssl rand -base64 32)
+SECRET_KEY=$(openssl rand -hex 32)
+APP_DOMAIN=core.it-hona.tj
+ACME_EMAIL=admin@it-hona.tj
+PUBLIC_BASE_URL=https://core.it-hona.tj
+BOOTSTRAP_ADMIN_EMAIL=admin@it-hona.tj
+BOOTSTRAP_ADMIN_PASSWORD=длинная-фраза-минимум-десять-символов
+```
+
+Плюс почта Zoho (см. раздел «Почта») — без неё письма не отправляются,
+но система работает.
+
+### 4. Запуск
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose logs -f caddy   # ждём выпуска сертификата
+curl -s https://core.it-hona.tj/health
+```
+
+Первая сборка на 2 ГБ RAM занимает несколько минут. Если сборка фронтенда
+упирается в память — соберите образ на рабочей машине и перенесите готовый.
+
+Войдите под стартовым администратором, **смените пароль, настройте второй
+фактор и удалите `BOOTSTRAP_ADMIN_*` из `.env`.**
+
+### 5. Резервные копии
+
+```bash
+./deploy/backup.sh
+crontab -e
+# 20 3 * * * cd /opt/hona-core && ./deploy/backup.sh >> data/backup.log 2>&1
+```
+
+Копии складываются в `data/backups`, старше `BACKUP_KEEP_DAYS` удаляются.
+Восстановление: `./deploy/restore.sh data/backups/hona_core_ГГГГ-ММ-ДД_ЧЧ-ММ.sql.gz`
+— скрипт спрашивает подтверждение, потому что заменяет текущие данные.
+
+**Копии на самом сервере — это не резервное копирование.** Настройте
+выгрузку `data/backups` наружу: на Synology, в объектное хранилище или хотя
+бы `rsync` на другую машину. Диск сервера может умереть вместе с копиями.
+
+### 6. Обновление
+
+```bash
+cd /opt/hona-core
+./deploy/backup.sh                 # сначала копия
+git pull origin main
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Миграции применяются автоматически при старте контейнера `api`, под
+advisory-локом.
 
 ## Правила, которые нельзя нарушать
 

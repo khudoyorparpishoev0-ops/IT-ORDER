@@ -1,0 +1,34 @@
+# Продакшн-надстройка: HTTPS через Caddy.
+#
+# Caddy сам получает и продлевает сертификат Let's Encrypt — отдельный
+# certbot и задание в cron не нужны. Для выпуска сертификата домен должен
+# указывать на этот сервер, а порты 80 и 443 быть открыты.
+#
+# Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Панель остаётся на 127.0.0.1:8080 — это удобно для диагностики с самого
+# сервера и недоступно снаружи.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      # HTTP/3 работает по UDP; без него всё равно всё работает.
+      - '443:443/udp'
+    environment:
+      # Домен панели: под него выпускается сертификат.
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN не задан в .env}
+      # Адрес для писем Let's Encrypt об истечении сертификата.
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Сертификаты и состояние ACME — в папках хоста: именованные тома
+      # проект не использует, а потеря этой папки означает повторный
+      # выпуск сертификата и риск упереться в лимиты Let's Encrypt.
+      - ${CADDY_DATA_PATH:-./data/caddy}:/data
+      - ${CADDY_CONFIG_PATH:-./data/caddy-config}:/config
+    depends_on:
+      - web

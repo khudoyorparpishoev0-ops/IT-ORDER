@@ -1,0 +1,36 @@
+# Конфигурация Caddy для HONA CORE.
+#
+# Сертификат Let's Encrypt выпускается и продлевается автоматически.
+# Домен и почта приходят из переменных окружения контейнера.
+
+{
+	email {$ACME_EMAIL}
+	# Сервер отдаёт только панель — страницу с версией Caddy наружу не показываем.
+	servers {
+		metrics
+	}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# Панель и API живут на одном origin, поэтому проксируем всё разом.
+	reverse_proxy web:80
+
+	header {
+		# Браузер обязан ходить только по HTTPS. Полгода — безопасный
+		# срок: ошибку в настройке успеваем заметить.
+		Strict-Transport-Security "max-age=15552000; includeSubDomains"
+		# Панель не встраивается в чужие страницы: защита от кликджекинга.
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		# Заголовок с версией сервера убираем.
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
