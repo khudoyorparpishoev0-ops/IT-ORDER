@@ -5,6 +5,8 @@ import { useHealth } from '@/api/hooks';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { ROLE_LABEL } from '@/shell/config';
+import { RecoveryCodes } from '@/components/RecoveryCodes';
+import { TotpSetup } from '@/components/TotpSetup';
 
 const NOTIFICATIONS = [
   { label: 'Новые заявки на утверждение', on: true },
@@ -63,6 +65,8 @@ export function Settings() {
         </section>
 
         <PasswordCard onDone={() => flash('Пароль изменён', 'var(--dot-ok)')} />
+
+        <TwoFactorCard onFlash={flash} />
 
         <section className="card">
           <div className="label">ТЕМА ОФОРМЛЕНИЯ</div>
@@ -320,6 +324,162 @@ function PasswordCard({ onDone }: { onDone: () => void }) {
           {saving ? 'Сохраняем…' : 'Сменить пароль'}
         </button>
       </form>
+    </section>
+  );
+}
+
+/**
+ * Второй фактор: включение, перевыпуск кодов восстановления, отключение.
+ * Ролям, которым он обязателен, отключение недоступно.
+ */
+function TwoFactorCard({
+  onFlash,
+}: {
+  onFlash: (text: string, color: string) => void;
+}) {
+  const { user, refresh } = useAuth();
+  const [mode, setMode] = useState<'idle' | 'setup'>('idle');
+  const [password, setPassword] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!user) return null;
+
+  const act = async (path: string, done: (data: { codes?: string[] }) => void) => {
+    setError(null);
+    setBusy(true);
+    try {
+      const data = await api<{ codes?: string[] }>(path, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+      setPassword('');
+      done(data);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось выполнить действие');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (codes) {
+    return (
+      <section className="card">
+        <RecoveryCodes codes={codes} onDone={() => setCodes(null)} />
+      </section>
+    );
+  }
+
+  if (mode === 'setup') {
+    return (
+      <section className="card">
+        <div className="label">ДВУХФАКТОРНЫЙ ВХОД</div>
+        <div style={{ marginTop: 16 }}>
+          <TotpSetup
+            onCancel={() => setMode('idle')}
+            onDone={() => {
+              setMode('idle');
+              refresh();
+              onFlash('Двухфакторный вход включён', 'var(--dot-ok)');
+            }}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card">
+      <div className="label">ДВУХФАКТОРНЫЙ ВХОД</div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 8,
+            height: 8,
+            background: user.two_factor_enabled ? 'var(--dot-ok)' : 'var(--dot-off)',
+          }}
+        />
+        <span style={{ fontWeight: 600 }}>
+          {user.two_factor_enabled ? 'Включён' : 'Выключен'}
+        </span>
+      </div>
+
+      <p className="caption" style={{ margin: '8px 0 0' }}>
+        {user.two_factor_enabled
+          ? `Кодов восстановления осталось: ${user.recovery_codes_left}.`
+          : 'Пароль можно подсмотреть или подобрать. Код из приложения на телефоне закрывает вход, даже если пароль стал известен.'}
+        {user.two_factor_required && ' Для вашей роли он обязателен.'}
+      </p>
+
+      {!user.two_factor_enabled && (
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ marginTop: 24 }}
+          onClick={() => setMode('setup')}
+        >
+          Включить
+        </button>
+      )}
+
+      {user.two_factor_enabled && (
+        <>
+          <label style={{ display: 'block', marginTop: 24 }}>
+            <div className="caption" style={{ marginBottom: 4 }}>
+              Подтвердите паролем
+            </div>
+            <input
+              className={`field${error ? ' field-error' : ''}`}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
+              aria-invalid={Boolean(error)}
+            />
+          </label>
+          {error && (
+            <div className="field-error-text" role="alert">
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !password}
+              onClick={() =>
+                act('/api/auth/2fa/recovery-codes', (data) =>
+                  setCodes(data.codes ?? []),
+                )
+              }
+            >
+              Новые коды восстановления
+            </button>
+            {!user.two_factor_required && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={busy || !password}
+                onClick={() =>
+                  act('/api/auth/2fa/disable', () =>
+                    onFlash('Двухфакторный вход отключён', 'var(--dot-warn)'),
+                  )
+                }
+              >
+                Отключить
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

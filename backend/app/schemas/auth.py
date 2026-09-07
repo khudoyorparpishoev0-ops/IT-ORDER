@@ -1,4 +1,4 @@
-"""Схемы входа и профиля."""
+"""Схемы входа, второго фактора и профиля."""
 
 from __future__ import annotations
 
@@ -14,6 +14,26 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class TwoFactorIn(BaseModel):
+    """Код из приложения-аутентификатора либо код восстановления."""
+
+    code: str = Field(min_length=1, max_length=32)
+
+
+class LoginResult(BaseModel):
+    """Итог первого шага.
+
+    `status`:
+      - `ok` — вход завершён, сессия выдана;
+      - `2fa_required` — нужен код из приложения;
+      - `2fa_setup_required` — роль обязывает включить второй фактор,
+        а он ещё не настроен.
+    """
+
+    status: str
+    user: CurrentUserOut | None = None
+
+
 class CurrentUserOut(BaseModel):
     """Кто вошёл и что ему можно. Фронтенд по этому прячет разделы;
     сервер всё равно проверяет права на каждом запросе."""
@@ -25,6 +45,33 @@ class CurrentUserOut(BaseModel):
     role: EmployeeRole
     permissions: list[str]
     last_login_at: datetime | None
+    two_factor_enabled: bool
+    two_factor_required: bool
+    recovery_codes_left: int
+
+
+class TotpSetupOut(BaseModel):
+    """Данные для настройки: секрет, ссылка otpauth и QR в SVG."""
+
+    secret: str
+    uri: str
+    qr_svg: str
+
+
+class TotpConfirmIn(BaseModel):
+    code: str = Field(min_length=6, max_length=8)
+
+
+class RecoveryCodesOut(BaseModel):
+    """Показываются один раз: в базе хранятся только хэши."""
+
+    codes: list[str]
+
+
+class PasswordConfirmIn(BaseModel):
+    """Действие, требующее подтверждения паролем."""
+
+    password: str = Field(min_length=1, max_length=256)
 
 
 class PasswordChangeIn(BaseModel):
@@ -36,3 +83,13 @@ class PasswordSetIn(BaseModel):
     """Назначение пароля администратором."""
 
     password: str = Field(min_length=1, max_length=256)
+
+
+class AuthPolicyOut(BaseModel):
+    """Публичная политика входа — нужна экрану входа до авторизации."""
+
+    email_domains: list[str]
+    domains_hint: str
+
+
+LoginResult.model_rebuild()

@@ -62,6 +62,39 @@ class Settings(BaseSettings):
             "поставить false, иначе браузер cookie не сохранит."
         ),
     )
+    allowed_email_domains: str = Field(
+        default="it-hona.tj",
+        description=(
+            "Домены корпоративной почты через запятую. Войти и завести "
+            "сотрудника можно только с адресом из этого списка. Пустая "
+            "строка снимает ограничение — так делать не рекомендуется."
+        ),
+    )
+
+    require_2fa_roles: str = Field(
+        default="admin,finance",
+        description=(
+            "Роли, которым двухфакторный вход обязателен: без него они не "
+            "получат сессию. Остальные могут включить его добровольно. "
+            "Пустая строка — никого не принуждаем, 'all' — всех."
+        ),
+    )
+    totp_issuer: str = Field(
+        default="IT-HONA CORE",
+        description="Название системы в приложении-аутентификаторе.",
+    )
+    max_failed_logins: int = Field(
+        default=8,
+        ge=3,
+        description=(
+            "Сколько неудачных попыток подряд до временной блокировки. "
+            "Без этого шестизначный код TOTP перебирается за часы."
+        ),
+    )
+    lockout_minutes: int = Field(
+        default=15, ge=1, description="Насколько блокируется вход после серии ошибок."
+    )
+
     #: Первый администратор создаётся при старте, если в базе нет ни одного.
     bootstrap_admin_email: str = ""
     bootstrap_admin_password: str = ""
@@ -85,6 +118,25 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
+
+    @computed_field
+    @property
+    def email_domains(self) -> tuple[str, ...]:
+        """Разрешённые домены в нижнем регистре. Пустой кортеж — без проверки."""
+        return tuple(
+            d.strip().lower().lstrip("@")
+            for d in self.allowed_email_domains.split(",")
+            if d.strip()
+        )
+
+    @computed_field
+    @property
+    def roles_requiring_2fa(self) -> frozenset[str]:
+        """Роли с обязательной двухфакторной аутентификацией."""
+        raw = {r.strip().lower() for r in self.require_2fa_roles.split(",") if r.strip()}
+        if "all" in raw:
+            return frozenset({"employee", "manager", "finance", "admin"})
+        return frozenset(raw)
 
     @model_validator(mode="after")
     def check_production_secrets(self) -> "Settings":

@@ -5,7 +5,8 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.email_policy import EmailPolicyError, ensure_corporate
+from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.db.models import Employee, ExpenseRequest, Project
 from app.schemas.reference import (
     EmployeeCreate,
@@ -81,10 +82,26 @@ def get_employee(session: Session, employee_id: int) -> Employee:
     return employee
 
 
+def _corporate_email(email: str | None) -> str | None:
+    """Проверяет и нормализует адрес. Почта — логин, поэтому личные
+    ящики в систему не заводим."""
+    if email is None:
+        return None
+    try:
+        return ensure_corporate(email)
+    except EmailPolicyError as exc:
+        raise ValidationError(str(exc)) from exc
+
+
 def create_employee(session: Session, data: EmployeeCreate) -> Employee:
-    if data.email and session.scalar(select(Employee).where(Employee.email == data.email)):
-        raise ConflictError(f"Сотрудник с почтой {data.email} уже заведён")
-    employee = Employee(**data.model_dump())
+    payload = data.model_dump()
+    payload["email"] = _corporate_email(payload.get("email"))
+
+    if payload["email"] and session.scalar(
+        select(Employee).where(func.lower(Employee.email) == payload["email"])
+    ):
+        raise ConflictError(f"Сотрудник с почтой {payload['email']} уже заведён")
+    employee = Employee(**payload)
     session.add(employee)
     session.flush()
     write_audit(session, entity="employee", entity_id=employee.id, action="create")
@@ -94,10 +111,14 @@ def create_employee(session: Session, data: EmployeeCreate) -> Employee:
 def update_employee(session: Session, employee_id: int, data: EmployeeUpdate) -> Employee:
     employee = get_employee(session, employee_id)
     changes = data.model_dump(exclude_unset=True)
+    if "email" in changes:
+        changes["email"] = _corporate_email(changes["email"])
     email = changes.get("email")
     if email:
         clash = session.scalar(
-            select(Employee).where(Employee.email == email, Employee.id != employee_id)
+            select(Employee).where(
+                func.lower(Employee.email) == email, Employee.id != employee_id
+            )
         )
         if clash:
             raise ConflictError(f"Сотрудник с почтой {email} уже заведён")

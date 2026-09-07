@@ -192,11 +192,40 @@ export type CurrentUser = {
   role: EmployeeRole;
   permissions: Permission[];
   last_login_at: string | null;
+  two_factor_enabled: boolean;
+  /** Роль обязана иметь второй фактор: отключить его нельзя. */
+  two_factor_required: boolean;
+  recovery_codes_left: number;
 };
 
 export type LoginInput = {
   email: string;
   password: string;
+};
+
+/**
+ * Итог первого шага входа:
+ * `ok` — сессия выдана; `2fa_required` — нужен код из приложения;
+ * `2fa_setup_required` — роль обязывает включить второй фактор.
+ */
+export type LoginStatus = 'ok' | '2fa_required' | '2fa_setup_required';
+
+export type LoginResult = {
+  status: LoginStatus;
+  user: CurrentUser | null;
+};
+
+export type TotpSetup = {
+  secret: string;
+  uri: string;
+  /** QR-код целиком, в SVG. */
+  qr_svg: string;
+};
+
+export type AuthPolicy = {
+  email_domains: string[];
+  /** Подсказка вида «@it-hona.tj». */
+  domains_hint: string;
 };
 
 export type DecisionInput = {

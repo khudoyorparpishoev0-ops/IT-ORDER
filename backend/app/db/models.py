@@ -6,6 +6,7 @@ import enum
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Enum,
     ForeignKey,
@@ -108,9 +109,25 @@ class Employee(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255))
     last_login_at: Mapped[Timestamp | None]
 
+    #: Секрет TOTP, зашифрованный ключом из SECRET_KEY. Заполнен, но
+    #: totp_enabled=false — настройка начата и не подтверждена кодом.
+    totp_secret: Mapped[str | None] = mapped_column(String(255))
+    totp_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    totp_confirmed_at: Mapped[Timestamp | None]
+    #: Номер последнего использованного временного шага: не даёт применить
+    #: подсмотренный код повторно в пределах его 30-секундного окна.
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger)
+
+    #: Защита от перебора. Шестизначный код TOTP без неё подбирается за часы.
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Timestamp | None]
+
     created_at: Mapped[CreatedAt]
 
     requests: Mapped[list[ExpenseRequest]] = relationship(back_populates="employee")
+    recovery_codes: Mapped[list[RecoveryCode]] = relationship(
+        back_populates="employee", cascade="all, delete-orphan"
+    )
 
     @property
     def can_sign_in(self) -> bool:
@@ -122,6 +139,32 @@ class Employee(Base):
             "monthly_limit IS NULL OR monthly_limit >= 0",
             name="ck_employees_limit_non_negative",
         ),
+    )
+
+
+class RecoveryCode(Base):
+    """Одноразовый код восстановления доступа при потере телефона.
+
+    Хранится хэшем: дамп базы не должен давать возможность войти.
+    Использованный код не удаляется, а помечается — по журналу видно,
+    что второй фактор обходили кодом восстановления.
+    """
+
+    __tablename__ = "recovery_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    used_at: Mapped[Timestamp | None]
+    created_at: Mapped[CreatedAt]
+
+    employee: Mapped[Employee] = relationship(back_populates="recovery_codes")
+
+    __table_args__ = (
+        Index("ix_recovery_employee", "employee_id"),
+        UniqueConstraint("employee_id", "code_hash", name="uq_recovery_employee_code"),
     )
 
 
@@ -307,6 +350,7 @@ __all__ = [
     "Payment",
     "PaymentMethod",
     "Project",
+    "RecoveryCode",
     "RequestEvent",
     "REQUEST_NUMBER_SEQ",
     "RequestStatus",

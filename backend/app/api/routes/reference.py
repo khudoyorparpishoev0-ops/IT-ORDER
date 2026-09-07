@@ -101,6 +101,15 @@ def set_employee_password(
     )
 
 
+@router.post(
+    "/employees/{employee_id}/reset-2fa", response_model=EmployeeOut, dependencies=[manage]
+)
+def reset_employee_2fa(session: DbSession, user: CurrentUser, employee_id: int):
+    """Сброс второго фактора: сотрудник потерял телефон и коды
+    восстановления. После сброса он настраивает всё заново."""
+    return auth_svc.reset_totp(session, employee_id, actor=user.full_name)
+
+
 @router.delete(
     "/employees/{employee_id}",
     status_code=status.HTTP_204_NO_CONTENT,

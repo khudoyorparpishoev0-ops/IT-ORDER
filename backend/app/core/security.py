@@ -61,6 +61,16 @@ def needs_rehash(password_hash: str) -> bool:
         return True
 
 
+#: Тип токена в поле `typ`. Сессионный токен и промежуточный токен второго
+#: фактора не должны подменять друг друга: иначе первый шаг входа давал бы
+#: полный доступ.
+TOKEN_SESSION = "session"
+TOKEN_PENDING_2FA = "pending_2fa"
+
+#: Промежуточный токен живёт минуты: он лишь удерживает шаг входа.
+PENDING_2FA_MINUTES = 10
+
+
 def create_token(subject: int, *, role: str) -> str:
     """Токен сессии. `sub` — id сотрудника, `role` — для быстрой проверки
     на фронтенде; сервер всё равно перечитывает роль из базы."""
@@ -69,8 +79,22 @@ def create_token(subject: int, *, role: str) -> str:
     payload: dict[str, Any] = {
         "sub": str(subject),
         "role": role,
+        "typ": TOKEN_SESSION,
         "iat": now,
         "exp": now + timedelta(minutes=settings.session_lifetime_minutes),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def create_pending_2fa_token(subject: int) -> str:
+    """Токен между первым и вторым фактором. Доступа к данным не даёт."""
+    settings = get_settings()
+    now = utcnow()
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "typ": TOKEN_PENDING_2FA,
+        "iat": now,
+        "exp": now + timedelta(minutes=PENDING_2FA_MINUTES),
     }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
@@ -85,8 +109,15 @@ def decode_token(token: str) -> dict[str, Any]:
         raise TokenError("Недействительный токен сессии") from exc
 
 
-def token_subject(token: str) -> int:
+def token_subject(token: str, *, expected_type: str = TOKEN_SESSION) -> int:
+    """Идентификатор из токена с проверкой его назначения.
+
+    Без проверки `typ` промежуточный токен первого шага открывал бы
+    систему целиком, минуя второй фактор.
+    """
     payload = decode_token(token)
+    if payload.get("typ") != expected_type:
+        raise TokenError("Токен не подходит для этого действия")
     try:
         return int(payload["sub"])
     except (KeyError, TypeError, ValueError) as exc:
