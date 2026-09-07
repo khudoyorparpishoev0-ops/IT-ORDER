@@ -70,6 +70,8 @@ export type EmployeeInput = {
   role: EmployeeRole;
   monthly_limit: Money | null;
   active: boolean;
+  /** Только при заведении: пароль уходит вместе с карточкой одним запросом. */
+  password?: string | null;
 };
 
 /** Строка журнала действий. Подписи собирает панель — см. src/data/audit.ts. */

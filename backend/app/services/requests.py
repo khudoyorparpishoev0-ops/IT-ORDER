@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import Select, func, select
@@ -242,6 +242,10 @@ def update_request(
         project = session.get(Project, data.project_id)
         if project is None:
             raise NotFoundError(f"Объект {data.project_id} не найден")
+        # Та же проверка, что при создании: на отключённый объект заявку
+        # не подать ни новой, ни правкой черновика.
+        if not project.active:
+            raise ValidationError(f"Объект «{project.name}» отключён")
         request.project_id = project.id
     if data.lines is not None:
         _apply_lines(request, data.lines)
@@ -340,6 +344,15 @@ def pay_request(session: Session, request_id: int, data: PaymentIn) -> ExpenseRe
     paid_at = data.paid_at or utcnow()
     if paid_at.tzinfo is None:
         raise ValidationError("paid_at должен быть с таймзоной")
+    # Дата из будущего перекашивает реестр выплат и все сводки: месяц
+    # закрыт, а платёж «случится» в следующем году. Небольшой запас —
+    # на расхождение часов клиента и сервера.
+    if paid_at > utcnow() + timedelta(minutes=5):
+        raise ValidationError("Дата выплаты не может быть в будущем")
+    if request.decided_at is not None and paid_at < request.decided_at:
+        raise ValidationError(
+            "Дата выплаты раньше решения по заявке — проверьте, что вводите"
+        )
 
     request.payment = Payment(
         amount=request.amount,

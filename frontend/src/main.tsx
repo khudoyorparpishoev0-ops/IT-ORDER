@@ -10,16 +10,22 @@ import './styles/base.css';
 import { App } from './App';
 import { AuthProvider } from './api/auth';
 import { ApiError } from './api/client';
+import { markSessionExpired } from './api/session';
 import { ShellProvider } from './shell/ShellContext';
 
 /**
  * Сессия может истечь между запросами, и тогда 401 приходит в любой хук.
  * Обрабатываем это один раз здесь: сбрасываем сведения о входе, и панель
  * сама показывает экран входа — вместо проверки в каждом компоненте.
+ *
+ * Вместе с этим поднимаем признак «сессия истекла»: без него подмена
+ * экрана посреди заполненной формы выглядит как необъяснимо закрывшееся
+ * окно, и человек не понимает, сохранилось что-то или нет.
  */
 function onUnauthorized(error: unknown): void {
   if (error instanceof ApiError && error.status === 401) {
     queryClient.setQueryData(['auth', 'me'], null);
+    markSessionExpired();
   }
 }
 

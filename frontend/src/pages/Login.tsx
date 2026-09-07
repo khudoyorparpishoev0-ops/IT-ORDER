@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IthonaLogoStacked } from '@/components/Logo';
 import { useAuth, useAuthPolicy } from '@/api/auth';
+import { useSessionExpired } from '@/api/session';
 import { TotpSetup } from '@/components/TotpSetup';
 import { PasswordReset } from './PasswordReset';
 
@@ -13,6 +14,7 @@ import { PasswordReset } from './PasswordReset';
  * настройка — иначе они не смогли бы войти вообще.
  */
 export function Login() {
+  const sessionExpired = useSessionExpired();
   const { login, submitCode, pending, cancelPending, finishPendingSetup, isBusy } =
     useAuth();
   const policy = useAuthPolicy();
@@ -89,6 +91,23 @@ export function Login() {
             ORDER
           </div>
         </div>
+
+        {sessionExpired && pending === null && (
+          <div
+            role="status"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              border: '1px solid var(--dot-warn)',
+              borderRadius: 'var(--r-field)',
+              background: 'var(--st-warn-bg)',
+              color: 'var(--st-warn-fg)',
+            }}
+          >
+            Сессия истекла — войдите заново. Если вы что-то заполняли, эти
+            данные не сохранились: их придётся ввести ещё раз.
+          </div>
+        )}
 
         {pending === null && (
           <form className="card" onSubmit={submitCredentials} noValidate>

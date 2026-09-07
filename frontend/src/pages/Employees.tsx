@@ -257,7 +257,6 @@ type ModalProps = {
 function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }: ModalProps) {
   const create = useCreateEmployee();
   const update = useUpdateEmployee();
-  const setPassword = useSetEmployeePassword();
 
   const [fullName, setFullName] = useState(employee?.full_name ?? '');
   const [position, setPosition] = useState(employee?.position ?? '');
@@ -293,24 +292,15 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
         return;
       }
 
-      const created = await create.mutateAsync(payload());
-      if (!password) {
-        onFlash('Сотрудник заведён', 'var(--dot-ok)');
-        onClose();
-        return;
-      }
-      try {
-        await setPassword.mutateAsync({ id: created.id, password });
-        onFlash('Сотрудник заведён, доступ выдан', 'var(--dot-ok)');
-        onClose();
-      } catch (err) {
-        // Карточка уже создана — сообщаем об этом прямо, иначе
-        // администратор попробует завести человека повторно.
-        setError(
-          `Сотрудник заведён, но пароль не задан: ${message(err)}. ` +
-            'Закройте окно и выдайте пароль из его карточки.',
-        );
-      }
+      // Пароль уходит вместе с карточкой одним запросом: раньше их было
+      // два, и неудачный второй оставлял сотрудника заведённым, но без
+      // доступа. Теперь либо заведён с доступом, либо не заведён вовсе.
+      await create.mutateAsync({ ...payload(), password: password || null });
+      onFlash(
+        password ? 'Сотрудник заведён, доступ выдан' : 'Сотрудник заведён',
+        'var(--dot-ok)',
+      );
+      onClose();
     } catch (err) {
       setError(message(err));
     } finally {
@@ -318,8 +308,23 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
     }
   };
 
+  // Что-то введено или изменено — окно не закроется молча по клику мимо.
+  const dirty =
+    fullName !== (employee?.full_name ?? '') ||
+    position !== (employee?.position ?? '') ||
+    email !== (employee?.email ?? '') ||
+    phone !== (employee?.phone ?? '') ||
+    role !== (employee?.role ?? 'employee') ||
+    limit !== (employee?.monthly_limit ?? '') ||
+    active !== (employee?.active ?? true) ||
+    password !== '';
+
   return (
-    <Overlay label={employee ? `Сотрудник ${employee.full_name}` : 'Новый сотрудник'} onClose={onClose}>
+    <Overlay
+      label={employee ? `Сотрудник ${employee.full_name}` : 'Новый сотрудник'}
+      onClose={onClose}
+      dirty={dirty}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div className="label">{employee ? 'КАРТОЧКА СОТРУДНИКА' : 'НОВЫЙ СОТРУДНИК'}</div>

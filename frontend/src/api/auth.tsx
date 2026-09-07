@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from './client';
+import { clearSessionExpired } from './session';
 import type {
   AuthPolicy,
   CurrentUser,
@@ -14,6 +15,9 @@ import type {
 
 type AuthState = {
   user: CurrentUser | null;
+  /** Не 401, а настоящий сбой: сервер недоступен или отвечает ошибкой. */
+  failure: unknown;
+  retry: () => void;
   /** true, пока не выяснили, вошёл ли пользователь. */
   isLoading: boolean;
   /** Незавершённый вход: ждём код или обязательную настройку. */
@@ -49,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applyUser = useCallback(
     (user: CurrentUser) => {
       setPending(null);
+      clearSessionExpired();
       qc.setQueryData(['auth', 'me'], user);
       // Данные предыдущего пользователя видеть нельзя.
       qc.invalidateQueries();
@@ -92,7 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // 401 — это «не вошёл». Любая другая ошибка (сервер перезапускается,
+  // сеть моргнула) не значит, что человек вышел: показывать ему форму
+  // входа неправильно, он введёт пароль и получит ту же ошибку.
+  const unauthorized = me.error instanceof ApiError && me.error.status === 401;
   const user = me.isError ? null : (me.data ?? null);
+  const failure = me.isError && !unauthorized ? me.error : null;
 
   const can = useCallback(
     (permission: Permission) => user?.permissions.includes(permission) ?? false,
@@ -102,6 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(
     () => ({
       user,
+      failure,
+      retry: () => {
+        me.refetch();
+      },
       isLoading: me.isLoading,
       pending,
       can,
@@ -135,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       isBusy: loginMutation.isPending || codeMutation.isPending,
     }),
-    [user, me.isLoading, pending, can, loginMutation, codeMutation, logoutMutation, qc],
+    [user, failure, me, pending, can, loginMutation, codeMutation, logoutMutation, qc],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

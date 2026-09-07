@@ -86,8 +86,14 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Что-то введено — окно не закроется молча по клику мимо или Escape.
+  const dirty =
+    projectId !== null ||
+    lines.some((l) => l.title.trim() || l.price.trim() || l.quantity !== '1') ||
+    (forOthers && employeeId !== (user?.id ?? null));
+
   return (
-    <Overlay label="Новая заявка" onClose={onClose}>
+    <Overlay label="Новая заявка" onClose={onClose} dirty={dirty}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div className="label">НОВАЯ ЗАЯВКА</div>

@@ -24,7 +24,7 @@ function Guarded({ need, children }: { need: Permission; children: ReactElement 
 }
 
 export function App() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, failure, retry } = useAuth();
 
   // Пока не знаем, вошёл ли пользователь, экран входа показывать нельзя:
   // иначе он мигает при каждой перезагрузке страницы.
@@ -33,6 +33,29 @@ export function App() {
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
         <span className="label">ЗАГРУЗКА</span>
       </div>
+    );
+  }
+
+  // Сервер недоступен — это не «вы вышли». Форма входа здесь только
+  // запутает: пароль введут, и он не поможет.
+  if (failure) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 16 }}>
+        <div className="card" style={{ maxWidth: 420, textAlign: 'center' }}>
+          <div className="accent-rule" />
+          <h1 className="h3" style={{ marginBottom: 4 }}>
+            Сервер не отвечает
+          </h1>
+          <p className="caption" style={{ margin: '0 0 24px' }}>
+            {failure instanceof Error ? failure.message : 'Не удалось связаться с сервером'}
+            . Проверьте подключение и повторите. Если не проходит — сообщите
+            администратору системы.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={retry}>
+            Повторить
+          </button>
+        </div>
+      </main>
     );
   }
 

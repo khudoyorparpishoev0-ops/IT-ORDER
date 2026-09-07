@@ -69,6 +69,10 @@ class EmployeeCreate(BaseModel):
     role: EmployeeRole = EmployeeRole.EMPLOYEE
     monthly_limit: Decimal | None = Field(default=None, ge=0)
     active: bool = True
+    #: Пароль для входа. Задаётся вместе с карточкой намеренно: два
+    #: запроса подряд оставляли сотрудника заведённым, но без доступа,
+    #: если второй не проходил. Пустое значение — доступ выдадут позже.
+    password: str | None = Field(default=None, max_length=200)
 
 
 class EmployeeUpdate(BaseModel):

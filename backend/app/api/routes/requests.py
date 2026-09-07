@@ -246,6 +246,27 @@ def decide_request(
     "/{request_id}/payment", response_model=RequestDetail, dependencies=[can_pay]
 )
 def pay_request(session: DbSession, user: CurrentUser, request_id: int, data: PaymentIn):
+    """Проведение выплаты.
+
+    Разделение обязанностей: кто одобрил — тот не платит, и собственную
+    заявку не оплачивает даже администратор, у которого есть оба права.
+    Иначе один человек проводит расход от начала до конца без чужого
+    взгляда, и контроль существует только на бумаге.
+    """
+    request = svc.get_request(session, request_id)
+    if request.employee_id == user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Нельзя провести выплату по собственной заявке",
+        )
+    if request.decided_by and request.decided_by == user.full_name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Эту заявку одобрили вы. Выплату проводит кто-то другой — "
+                "так устроено разделение обязанностей."
+            ),
+        )
     payment = data.model_copy(update={"actor": user.full_name})
     request = svc.pay_request(session, request_id, payment)
     return to_detail(session, request)

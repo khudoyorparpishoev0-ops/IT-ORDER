@@ -10,6 +10,8 @@ import { useAuth } from '@/api/auth';
 
 type Decision = 'approve' | 'reject';
 
+const PAGE_SIZE = 50;
+
 const TABS: { key: RequestStatus; label: string }[] = [
   { key: 'pending', label: 'На утверждении' },
   { key: 'approved', label: 'Утверждены' },
@@ -20,12 +22,15 @@ export function Approvals() {
   const { flash } = useShell();
   const { user } = useAuth();
   const [tab, setTab] = useState<RequestStatus>('pending');
+  // Очередь бывает длиннее страницы. Раньше лишние заявки просто не
+  // показывались, и о них никто не узнавал.
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [decision, setDecision] = useState<Decision>('approve');
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const list = useRequests({ status: tab, limit: 50, allPeriods: true });
+  const list = useRequests({ status: tab, limit, allPeriods: true });
   const items = list.data?.items ?? [];
   const detail = useRequest(activeId);
   const decide = useDecision();
@@ -95,6 +100,7 @@ export function Approvals() {
             onClick={() => {
               setTab(t.key);
               setActiveId(null);
+              setLimit(PAGE_SIZE);
               reset();
             }}
           >
@@ -168,6 +174,21 @@ export function Approvals() {
                 );
               })}
             </ul>
+
+            {list.data && items.length < list.data.total && (
+              <div style={{ padding: 'var(--pad)', borderTop: '1px solid var(--line)' }}>
+                <div className="caption" style={{ marginBottom: 8 }}>
+                  Показано {items.length} из {list.data.total}
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setLimit((v) => v + PAGE_SIZE)}
+                >
+                  Показать ещё
+                </button>
+              </div>
+            )}
           </section>
 
           <div style={{ flex: '1 1 460px', minWidth: 0, display: 'grid', gap: 'var(--gap)' }}>

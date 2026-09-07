@@ -62,6 +62,9 @@ def create_project(session: Session, data: ProjectCreate) -> Project:
 def update_project(session: Session, project_id: int, data: ProjectUpdate) -> Project:
     project = get_project(session, project_id)
     changes = data.model_dump(exclude_unset=True)
+    for field in ("name", "active"):
+        if field in changes and changes[field] is None:
+            raise ValidationError(f"Поле «{field}» нельзя очистить")
     if "name" in changes:
         clash = session.scalar(
             select(Project).where(Project.name == changes["name"], Project.id != project_id)
@@ -138,16 +141,45 @@ def _keep_one_admin(session: Session, employee: Employee, changes: dict) -> None
 
 
 def create_employee(session: Session, data: EmployeeCreate) -> Employee:
+    """Заводит сотрудника. С паролем — одной операцией.
+
+    Пароль проверяется ДО создания записи: иначе слабый пароль оставлял бы
+    сотрудника заведённым, но без доступа, и администратор шёл бы искать
+    его в списке, чтобы доделать начатое.
+    """
+    from app.core.security import hash_password, validate_password_strength
+
     payload = data.model_dump()
+    password = payload.pop("password", None)
     payload["email"] = _corporate_email(payload.get("email"))
 
     if payload["email"] and session.scalar(
         select(Employee).where(func.lower(Employee.email) == payload["email"])
     ):
         raise ConflictError(f"Сотрудник с почтой {payload['email']} уже заведён")
+
+    if password:
+        if not payload["email"]:
+            raise ValidationError(
+                "Пароль выдаётся только вместе с рабочей почтой — она служит логином"
+            )
+        try:
+            validate_password_strength(password)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        payload["password_hash"] = hash_password(password)
+
     employee = Employee(**payload)
     session.add(employee)
     session.flush()
+    if password:
+        write_audit(
+            session,
+            entity="employee",
+            entity_id=employee.id,
+            action="set_password",
+            details=employee.full_name,
+        )
     write_audit(
         session,
         entity="employee",
@@ -158,9 +190,17 @@ def create_employee(session: Session, data: EmployeeCreate) -> Employee:
     return employee
 
 
+#: Поля, которые нельзя обнулить: в базе они NOT NULL. Явный null от
+#: клиента должен получить понятный отказ, а не 500 из глубины ORM.
+_REQUIRED_EMPLOYEE_FIELDS = ("full_name", "position", "role", "active")
+
+
 def update_employee(session: Session, employee_id: int, data: EmployeeUpdate) -> Employee:
     employee = get_employee(session, employee_id)
     changes = data.model_dump(exclude_unset=True)
+    for field in _REQUIRED_EMPLOYEE_FIELDS:
+        if field in changes and changes[field] is None:
+            raise ValidationError(f"Поле «{field}» нельзя очистить")
     if "email" in changes:
         changes["email"] = _corporate_email(changes["email"])
     email = changes.get("email")

@@ -79,7 +79,8 @@ def client(session) -> Iterator[TestClient]:
     app.dependency_overrides[get_db] = override
     with TestClient(app) as c:
         yield c
-        _TOTP_SECRETS.pop(c, None)
+        for key in [k for k in _TOTP_SECRETS if k[0] == id(c)]:
+            _TOTP_SECRETS.pop(key, None)
     app.dependency_overrides.clear()
 
 
@@ -215,7 +216,7 @@ def admin(session) -> Employee:
 
 
 @pytest.fixture
-def login(client):
+def login(client, session):
     """Вход в клиента под указанным сотрудником. Cookie остаётся в клиенте.
 
     Ролям с обязательным вторым фактором фикстура проходит настройку сама:
@@ -236,21 +237,23 @@ def login(client):
         status = response.json()["status"]
 
         if status == "2fa_setup_required":
-            _pass_2fa_setup(client)
+            _pass_2fa_setup(client, person)
         elif status == "2fa_required":
-            _pass_2fa_code(client, person)
+            _pass_2fa_code(client, session, person)
 
     return _login
 
 
-def _pass_2fa_setup(client) -> None:
+def _pass_2fa_setup(client, person: Employee) -> None:
     """Проходит обязательную настройку второго фактора."""
     import pyotp
 
     setup = client.post("/api/auth/2fa/setup")
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
-    _TOTP_SECRETS[client] = secret
+    # Ключ — пара «клиент + сотрудник»: в одном тесте под одним клиентом
+    # входят несколько человек, и общий ключ затирался чужим секретом.
+    _TOTP_SECRETS[(id(client), person.id)] = secret
 
     confirmed = client.post(
         "/api/auth/2fa/confirm", json={"code": pyotp.TOTP(secret).now()}
@@ -258,24 +261,27 @@ def _pass_2fa_setup(client) -> None:
     assert confirmed.status_code == 200, confirmed.text
 
 
-def _pass_2fa_code(client, person: Employee) -> None:
+def _pass_2fa_code(client, session, person: Employee) -> None:
     """Вводит код для уже настроенного второго фактора."""
-    import time
-
     import pyotp
 
-    secret = _TOTP_SECRETS.get(client)
+    secret = _TOTP_SECRETS.get((id(client), person.id))
     assert secret, f"неизвестен секрет TOTP для {person.email}"
-    # Код соседнего шага валиден, но отличается от использованного ранее:
-    # иначе сработает защита от повторного применения кода.
-    code = pyotp.TOTP(secret).at(time.time() + 30)
-    response = client.post("/api/auth/2fa", json={"code": code})
+    # Защита от повторного применения кода настоящая и нужная, но в тестах
+    # один и тот же человек входит по нескольку раз за секунду. Снимаем
+    # отметку о последнем использованном шаге — это подготовка стенда,
+    # проверяется защита отдельно, в tests/test_two_factor.py.
+    person.totp_last_step = None
+    session.flush()
+    session.commit()
+
+    response = client.post("/api/auth/2fa", json={"code": pyotp.TOTP(secret).now()})
     assert response.status_code == 200, response.text
 
 
 #: Секреты TOTP, выданные в текущем тесте: нужны, чтобы повторно войти
-#: тем же клиентом. Живут в пределах одного теста.
-_TOTP_SECRETS: dict[object, str] = {}
+#: тем же клиентом. Ключ — «клиент + сотрудник». Живут в пределах теста.
+_TOTP_SECRETS: dict[tuple[int, int], str] = {}
 
 
 @pytest.fixture
