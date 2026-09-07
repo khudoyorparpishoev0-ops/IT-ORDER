@@ -47,6 +47,31 @@ export type Employee = {
   active: boolean;
 };
 
+/** Состояние доступа сотрудника. Отдаётся только по праву
+ *  manage_reference — обычный сотрудник этого не видит. */
+export type EmployeeAccess = {
+  id: number;
+  can_sign_in: boolean;
+  has_password: boolean;
+  two_factor_enabled: boolean;
+  two_factor_required: boolean;
+  recovery_codes_left: number;
+  last_login_at: string | null;
+  /** Заполнено — вход закрыт до этого времени после неудачных попыток. */
+  locked_until: string | null;
+};
+
+/** Поля карточки сотрудника при заведении и правке. */
+export type EmployeeInput = {
+  full_name: string;
+  position: string;
+  email: string | null;
+  phone: string | null;
+  role: EmployeeRole;
+  monthly_limit: Money | null;
+  active: boolean;
+};
+
 export type TeamMember = {
   id: number;
   full_name: string;

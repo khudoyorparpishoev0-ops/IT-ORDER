@@ -11,6 +11,8 @@ import type {
   DashboardStats,
   DecisionInput,
   Employee,
+  EmployeeAccess,
+  EmployeeInput,
   Health,
   MonthFact,
   Page,
@@ -27,6 +29,7 @@ export const keys = {
   health: ['health'] as const,
   projects: ['projects'] as const,
   employees: ['employees'] as const,
+  employeeAccess: ['employees', 'access'] as const,
   team: ['team'] as const,
   requests: ['requests'] as const,
   request: (id: number) => ['requests', id] as const,
@@ -60,6 +63,66 @@ export function useEmployees() {
     queryFn: () => api<Employee[]>('/api/employees'),
     staleTime: 5 * 60_000,
   });
+}
+
+/** Состояние доступа сотрудников. `enabled` выключает запрос там, где
+ *  права нет: иначе панель стучалась бы в закрытый эндпоинт и ловила 403. */
+export function useEmployeeAccess(enabled = true) {
+  return useQuery({
+    queryKey: keys.employeeAccess,
+    queryFn: () => api<EmployeeAccess[]>('/api/employees/access'),
+    enabled,
+  });
+}
+
+/** После правки справочника сотрудников устаревает всё, где показано имя,
+ *  роль или лимит. Сбрасываем разом, чтобы не искать по экранам. */
+function useEmployeeMutation<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      for (const key of [keys.employees, keys.employeeAccess, keys.team, keys.dashboard]) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+    },
+  });
+}
+
+export function useCreateEmployee() {
+  return useEmployeeMutation((data: EmployeeInput) =>
+    api<Employee>('/api/employees', { method: 'POST', body: JSON.stringify(data) }),
+  );
+}
+
+export function useUpdateEmployee() {
+  return useEmployeeMutation(({ id, ...data }: Partial<EmployeeInput> & { id: number }) =>
+    api<Employee>(`/api/employees/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  );
+}
+
+export function useSetEmployeePassword() {
+  return useEmployeeMutation(({ id, password }: { id: number; password: string }) =>
+    api<Employee>(`/api/employees/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ password }),
+    }),
+  );
+}
+
+export function useResetEmployee2fa() {
+  return useEmployeeMutation((id: number) =>
+    api<Employee>(`/api/employees/${id}/reset-2fa`, { method: 'POST' }),
+  );
+}
+
+export function useDeleteEmployee() {
+  return useEmployeeMutation((id: number) =>
+    api<void>(`/api/employees/${id}`, { method: 'DELETE' }),
+  );
 }
 
 export function useTeam() {

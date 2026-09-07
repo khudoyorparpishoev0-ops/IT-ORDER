@@ -23,7 +23,11 @@ os.environ.setdefault("APP_ENV", "development")
 os.environ.setdefault("ALLOWED_EMAIL_DOMAINS", "it-hona.tj")
 os.environ.setdefault("SMTP_USER", "core@it-hona.tj")
 os.environ.setdefault("SMTP_PASSWORD", "тестовый-пароль-приложения")
-os.environ.setdefault("PUBLIC_BASE_URL", "https://core.it-hona.tj")
+os.environ.setdefault("PUBLIC_BASE_URL", "https://order.it-hona.tj")
+# TestClient ходит по http://testserver, а cookie с secure=true браузерный
+# cookiejar по http не сохраняет — вход в тестах разваливался бы на втором
+# шаге. Значение задаётся здесь, чтобы прогон не зависел от .env на машине.
+os.environ.setdefault("COOKIE_SECURE", "false")
 
 from app.api.deps import get_db  # noqa: E402
 from app.config import get_settings  # noqa: E402

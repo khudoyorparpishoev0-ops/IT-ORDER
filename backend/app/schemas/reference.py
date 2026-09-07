@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -35,6 +36,29 @@ class EmployeeOut(ORMModel):
     role: EmployeeRole
     monthly_limit: Decimal | None
     active: bool
+
+
+class EmployeeAccessOut(BaseModel):
+    """Состояние доступа сотрудника: кто может войти, у кого включён второй
+    фактор, кого заблокировал перебор.
+
+    Отдельная схема, а не поля в EmployeeOut: список сотрудников читает
+    любой вошедший — он нужен, чтобы заполнить заявку. Знать, у кого нет
+    второго фактора и когда он последний раз входил, коллегам незачем,
+    поэтому эти данные отдаются только по праву MANAGE_REFERENCE.
+    """
+
+    id: int
+    #: Активен, есть почта и задан пароль — только тогда вход возможен.
+    can_sign_in: bool
+    has_password: bool
+    two_factor_enabled: bool
+    #: Роль обязывает включить второй фактор при первом входе.
+    two_factor_required: bool
+    recovery_codes_left: int
+    last_login_at: datetime | None
+    #: Заполнено — вход закрыт до этого времени после неудачных попыток.
+    locked_until: datetime | None
 
 
 class EmployeeCreate(BaseModel):

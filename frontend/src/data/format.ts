@@ -74,6 +74,27 @@ export function formatDate(iso: string): string {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
+/** Метка времени UTC → «07.09.2026, 18:12» в поясе компании.
+ *  Пояс берём из /health: расчёты идут в нём, и браузер бухгалтера
+ *  в другом часовом поясе не должен показывать другое время. */
+export function formatDateTime(iso: string, timeZone?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone,
+    }).format(d);
+  } catch {
+    // Неизвестное имя пояса — показываем в местном, но не падаем.
+    return d.toLocaleString('ru-RU');
+  }
+}
+
 /** Склонение числительного: 1 заявка, 2 заявки, 5 заявок. */
 export function plural(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10;

@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.core.email_policy import EmailPolicyError, ensure_corporate
 from app.core.errors import ConflictError, NotFoundError, ValidationError
-from app.db.models import Employee, ExpenseRequest, Project
+from app.config import get_settings
+from app.db.models import (
+    Employee,
+    EmployeeRole,
+    ExpenseRequest,
+    Project,
+    RecoveryCode,
+)
 from app.schemas.reference import (
     EmployeeCreate,
     EmployeeUpdate,
@@ -93,6 +100,35 @@ def _corporate_email(email: str | None) -> str | None:
         raise ValidationError(str(exc)) from exc
 
 
+def _keep_one_admin(session: Session, employee: Employee, changes: dict) -> None:
+    """Не даёт снять права у последнего администратора.
+
+    Иначе справочники, пароли и роли становятся недоступны никому, и
+    вернуть доступ можно только запросом к базе руками.
+    """
+    if employee.role is not EmployeeRole.ADMIN or not employee.active:
+        return
+    role = changes.get("role", employee.role)
+    active = changes.get("active", employee.active)
+    if role is EmployeeRole.ADMIN and active:
+        return
+
+    others = session.scalar(
+        select(func.count())
+        .select_from(Employee)
+        .where(
+            Employee.role == EmployeeRole.ADMIN,
+            Employee.active.is_(True),
+            Employee.id != employee.id,
+        )
+    )
+    if not others:
+        raise ConflictError(
+            "Это единственный активный администратор. Назначьте администратором "
+            "кого-то ещё, а потом меняйте роль или отключайте эту запись."
+        )
+
+
 def create_employee(session: Session, data: EmployeeCreate) -> Employee:
     payload = data.model_dump()
     payload["email"] = _corporate_email(payload.get("email"))
@@ -122,6 +158,7 @@ def update_employee(session: Session, employee_id: int, data: EmployeeUpdate) ->
         )
         if clash:
             raise ConflictError(f"Сотрудник с почтой {email} уже заведён")
+    _keep_one_admin(session, employee, changes)
     for field, value in changes.items():
         setattr(employee, field, value)
     write_audit(
@@ -140,6 +177,7 @@ def delete_employee(session: Session, employee_id: int) -> None:
     У остальных — active=false: заявки неизменяемы и должны сохранить автора.
     """
     employee = get_employee(session, employee_id)
+    _keep_one_admin(session, employee, {"active": False})
     has_requests = session.scalar(
         select(func.count())
         .select_from(ExpenseRequest)
@@ -152,3 +190,33 @@ def delete_employee(session: Session, employee_id: int) -> None:
         )
     session.delete(employee)
     write_audit(session, entity="employee", entity_id=employee_id, action="delete")
+
+
+def access_overview(session: Session) -> list[dict]:
+    """Состояние доступа по всем сотрудникам — для экрана «Сотрудники».
+
+    Неиспользованные коды восстановления считаются одним запросом с
+    группировкой: по запросу на сотрудника — это N+1 на каждой отрисовке
+    списка.
+    """
+    required = get_settings().roles_requiring_2fa
+    counts = dict(
+        session.execute(
+            select(RecoveryCode.employee_id, func.count())
+            .where(RecoveryCode.used_at.is_(None))
+            .group_by(RecoveryCode.employee_id)
+        ).all()
+    )
+    return [
+        {
+            "id": e.id,
+            "can_sign_in": e.can_sign_in,
+            "has_password": bool(e.password_hash),
+            "two_factor_enabled": e.totp_enabled,
+            "two_factor_required": e.role.value in required,
+            "recovery_codes_left": counts.get(e.id, 0),
+            "last_login_at": e.last_login_at,
+            "locked_until": e.locked_until,
+        }
+        for e in list_employees(session)
+    ]

@@ -38,6 +38,7 @@ export const NAV: NavItem[] = [
   { to: '/reports', label: 'Отчёты', icon: 'ti-chart-bar', need: 'view_reports' },
   { to: '/team', label: 'Команда', icon: 'ti-users', need: 'view_reports' },
   { to: '/finance', label: 'Финансы', icon: 'ti-wallet', need: 'view_reports' },
+  { to: '/employees', label: 'Сотрудники', icon: 'ti-user-plus', need: 'manage_reference' },
   { to: '/settings', label: 'Параметры', icon: 'ti-settings' },
   { to: '/help', label: 'Справка', icon: 'ti-help-circle' },
 ];

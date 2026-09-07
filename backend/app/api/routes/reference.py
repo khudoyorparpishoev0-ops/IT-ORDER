@@ -20,6 +20,7 @@ from app.core.mail import MailError, send
 from app.core.permissions import Permission
 from app.schemas.auth import PasswordSetIn
 from app.schemas.reference import (
+    EmployeeAccessOut,
     EmployeeCreate,
     EmployeeOut,
     EmployeeUpdate,
@@ -66,6 +67,20 @@ def list_employees(
     session: DbSession, _: CurrentUser, only_active: bool = Query(default=False)
 ):
     return svc.list_employees(session, only_active=only_active)
+
+
+@router.get(
+    "/employees/access",
+    response_model=list[EmployeeAccessOut],
+    dependencies=[manage],
+)
+def employees_access(session: DbSession):
+    """Состояние доступа по всем сотрудникам.
+
+    Маршрут объявлен раньше «/employees/{employee_id}»: иначе FastAPI
+    попробует разобрать «access» как номер сотрудника и ответит 422.
+    """
+    return svc.access_overview(session)
 
 
 @router.get("/employees/{employee_id}", response_model=EmployeeOut)

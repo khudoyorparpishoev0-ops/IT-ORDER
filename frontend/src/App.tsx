@@ -4,6 +4,7 @@ import type { Permission } from '@/api/types';
 import { AppShell } from '@/shell/AppShell';
 import { Approvals } from '@/pages/Approvals';
 import { Dashboard } from '@/pages/Dashboard';
+import { Employees } from '@/pages/Employees';
 import { DesignSystem } from '@/pages/DesignSystem';
 import { Finance } from '@/pages/Finance';
 import { Help } from '@/pages/Help';
@@ -72,6 +73,14 @@ export function App() {
           element={
             <Guarded need="view_reports">
               <Finance />
+            </Guarded>
+          }
+        />
+        <Route
+          path="employees"
+          element={
+            <Guarded need="manage_reference">
+              <Employees />
             </Guarded>
           }
         />

@@ -1,11 +1,14 @@
+import { Link } from 'react-router-dom';
 import { Bar, barTint } from '@/components/Bar';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { useTeam } from '@/api/hooks';
+import { useAuth } from '@/api/auth';
 import { money, periodLabel } from '@/data/format';
 
 export function Team() {
   const team = useTeam();
+  const { can } = useAuth();
 
   return (
     <>
@@ -21,6 +24,13 @@ export function Team() {
         isEmpty={(team.data ?? []).length === 0}
         emptyTitle="Сотрудники не заведены"
         emptyNote="Добавьте сотрудников, чтобы назначать им лимиты расходов."
+        emptyAction={
+          can('manage_reference') ? (
+            <Link className="btn btn-primary" to="/employees">
+              Добавить сотрудника
+            </Link>
+          ) : undefined
+        }
         onRetry={() => team.refetch()}
       >
         <section className="panel">
