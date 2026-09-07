@@ -1,0 +1,60 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--mist);
+}
+
+.shell-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.shell-content {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.shell-burger {
+  display: none;
+}
+
+.shell-scrim {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .shell > aside {
+    position: fixed;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform var(--motion);
+  }
+
+  .shell[data-menu-open='true'] > aside {
+    transform: translateX(0);
+  }
+
+  .shell-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: 0;
+    padding: 0;
+    background: rgba(16, 22, 19, 0.6);
+    cursor: pointer;
+  }
+
+  .shell-burger {
+    display: inline-flex;
+    margin: 16px 16px 0;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+  }
+
+  .shell-content {
+    padding: 16px;
+  }
+}

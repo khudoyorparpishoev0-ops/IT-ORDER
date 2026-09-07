@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Manrope,'Noto Sans',Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#186B36;text-decoration:none;font-weight:600}
+a:hover{color:#0E3B21;text-decoration:underline}
+[data-theme="dark"] a{color:#33C561}
+[data-theme="dark"] a:hover{color:#7FBF95}
+[data-theme="light"]{--paper:#FFFFFF;--mist:#F5F7F5;--line:#E3E7E3;--ink:#101613;--slate:#5A655D;--grey:#9AA39C;--green:#22A74E;--green-d:#186B36;--forest:#0E3B21;--zebra:#FAFBFA;--sh1:0 1px 2px rgba(16,22,19,0.06);--sh2:0 8px 24px rgba(16,22,19,0.14);--st-warn-bg:#FBF1DE;--st-warn-fg:#7A5510;--st-info-bg:#E4ECFA;--st-info-fg:#1E4C99;--st-ok-bg:#E0F2E6;--st-ok-fg:#186B36;--st-err-bg:#F7E4E2;--st-err-fg:#8A2A20;--st-off-bg:#EFF1EF;--st-off-fg:#5A655D}
+[data-theme="dark"]{--paper:#0B120E;--mist:#151E18;--line:#26332B;--ink:#EDF2EE;--slate:#8E9A91;--grey:#8E9A91;--green:#33C561;--green-d:#33C561;--forest:#0E3B21;--zebra:#101A14;--sh1:0 1px 2px rgba(0,0,0,0.5);--sh2:0 8px 24px rgba(0,0,0,0.6);--st-warn-bg:#33280F;--st-warn-fg:#E8BE72;--st-info-bg:#16233D;--st-info-fg:#8FB3F0;--st-ok-bg:#12301E;--st-ok-fg:#6FD292;--st-err-bg:#331A16;--st-err-fg:#E39187;--st-off-bg:#1D2721;--st-off-fg:#9AA39C}
+table{border-collapse:collapse;width:100%}
+input,textarea,select,button{font:inherit;color:inherit}
+@keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+[data-density="airy"]{--pad:24px;--gap:24px;--cell:12px 16px}
+[data-density="mid"]{--pad:20px;--gap:16px;--cell:10px 14px}
+[data-density="compact"]{--pad:16px;--gap:12px;--cell:8px 12px}
+</style>
+</helmet>
+
+<svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+<symbol id="ti-layout-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M5 4h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1"></path>
+    <path d="M5 16h4a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1"></path>
+    <path d="M15 12h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1"></path>
+    <path d="M15 4h4a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1"></path>
+  </symbol>
+<symbol id="ti-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2"></path>
+    <path d="M9 9l1 0"></path>
+    <path d="M9 13l6 0"></path>
+    <path d="M9 17l6 0"></path>
+  </symbol>
+<symbol id="ti-circle-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+    <path d="M9 12l2 2l4 -4"></path>
+  </symbol>
+<symbol id="ti-circle-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+    <path d="M10 10l4 4m0 -4l-4 4"></path>
+  </symbol>
+<symbol id="ti-chart-bar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6"></path>
+    <path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10"></path>
+    <path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14"></path>
+    <path d="M4 20h14"></path>
+  </symbol>
+<symbol id="ti-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"></path>
+    <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    <path d="M21 21v-2a4 4 0 0 0 -3 -3.85"></path>
+  </symbol>
+<symbol id="ti-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12"></path>
+    <path d="M20 12v4h-4a2 2 0 0 1 0 -4h4"></path>
+  </symbol>
+<symbol id="ti-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065"></path>
+    <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"></path>
+  </symbol>
+<symbol id="ti-help-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"></path>
+    <path d="M12 16v.01"></path>
+    <path d="M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483"></path>
+  </symbol>
+<symbol id="ti-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+    <path d="M7 11l5 5l5 -5"></path>
+    <path d="M12 4l0 12"></path>
+  </symbol>
+<symbol id="ti-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M12 5l0 14"></path>
+    <path d="M5 12l14 0"></path>
+  </symbol>
+<symbol id="ti-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path>
+    <path d="M21 21l-6 -6"></path>
+  </symbol>
+<symbol id="ti-arrows-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 9l4 -4l4 4m-4 -4v14"></path>
+    <path d="M21 15l-4 4l-4 -4m4 4v-14"></path>
+  </symbol>
+<symbol id="ti-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M18 6l-12 12"></path>
+    <path d="M6 6l12 12"></path>
+  </symbol>
+<symbol id="ti-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"></path>
+    <path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"></path>
+  </symbol>
+<symbol id="ti-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"></path>
+  </symbol>
+<symbol id="ti-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter"><path d="M15 6l-6 6l6 6"></path></symbol>
+<symbol id="ti-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter"><path d="M9 6l6 6l-6 6"></path></symbol>
+<symbol id="ti-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter"><path d="M6 9l6 6l6 -6"></path></symbol>
+<symbol id="ti-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter"><path d="M5 12l5 5l10 -10"></path></symbol>
+<symbol id="ti-menu-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M4 6l16 0"></path>
+    <path d="M4 12l16 0"></path>
+    <path d="M4 18l16 0"></path>
+  </symbol>
+<symbol id="ti-file-spreadsheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2"></path>
+    <path d="M8 11h8v7h-8l0 -7"></path>
+    <path d="M8 15h8"></path>
+    <path d="M11 11v7"></path>
+  </symbol>
+<symbol id="ti-file-type-pdf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+    <path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4"></path>
+    <path d="M5 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6"></path>
+    <path d="M17 18h2"></path>
+    <path d="M20 15h-3v6"></path>
+    <path d="M11 15v6h1a2 2 0 0 0 2 -2v-2a2 2 0 0 0 -2 -2h-1"></path>
+  </symbol>
+<symbol id="ti-clock-hour-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+    <path d="M12 12l3 2"></path>
+    <path d="M12 7v5"></path>
+  </symbol>
+<symbol id="ti-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"></path>
+  </symbol>
+<symbol id="ti-server-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-2"></path>
+    <path d="M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2"></path>
+    <path d="M7 8l0 .01"></path>
+    <path d="M7 16l0 .01"></path>
+    <path d="M11 8h6"></path>
+    <path d="M11 16h6"></path>
+  </symbol>
+<symbol id="ti-device-cctv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter">
+    <path d="M3 4a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1l0 -2"></path>
+    <path d="M8 14a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"></path>
+    <path d="M19 7v7a7 7 0 0 1 -14 0v-7"></path>
+    <path d="M12 14l.01 0"></path>
+  </symbol>
+</svg>
+
+<div data-theme="{{ theme }}" data-density="{{ density }}" style="min-height:100vh;background:var(--mist);color:var(--ink);font-size:16px;line-height:1.56">
+
+  <div style="position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:8px;height:44px;padding:0 min(32px,4vw);background:var(--paper);border-bottom:1px solid var(--line);overflow-x:auto">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);white-space:nowrap">ВАРИАНТ</span>
+    <sc-for list="{{ variants }}" as="v" hint-placeholder-count="3">
+      <button onClick="{{ v.go }}" title="{{ v.hint }}" style="height:28px;padding:0 10px;border:{{ v.border }};border-radius:2px;background:{{ v.bg }};color:{{ v.fg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;cursor:pointer;white-space:nowrap;transition:background 150ms ease-out" style-hover="background:var(--line)">{{ v.label }}</button>
+    </sc-for>
+    <span style="font-size:13px;color:var(--slate);white-space:nowrap;margin-left:8px">{{ variantHint }}</span>
+  </div>
+
+  <div style="display:flex;align-items:stretch">
+  <sc-if value="{{ isSide }}">
+    <aside style="flex:0 0 240px;align-self:flex-start;position:sticky;top:44px;height:calc(100vh - 44px);display:flex;flex-direction:column;background:{{ sideBg }};color:{{ sideFg }};border-right:{{ sideBorder }}">
+      <div style="padding:20px 16px;display:flex;align-items:center;gap:10px" title="Наборный стенд-ин: заменить официальным логотипом из пакета">
+        <span style="font-size:17px;font-weight:800;letter-spacing:0.06em">IT-HONA</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;opacity:0.8">CORE</span>
+      </div>
+      <nav style="display:flex;flex-direction:column;gap:2px;padding:0 8px;flex:1;overflow-y:auto">
+        <sc-for list="{{ nav }}" as="n" hint-placeholder-count="8">
+          <button onClick="{{ n.go }}" style="display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border:none;border-radius:2px;background:{{ n.bg }};color:{{ n.fg }};font-size:15px;font-weight:{{ n.weight }};cursor:pointer;text-align:left;transition:background 150ms ease-out" style-hover="background:#186B36;color:#FFFFFF" style-focus="outline:2px solid #33C561;outline-offset:2px">
+            <svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#{{ n.icon }}"></use></svg>{{ n.label }}
+          </button>
+        </sc-for>
+      </nav>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:8px;border-top:{{ sideDivider }}">
+        <button onClick="{{ goSystem }}" style="height:36px;padding:0 10px;border:{{ sideBtnBorder }};border-radius:4px;background:transparent;color:inherit;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;cursor:pointer;text-align:left" style-hover="background:#186B36;color:#FFFFFF">ДИЗАЙН-СИСТЕМА</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onClick="{{ toggleTheme }}" aria-label="Переключить тему" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:{{ sideBtnBorder }};border-radius:4px;background:transparent;color:inherit;cursor:pointer" style-hover="background:#186B36;color:#FFFFFF"><svg aria-hidden="true" style="width:18px;height:18px;flex:none"><use href="#{{ themeIcon }}"></use></svg></button>
+          <div style="width:36px;height:36px;border-radius:2px;background:#186B36;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.1em;flex:none" title="Артём Ковалёв · Руководитель отдела">АК</div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;opacity:0.7">v1.0</span>
+        </div>
+      </div>
+    </aside>
+  </sc-if>
+  <div style="flex:1;min-width:0">
+
+  <sc-if value="{{ isTop }}" hint-placeholder-val="{{ true }}">
+  <header style="position:sticky;top:44px;z-index:40;background:#0E3B21;color:#FFFFFF">
+    <div style="max-width:1240px;margin:0 auto;height:64px;padding:0 min(32px,4vw);display:flex;align-items:center;gap:var(--gap)">
+      <div style="display:flex;align-items:center;gap:12px;flex:none" title="Наборный стенд-ин: заменить официальным ithona_logo_h-white.svg">
+        <span style="font-family:Manrope;font-size:19px;font-weight:800;letter-spacing:0.06em">IT-HONA</span>
+        <span style="width:1px;height:20px;background:rgba(255,255,255,0.28)"></span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">CORE</span>
+      </div>
+      <nav style="display:flex;align-items:center;gap:2px;overflow-x:auto;flex:1 1 0;min-width:0">
+        <sc-for list="{{ nav }}" as="n" hint-placeholder-count="8">
+          <button onClick="{{ n.go }}" style="display:flex;align-items:center;height:44px;padding:0 8px;border:none;border-radius:0;background:{{ n.bg }};color:{{ n.fg }};font-size:14px;font-weight:{{ n.weight }};cursor:pointer;white-space:nowrap;transition:background 150ms ease-out" style-hover="background:#186B36;color:#FFFFFF" style-focus="outline:2px solid #33C561;outline-offset:2px">{{ n.label }}</button>
+        </sc-for>
+      </nav>
+      <div style="display:flex;align-items:center;gap:8px;flex:none">
+        <button onClick="{{ toggleTheme }}" aria-label="Переключить тему" title="Переключить тему" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.28);border-radius:4px;background:transparent;color:#FFFFFF;cursor:pointer;transition:background 150ms ease-out" style-hover="background:#186B36"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#{{ themeIcon }}"></use></svg></button>
+        <button onClick="{{ goSystem }}" title="Дизайн-система" style="height:44px;padding:0 10px;border:1px solid rgba(255,255,255,0.28);border-radius:4px;background:transparent;color:#FFFFFF;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;cursor:pointer;white-space:nowrap;transition:background 150ms ease-out" style-hover="background:#186B36">СИСТЕМА</button>
+        <div style="width:32px;height:32px;border-radius:2px;background:#186B36;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.1em;flex:none" title="Артём Ковалёв · Руководитель отдела">АК</div>
+      </div>
+    </div>
+  </header>
+  </sc-if>
+
+  <main style="max-width:1240px;margin:0 auto;padding:32px min(32px,4vw) 64px">
+
+    <!-- ПАНЕЛЬ -->
+    <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:var(--gap);flex-wrap:wrap;margin-bottom:32px">
+          <div>
+            <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">РАСХОДЫ · СЕНТЯБРЬ 2026</div>
+            <h1 style="margin:8px 0 0;font-size:30px;line-height:1.16;font-weight:700">Панель управления</h1>
+            <p style="margin:8px 0 0;font-size:16px;font-weight:300;color:var(--slate)">Команда из 12 сотрудников, 24 заявки за период</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--line)" style-focus="outline:2px solid var(--green);outline-offset:2px"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-download"></use></svg>Экспорт</button>
+            <button style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--green-d)" style-focus="outline:2px solid var(--green);outline-offset:2px"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-plus"></use></svg>Новая заявка</button>
+          </div>
+        </div>
+
+        <sc-if value="{{ metricsCards }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:var(--gap);margin-bottom:var(--gap);order:{{ ordMetrics }}">
+            <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+              <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">{{ s.label }}</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:600;letter-spacing:0.01em;margin-top:16px;line-height:1.1">{{ s.value }}</div>
+                <div style="font-size:13px;line-height:1.46;color:var(--slate);margin-top:8px">{{ s.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ metricsStrip }}">
+          <div style="display:flex;flex-wrap:wrap;background:var(--paper);border:1px solid var(--line);margin-bottom:var(--gap);order:{{ ordMetrics }}">
+            <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+              <div style="flex:1 1 180px;min-width:0;padding:12px 16px;border-left:1px solid var(--line)">
+                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">{{ s.label }}</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;margin-top:2px">{{ s.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:16px;padding:var(--pad);background:var(--forest);color:#FFFFFF;margin-bottom:var(--gap);flex-wrap:wrap;order:2;clip-path:polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 16px) 100%, 0 100%)">
+            <span style="width:8px;height:8px;background:#E0A126;flex:none"></span>
+            <div style="flex:1;min-width:220px">
+              <div style="font-size:19px;font-weight:700;line-height:1.26">4 заявки ждут вашего решения</div>
+              <div style="font-size:13px;color:rgba(255,255,255,0.78);margin-top:4px">Самая давняя — от Ивана Петрова, 3 дня назад. порог автоодобрения — 500,00 сомони</div>
+            </div>
+            <button onClick="{{ goApprovals }}" style="height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:#186B36" style-focus="outline:2px solid #33C561;outline-offset:2px">Перейти к согласованию</button>
+          </div>
+        </sc-if>
+
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1);order:{{ ordTable }}">
+          <div style="padding:var(--pad);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line)">
+            <h3 style="margin:0;font-size:19px;line-height:1.26;font-weight:700">{{ tableTitle }}</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;color:var(--slate)">
+                <svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-search"></use></svg>
+                <input placeholder="Поиск по сотруднику" style="border:none;background:transparent;outline:none;width:184px;font-size:16px">
+              </div>
+              <button onClick="{{ goRequests }}" style="height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--line)">Все заявки</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="min-width:520px">
+              <thead>
+                <tr style="background:var(--forest);color:#FFFFFF">
+                  <th onClick="{{ sortByName }}" style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;cursor:pointer;white-space:nowrap;width:40%">СОТРУДНИК · ОБЪЕКТ <svg aria-hidden="true" style="width:14px;height:14px;flex:none;vertical-align:-2px"><use href="#ti-arrows-sort"></use></svg></th>
+                  <th onClick="{{ sortByAmount }}" style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;cursor:pointer;white-space:nowrap;width:22%">СУММА <svg aria-hidden="true" style="width:14px;height:14px;flex:none;vertical-align:-2px"><use href="#ti-arrows-sort"></use></svg></th>
+                  <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:38%">СТАТУС</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
+                  <tr onClick="{{ r.open }}" style="height:44px;border-bottom:1px solid var(--line);cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+                    <td style="padding:var(--cell)">
+                      <div style="font-size:16px">{{ r.name }}</div>
+                      <div style="font-size:13px;color:var(--slate)">{{ r.project }}</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate)">{{ r.id }} · {{ r.date }}</div>
+                    </td>
+                    <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;white-space:nowrap">{{ r.sum }}</td>
+                    <td style="padding:var(--cell)">
+                      <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:{{ r.stBg }};color:{{ r.stFg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;white-space:nowrap">
+                        <span style="width:6px;height:6px;background:{{ r.dot }};flex:none"></span>{{ r.status }}
+                      </span>
+                      <div style="font-size:13px;font-weight:600;color:var(--green-d);margin-top:2px">{{ r.action }} →</div>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ЗАЯВКИ -->
+    <sc-if value="{{ isRequests }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <h1 style="margin:0;font-size:30px;line-height:1.16;font-weight:700">Заявки</h1>
+        <p style="margin:8px 0 24px;font-size:13px;color:var(--slate)">{{ filterCountLabel }}</p>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--gap);align-items:center">
+          <sc-for list="{{ statusFilters }}" as="f" hint-placeholder-count="6">
+            <button onClick="{{ f.go }}" style="height:36px;padding:0 12px;border:{{ f.border }};border-radius:2px;background:{{ f.bg }};color:{{ f.fg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--line)">{{ f.label }}</button>
+          </sc-for>
+          <div style="flex:1"></div>
+          <select style="height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;background:var(--paper)">
+            <option>Сентябрь 2026</option>
+            <option>Август 2026</option>
+            <option>Квартал III</option>
+          </select>
+        </div>
+
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+          <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+            <div style="overflow-x:auto">
+              <table style="min-width:520px">
+                <thead>
+                  <tr style="background:var(--forest);color:#FFFFFF">
+                    <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:42%">СОТРУДНИК · ОБЪЕКТ</th>
+                    <th onClick="{{ sortByAmount }}" style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;cursor:pointer;width:22%">СУММА <svg aria-hidden="true" style="width:14px;height:14px;flex:none;vertical-align:-2px"><use href="#ti-arrows-sort"></use></svg></th>
+                    <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:36%">СТАТУС</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+                    <tr onClick="{{ r.open }}" style="height:44px;border-bottom:1px solid var(--line);cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+                      <td style="padding:var(--cell)">
+                        <div>{{ r.name }}</div>
+                        <div style="font-size:13px;color:var(--slate)">{{ r.role }} · {{ r.project }}</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate)">{{ r.id }} · {{ r.date }}</div>
+                      </td>
+                      <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;white-space:nowrap">{{ r.sum }}</td>
+                      <td style="padding:var(--cell)">
+                        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:{{ r.stBg }};color:{{ r.stFg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;white-space:nowrap">
+                          <span style="width:6px;height:6px;background:{{ r.dot }};flex:none"></span>{{ r.status }}
+                        </span>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+            <div style="padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">{{ pageLabel }}</span>
+              <div style="display:flex;gap:8px">
+                <button style="width:44px;height:44px;border:1px solid var(--grey);border-radius:4px;background:transparent;cursor:pointer" style-hover="background:var(--line)"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-chevron-left"></use></svg></button>
+                <button style="width:44px;height:44px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer">1</button>
+                <button style="width:44px;height:44px;border:1px solid var(--grey);border-radius:4px;background:transparent;cursor:pointer" style-hover="background:var(--line)">2</button>
+                <button style="width:44px;height:44px;border:1px solid var(--grey);border-radius:4px;background:transparent;cursor:pointer" style-hover="background:var(--line)"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-chevron-right"></use></svg></button>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noRows }}">
+            <div style="padding:64px 24px;text-align:center;background-image:repeating-linear-gradient(60deg, var(--mist) 0 6px, transparent 6px 14px)">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">НЕТ ДАННЫХ</div>
+              <div style="font-size:19px;font-weight:700;margin-top:12px">По выбранному фильтру заявок нет</div>
+              <div style="font-size:16px;font-weight:300;color:var(--slate);margin-top:4px">Смените статус или период</div>
+              <button onClick="{{ resetFilter }}" style="margin-top:24px;height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:var(--paper);font-weight:600;cursor:pointer" style-hover="background:var(--line)">Сбросить фильтр</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- СОГЛАСОВАНИЕ -->
+    <sc-if value="{{ isApprovals }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <h1 style="margin:0;font-size:30px;line-height:1.16;font-weight:700">Согласование</h1>
+        <p style="margin:8px 0 24px;font-size:13px;color:var(--slate)">Заявка 1 из 4 · очередь по дате поступления</p>
+
+        <div style="display:flex;gap:8px;margin-bottom:var(--gap);flex-wrap:wrap">
+          <sc-for list="{{ approvalTabs }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.go }}" style="height:36px;padding:0 12px;border:{{ t.border }};border-radius:2px;background:{{ t.bg }};color:{{ t.fg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer" style-hover="background:var(--line)">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:var(--gap);align-items:flex-start">
+          <sc-if value="{{ isQueue }}">
+            <div style="flex:1 1 240px;max-width:320px;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ОЧЕРЕДЬ · 4</div>
+              <sc-for list="{{ queue }}" as="q" hint-placeholder-count="4">
+                <button onClick="{{ q.go }}" style="display:block;width:100%;text-align:left;padding:12px 16px;border:none;border-bottom:1px solid var(--line);border-left:{{ q.mark }};background:{{ q.bg }};color:inherit;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+                  <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                    <span style="font-size:16px;font-weight:{{ q.weight }}">{{ q.name }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;white-space:nowrap">{{ q.sum }}</span>
+                  </div>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);margin-top:2px">{{ q.id }} · {{ q.date }}</div>
+                  <div style="font-size:13px;color:var(--slate);margin-top:2px">{{ q.project }}</div>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="display:flex;flex-direction:column;gap:var(--gap);min-width:0;flex:1 1 460px">
+            <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1);padding:var(--pad)">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                <div style="display:flex;gap:16px;align-items:flex-start">
+                  <div style="width:44px;height:44px;border-radius:2px;background:var(--st-ok-bg);color:var(--st-ok-fg);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.1em;flex:none">ИП</div>
+                  <div>
+                    <div style="font-size:19px;font-weight:700;line-height:1.26">Иван Петров</div>
+                    <div style="font-size:16px;color:var(--slate)">Мастер-отделочник · объект «Вилла Колхозная»</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:0.1em;color:var(--slate);margin-top:4px">i.petrov@it-hona.tj · +992 __ ___ __ __</div>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--st-warn-bg);color:var(--st-warn-fg);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em"><span style="width:6px;height:6px;background:#E0A126"></span>НА УТВЕРЖДЕНИИ</span>
+                  <div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:0.1em;color:var(--slate);margin-top:8px">РЗ-2419 · 04.09.2026</div>
+                </div>
+              </div>
+
+              <div style="margin-top:24px;overflow-x:auto">
+                <table style="min-width:380px">
+                  <thead>
+                    <tr style="background:var(--forest);color:#FFFFFF">
+                      <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">ОПИСАНИЕ</th>
+                      <th style="padding:12px 8px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:64px">КОЛ-ВО</th>
+                      <th style="padding:12px 8px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:84px">ЦЕНА, TJS</th>
+                      <th style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:100px">СУММА, TJS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ expenses }}" as="e" hint-placeholder-count="4">
+                      <tr style="height:44px;border-bottom:1px solid var(--line)">
+                        <td style="padding:12px 8px 12px 16px">{{ e.title }}</td>
+                        <td style="padding:12px 8px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--slate)">{{ e.qty }}</td>
+                        <td style="padding:12px 8px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--slate)">{{ e.price }}</td>
+                        <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600">{{ e.total }}</td>
+                      </tr>
+                    </sc-for>
+                    <tr style="background:var(--mist)">
+                      <td colspan="3" style="padding:var(--cell);font-weight:700">Итого к возмещению</td>
+                      <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;white-space:nowrap">1 850,00</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style="display:flex;gap:32px;flex-wrap:wrap;margin-top:24px;padding-top:24px;border-top:1px solid var(--line)">
+                <sc-for list="{{ limits }}" as="l" hint-placeholder-count="3">
+                  <div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">{{ l.k }}</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600;margin-top:4px">{{ l.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1);padding:var(--pad)">
+              <h3 style="margin:0 0 16px;font-size:19px;line-height:1.26;font-weight:700">История изменений</h3>
+              <div style="display:flex;flex-direction:column;gap:16px">
+                <sc-for list="{{ history }}" as="h" hint-placeholder-count="4">
+                  <div style="display:flex;gap:12px;align-items:flex-start;border-left:2px solid {{ h.tint }};padding-left:12px">
+                    <div>
+                      <div style="font-size:16px">{{ h.text }}</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);margin-top:2px">{{ h.meta }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1);padding:var(--pad);position:sticky;top:88px;min-width:0;flex:1 1 300px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">РЕШЕНИЕ</div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+              <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="2">
+                <button onClick="{{ d.go }}" style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border:{{ d.border }};border-radius:2px;background:{{ d.bg }};text-align:left;cursor:pointer;width:100%;transition:background 150ms ease-out">
+                  <span style="width:18px;height:18px;border:{{ d.dotBorder }};display:flex;align-items:center;justify-content:center;flex:none"><span style="width:10px;height:10px;background:{{ d.dot }}"></span></span>
+                  <span style="font-weight:600">{{ d.label }}</span>
+                </button>
+              </sc-for>
+            </div>
+
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin:24px 0 8px">КОММЕНТАРИЙ</div>
+            <textarea placeholder="{{ commentHint }}" style="width:100%;min-height:104px;padding:12px;border:1px solid var(--grey);border-radius:2px;background:var(--paper);resize:vertical;outline:none;font-size:16px" style-focus="outline:2px solid var(--green);outline-offset:2px"></textarea>
+
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:24px">
+              <button onClick="{{ submit }}" style="height:44px;border:none;border-radius:4px;background:{{ submitBg }};color:#FFFFFF;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="{{ submitHover }}" style-focus="outline:2px solid var(--green);outline-offset:2px">{{ submitLabel }}</button>
+              <button style="height:44px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer" style-hover="background:var(--line)">Отмена</button>
+              <button style="height:44px;border:none;border-radius:4px;background:transparent;color:var(--slate);font-size:13px;font-weight:600;cursor:pointer" style-hover="background:var(--mist);color:var(--ink)">Запросить уточнение у сотрудника</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ОТЧЁТЫ -->
+    <sc-if value="{{ isReports }}">
+      <div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:var(--gap)">
+          <div>
+            <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+            <h1 style="margin:0;font-size:30px;line-height:1.16;font-weight:700">Расходы по объектам растут второй месяц</h1>
+            <p style="margin:8px 0 0;font-size:16px;font-weight:300;color:var(--slate)">Источник: CORE · данные на 07.09.2026</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer" style-hover="background:var(--line)"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-file-spreadsheet"></use></svg>Excel</button>
+            <button style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer" style-hover="background:var(--line)"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-file-type-pdf"></use></svg>PDF</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap)">
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ДОЛИ ПО ОБЪЕКТАМ, TJS</div>
+            <div style="display:flex;flex-direction:column;gap:16px;margin-top:24px">
+              <sc-for list="{{ byProject }}" as="p" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:6px">
+                    <span style="font-size:16px">{{ p.name }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600">{{ p.sum }} · {{ p.pct }}</span>
+                  </div>
+                  <div style="height:10px;background:var(--line)">
+                    <div style="height:10px;background:{{ p.fill }};width:{{ p.pct }}"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ФАКТ ПО МЕСЯЦАМ, TJS ТЫС.</div>
+            <div style="display:flex;align-items:flex-end;gap:12px;height:196px;margin-top:24px;border-bottom:1px solid var(--ink);padding-bottom:0">
+              <sc-for list="{{ months }}" as="m" hint-placeholder-count="6">
+                <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;height:100%">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.1em;color:var(--slate)">{{ m.val }}</span>
+                  <div style="width:100%;background:{{ m.fill }};height:{{ m.fact }}"></div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:8px">
+              <sc-for list="{{ months }}" as="m" hint-placeholder-count="6">
+                <span style="flex:1;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.1em;color:var(--slate)">{{ m.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:var(--gap);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+          <div style="padding:var(--pad);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line)">
+            <div>
+              <h3 style="margin:0;font-size:19px;line-height:1.26;font-weight:700">История оплаченных заявок</h3>
+              <div style="font-size:13px;color:var(--slate);margin-top:2px">{{ paidSummary }}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select style="height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;background:var(--paper)">
+                <option>Все объекты</option>
+                <option>Вилла Колхозная</option>
+                <option>Рекова 132</option>
+                <option>Офис на 7 этаже</option>
+                <option>Речь</option>
+              </select>
+              <button style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--line)"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-download"></use></svg>Реестр выплат</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="min-width:520px">
+              <thead>
+                <tr style="background:var(--forest);color:#FFFFFF">
+                  <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:22%">ОПЛАЧЕНА</th>
+                  <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:34%">СОТРУДНИК · ОБЪЕКТ</th>
+                  <th style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:22%">СУММА, TJS</th>
+                  <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:22%">ВЫПЛАТА</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ paidHistory }}" as="p" hint-placeholder-count="6">
+                  <tr style="height:44px;border-bottom:1px solid var(--line);transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+                    <td style="padding:var(--cell);white-space:nowrap">
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px">{{ p.paidAt }}</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate)">{{ p.id }}</div>
+                    </td>
+                    <td style="padding:var(--cell)">
+                      <div>{{ p.name }}</div>
+                      <div style="font-size:13px;color:var(--slate)">{{ p.project }}</div>
+                    </td>
+                    <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;white-space:nowrap">{{ p.sum }}</td>
+                    <td style="padding:var(--cell)">
+                      <div style="font-size:13px">{{ p.method }}</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate)">{{ p.doc }}</div>
+                    </td>
+                  </tr>
+                </sc-for>
+                <tr style="background:var(--mist)">
+                  <td colspan="2" style="padding:var(--cell);font-weight:700">Итого выплачено за сентябрь</td>
+                  <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;white-space:nowrap">{{ paidTotal }}</td>
+                  <td style="padding:var(--cell)"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- КОМАНДА -->
+    <sc-if value="{{ isTeam }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <h1 style="margin:0;font-size:30px;line-height:1.16;font-weight:700">Команда</h1>
+        <p style="margin:8px 0 24px;font-size:13px;color:var(--slate)">12 сотрудников · лимиты на сентябрь</p>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1);overflow-x:auto">
+          <table style="min-width:540px">
+            <thead>
+              <tr style="background:var(--forest);color:#FFFFFF">
+                <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:34%">СОТРУДНИК</th>
+                <th style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:18%">ЛИМИТ, TJS</th>
+                <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:36%">ИЗРАСХОДОВАНО</th>
+                <th style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;width:12%">ЗАЯВОК</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ team }}" as="p" hint-placeholder-count="5">
+                <tr style="height:44px;border-bottom:1px solid var(--line);transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+                  <td style="padding:var(--cell)">
+                    <div>{{ p.name }}</div>
+                    <div style="font-size:13px;color:var(--slate)">{{ p.role }}</div>
+                  </td>
+                  <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;white-space:nowrap">{{ p.limit }}</td>
+                  <td style="padding:var(--cell);min-width:160px">
+                    <div style="display:flex;align-items:center;gap:12px">
+                      <div style="flex:1;height:10px;background:var(--line)"><div style="height:10px;background:{{ p.tint }};width:{{ p.pct }}"></div></div>
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:14px;white-space:nowrap">{{ p.spent }}</span>
+                    </div>
+                  </td>
+                  <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--slate)">{{ p.count }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ФИНАНСЫ -->
+    <sc-if value="{{ isFinance }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <h1 style="margin:0;font-size:30px;line-height:1.16;font-weight:700">Финансы</h1>
+        <p style="margin:8px 0 24px;font-size:13px;color:var(--slate)">Бюджет отдела и выплаты возмещений</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--gap);margin-bottom:var(--gap)">
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">БЮДЖЕТ НА МЕСЯЦ, TJS</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:600;margin-top:16px;line-height:1.1">156 000,00</div>
+            <div style="height:10px;background:var(--line);margin-top:16px"><div style="height:10px;background:var(--green);width:62%"></div></div>
+            <div style="font-size:13px;color:var(--slate);margin-top:8px">Использовано 96 720,00 · осталось 59 280,00</div>
+          </div>
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">К ВЫПЛАТЕ НА ЭТОЙ НЕДЕЛЕ, TJS</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:600;margin-top:16px;line-height:1.1">12 480,00</div>
+            <div style="font-size:13px;color:var(--slate);margin-top:8px">7 одобренных заявок, срок — до 12.09.2026</div>
+            <button style="margin-top:16px;height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--green-d)">Отправить в оплату</button>
+          </div>
+        </div>
+        <div style="padding:64px 24px;background:var(--paper);border:1px solid var(--line);border-radius:4px;text-align:center;background-image:repeating-linear-gradient(60deg, var(--mist) 0 6px, transparent 6px 14px)">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ЧЕРНОВИК · В РАБОТЕ</div>
+          <div style="font-size:19px;font-weight:700;margin-top:12px">Банковские реквизиты не подключены</div>
+          <div style="font-size:16px;font-weight:300;color:var(--slate);margin-top:4px">Реквизиты заполняются после подтверждения владельцем бренда и финансовым отделом</div>
+          <button style="margin-top:24px;height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:var(--paper);font-weight:600;cursor:pointer" style-hover="background:var(--line)">Подключить счёт</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ПАРАМЕТРЫ -->
+    <sc-if value="{{ isSettings }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <h1 style="margin:0 0 24px;font-size:30px;line-height:1.16;font-weight:700">Параметры</h1>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--gap);align-items:start">
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ПРОФИЛЬ</div>
+            <sc-for list="{{ profile }}" as="f" hint-placeholder-count="3">
+              <div style="margin-top:16px">
+                <div style="font-size:13px;color:var(--slate);margin-bottom:6px">{{ f.label }}</div>
+                <input value="{{ f.value }}" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;background:var(--paper);outline:none;font-size:16px" style-focus="outline:2px solid var(--green);outline-offset:2px">
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh1)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ТЕМА ОФОРМЛЕНИЯ</div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
+              <sc-for list="{{ themeOptions }}" as="t" hint-placeholder-count="2">
+                <button onClick="{{ t.go }}" style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border:{{ t.border }};border-radius:2px;background:{{ t.bg }};cursor:pointer;text-align:left;width:100%">
+                  <span style="width:18px;height:18px;border:{{ t.dotBorder }};display:flex;align-items:center;justify-content:center;flex:none"><span style="width:10px;height:10px;background:{{ t.dot }}"></span></span>
+                  <span style="font-weight:600">{{ t.label }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-top:24px">УВЕДОМЛЕНИЯ</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:16px">
+              <sc-for list="{{ toggles }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.go }}" style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 4px;border:none;background:transparent;cursor:pointer;text-align:left;width:100%">
+                  <span style="width:20px;height:20px;border-radius:2px;border:{{ t.box }};background:{{ t.fill }};color:#FFFFFF;display:flex;align-items:center;justify-content:center;flex:none"><svg aria-hidden="true" style="width:14px;height:14px;flex:none;opacity:{{ t.iconOpacity }}"><use href="#ti-check"></use></svg></span>
+                  <span style="font-size:16px">{{ t.label }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- СПРАВКА -->
+    <sc-if value="{{ isHelp }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <h1 style="margin:0;font-size:30px;line-height:1.16;font-weight:700">Справка</h1>
+        <p style="margin:8px 0 24px;font-size:16px;font-weight:300;color:var(--slate)">Ответы на частые вопросы менеджеров. Спорные случаи — brand@it-hona.tj</p>
+        <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;max-width:440px;margin-bottom:var(--gap);color:var(--slate);background:var(--paper)">
+          <svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-search"></use></svg>
+          <input placeholder="Поиск по документации" style="border:none;background:transparent;outline:none;flex:1;font-size:16px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-width:800px">
+          <sc-for list="{{ faq }}" as="q" hint-placeholder-count="5">
+            <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                <span style="font-size:19px;font-weight:700;line-height:1.26">{{ q.q }}</span>
+                <svg aria-hidden="true" style="width:20px;height:20px;flex:none;color:var(--slate)"><use href="#ti-chevron-down"></use></svg>
+              </div>
+              <div style="font-size:16px;color:var(--slate);margin-top:8px;max-width:72ch">{{ q.a }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ДИЗАЙН-СИСТЕМА -->
+    <sc-if value="{{ isSystem }}">
+      <div>
+        <div style="width:48px;height:3px;background:var(--green);margin-bottom:12px"></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">IT-HONA · BRAND BOOK REV. 1.0</div>
+        <h1 style="margin:8px 0 0;font-size:30px;line-height:1.16;font-weight:700">Дизайн-система интерфейса</h1>
+        <p style="margin:8px 0 32px;font-size:16px;font-weight:300;color:var(--slate);max-width:72ch">Палитра, гарнитуры, формы и компоненты по разделам 03–04 и 06 брендбука. Логотип берётся готовым файлом из официального пакета и не набирается шрифтом.</p>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-bottom:16px">ОСНОВНАЯ ПАЛИТРА · 70 / 20 / 10</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:16px">
+          <sc-for list="{{ palette }}" as="c" hint-placeholder-count="3">
+            <div style="border:1px solid var(--line);background:var(--paper)">
+              <div style="height:88px;background:{{ c.hex }}"></div>
+              <div style="padding:16px">
+                <div style="font-size:16px;font-weight:700">{{ c.name }}</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:0.1em;color:var(--slate);margin-top:2px">{{ c.hex }}</div>
+                <div style="font-size:13px;color:var(--slate);margin-top:6px">{{ c.use }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;margin-bottom:32px;border:1px solid var(--line)">
+          <sc-for list="{{ neutrals }}" as="n" hint-placeholder-count="6">
+            <div style="flex:1">
+              <div style="height:56px;background:{{ n.hex }}"></div>
+              <div style="padding:8px;background:var(--paper);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);text-align:center">{{ n.name }}<br>{{ n.hex }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-bottom:16px">ТИПОГРАФИЧЕСКАЯ ШКАЛА · MANROPE + JETBRAINS MONO</div>
+        <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;margin-bottom:32px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--gap);padding-bottom:16px;border-bottom:1px solid var(--line)">
+            <span style="font-size:30px;font-weight:700;line-height:1.16">Панель управления</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);white-space:nowrap">H1 · 700 · 30/35</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--gap);padding:16px 0;border-bottom:1px solid var(--line)">
+            <span style="font-size:26px;font-weight:300;line-height:1.3">Инфраструктура, на которую можно опереться</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);white-space:nowrap">LEAD · 300 · 26/34</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--gap);padding:16px 0;border-bottom:1px solid var(--line)">
+            <span style="font-size:19px;font-weight:700;line-height:1.26">Последние заявки</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);white-space:nowrap">H3 · 700 · 19/24</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--gap);padding:16px 0;border-bottom:1px solid var(--line)">
+            <span style="font-size:16px">Содержимое таблиц и форм, длина строки 60–80 знаков</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);white-space:nowrap">BODY · 400 · 16/25</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--gap);padding:16px 0;border-bottom:1px solid var(--line)">
+            <span style="font-size:13px;color:var(--slate)">Подпись, сноска, значение в таблице</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);white-space:nowrap">CAPTION · 400 · 13/19</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--gap);padding-top:16px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">РУБРИКА · РЗ-2419 · 04.09.2026</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);white-space:nowrap">LABEL · MONO 600 · 11 · +16%</span>
+          </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);font-size:16px">Таджикский набор: <span style="font-family:'Noto Sans',Manrope,sans-serif">Таҷҳизоти шабакавӣ · Ғ ғ · Ӣ ӣ · Қ қ · Ӯ ӯ · Ҳ ҳ · Ҷ ҷ</span> <span style="font-size:13px;color:var(--slate)">— Noto Sans в паре с Manrope</span></div>
+        </div>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-bottom:16px">КНОПКИ · 44 PX · РАДИУС 4</div>
+        <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px;margin-bottom:32px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+          <button style="height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--green-d)">Отправить решение</button>
+          <button style="height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green-d);color:#FFFFFF;font-weight:600;cursor:pointer">Hover — на шаг темнее</button>
+          <button style="height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer" style-hover="background:var(--line)">Secondary</button>
+          <button style="height:44px;padding:0 16px;border:none;border-radius:4px;background:#B8382C;color:#FFFFFF;font-weight:600;cursor:pointer">Отклонить</button>
+          <button style="height:44px;padding:0 4px;border:none;border-radius:4px;background:transparent;color:var(--green-d);font-weight:600;text-decoration:underline;cursor:pointer">Скачать реестр</button>
+          <button style="height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--line);color:var(--grey);cursor:not-allowed;font-weight:600">Отправлено</button>
+          <button style="height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;outline:2px solid var(--green);outline-offset:2px;cursor:pointer">Focus</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap);margin-bottom:32px">
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ПОЛЯ · РАДИУС 2</div>
+            <div style="font-size:13px;color:var(--slate);margin:16px 0 6px">Сумма</div>
+            <input placeholder="0,00" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;background:var(--paper);outline:none;font-family:'JetBrains Mono',monospace;font-size:16px" style-focus="outline:2px solid var(--green);outline-offset:2px">
+            <div style="font-size:13px;color:var(--slate);margin:16px 0 6px">Фокус</div>
+            <input value="1 850,00" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--grey);border-radius:2px;background:var(--paper);outline:2px solid var(--green);outline-offset:2px;font-family:'JetBrains Mono',monospace;font-size:16px">
+            <div style="font-size:13px;color:var(--slate);margin:16px 0 6px">Ошибка</div>
+            <input value="0,00" style="width:100%;height:44px;padding:0 12px;border:1px solid #B8382C;border-radius:2px;background:var(--paper);outline:none;font-family:'JetBrains Mono',monospace;font-size:16px">
+            <div style="font-size:13px;color:#B8382C;margin-top:6px">Укажите сумму больше нуля</div>
+            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+              <span style="padding:4px 8px;background:var(--mist);border:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">ПРОЕЗД</span>
+              <span style="padding:4px 8px;background:var(--mist);border:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">МАТЕРИАЛЫ</span>
+              <span style="padding:4px 8px;background:var(--mist);border:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">СЕРВИС</span>
+            </div>
+          </div>
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">СТАТУСНЫЕ ПЛАШКИ · ЦВЕТ + СЛОВО</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
+              <sc-for list="{{ badges }}" as="b" hint-placeholder-count="5">
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:{{ b.bg }};color:{{ b.fg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase">
+                  <span style="width:6px;height:6px;background:{{ b.dot }}"></span>{{ b.label }}
+                </span>
+              </sc-for>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-top:24px">ИКОНКИ · КОНТУР · 24 PX</div>
+            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;color:var(--ink)">
+              <sc-for list="{{ icons }}" as="i" hint-placeholder-count="8">
+                <svg aria-hidden="true" style="width:24px;height:24px;flex:none"><use href="#{{ i.n }}"></use></svg>
+              </sc-for>
+            </div>
+            <div style="font-size:13px;color:var(--slate);margin-top:12px">Эскизы из Tabler для утверждения: финальный набор рисуется в векторе, толщина 1,6 px при 24 px, наклоны 30° и 60°.</div>
+          </div>
+        </div>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-bottom:16px">ФОРМЫ, ОБВОДКИ, ГРАФИЧЕСКИЕ ПРИЁМЫ</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:32px">
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line)">
+            <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px">
+              <div style="width:56px;height:40px;background:var(--forest);border-radius:0"></div>
+              <div style="width:56px;height:40px;background:var(--forest);border-radius:2px"></div>
+              <div style="width:56px;height:40px;background:var(--forest);border-radius:4px"></div>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate)">0 PX ПЛАШКИ · 2 PX ПОЛЯ · 4 PX КНОПКИ</div>
+          </div>
+          <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line)">
+            <div style="height:40px;border:1px solid var(--line);margin-bottom:8px"></div>
+            <div style="height:40px;border:1px solid var(--grey);margin-bottom:8px"></div>
+            <div style="height:40px;border:2px solid var(--green)"></div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);margin-top:12px">LINE · GREY · АКЦЕНТ 2 PX</div>
+          </div>
+          <div style="padding:0;background:var(--forest);color:#FFFFFF;clip-path:polygon(0 0, 100% 0, 100% calc(100% - 32px), calc(100% - 18px) 100%, 0 100%)">
+            <div style="padding:var(--pad);height:100%">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">СРЕЗ УГЛА 60°</div>
+              <div style="font-size:13px;color:rgba(255,255,255,0.78);margin-top:8px">Один приём на носитель. Углы 45° не используются.</div>
+            </div>
+          </div>
+          <div style="padding:var(--pad);border:1px solid var(--line);background-image:repeating-linear-gradient(60deg, var(--mist) 0 6px, var(--paper) 6px 14px)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ШТРИХОВКА 60°</div>
+            <div style="font-size:13px;color:var(--slate);margin-top:8px">Зоны «в работе», заглушки, пустые состояния.</div>
+          </div>
+        </div>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-bottom:16px">ИНЖЕНЕР В ПОЛЕ · 375 PX · КАРТОЧКА ВМЕСТО ТАБЛИЦЫ</div>
+        <div style="display:flex;gap:var(--gap);flex-wrap:wrap;align-items:flex-start;margin-bottom:32px">
+          <div style="width:375px;max-width:100%;border:1px solid var(--line);background:var(--mist)">
+            <div style="height:56px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#0E3B21;color:#FFFFFF">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:16px;font-weight:800;letter-spacing:0.06em">IT-HONA</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">CORE</span>
+              </div>
+              <svg aria-hidden="true" style="width:24px;height:24px;flex:none"><use href="#ti-menu-2"></use></svg>
+            </div>
+            <div style="padding:var(--pad) 16px">
+              <div style="font-size:19px;font-weight:700;margin-bottom:16px">Заявки · 4 на решение</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
+                  <div style="padding:16px;border:1px solid var(--line);background:var(--paper);border-radius:4px">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                      <span style="font-size:16px;font-weight:600">{{ r.name }}</span>
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;white-space:nowrap">{{ r.sum }}</span>
+                    </div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--slate);margin-top:2px">{{ r.id }} · {{ r.project }}</div>
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:12px">
+                      <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:{{ r.stBg }};color:{{ r.stFg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase">
+                        <span style="width:6px;height:6px;background:{{ r.dot }}"></span>{{ r.status }}
+                      </span>
+                      <span style="font-size:13px;font-weight:600;color:var(--green-d)">Открыть →</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <button style="width:100%;height:48px;margin-top:16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer">Новая заявка</button>
+            </div>
+          </div>
+          <div style="flex:1;min-width:280px;padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">РАЗМЕРЫ И ОТСТУПЫ</div>
+            <table style="margin-top:8px">
+              <tbody>
+                <sc-for list="{{ specs }}" as="s" hint-placeholder-count="10">
+                  <tr style="border-bottom:1px solid var(--line)">
+                    <td style="padding:12px 0;font-size:16px">{{ s.k }}</td>
+                    <td style="padding:12px 0;text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;white-space:nowrap">{{ s.v }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate);margin-bottom:16px">ТОКЕНЫ ТЁМНОЙ ТЕМЫ</div>
+        <div style="padding:var(--pad);background:var(--paper);border:1px solid var(--line);border-radius:4px">
+          <table>
+            <thead>
+              <tr style="background:var(--forest);color:#FFFFFF">
+                <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">ТОКЕН</th>
+                <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">СВЕТЛАЯ</th>
+                <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">ТЁМНАЯ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ darkTokens }}" as="d" hint-placeholder-count="6">
+                <tr style="height:44px;border-bottom:1px solid var(--line)">
+                  <td style="padding:var(--cell);font-size:16px">{{ d.name }}</td>
+                  <td style="padding:var(--cell)"><span style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:14px"><span style="width:16px;height:16px;background:{{ d.l }};border:1px solid var(--line)"></span>{{ d.l }}</span></td>
+                  <td style="padding:var(--cell)"><span style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:14px"><span style="width:16px;height:16px;background:{{ d.d }};border:1px solid var(--line)"></span>{{ d.d }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+  </div>
+  </div>
+
+  <sc-if value="{{ modal }}">
+    <div onClick="{{ closeModal }}" style="position:fixed;inset:0;z-index:60;background:rgba(16,22,19,0.6);display:flex;align-items:center;justify-content:center;padding:var(--pad)">
+      <div onClick="{{ stop }}" style="width:100%;max-width:600px;max-height:82vh;overflow-y:auto;background:var(--paper);border:1px solid var(--line);border-radius:4px;box-shadow:var(--sh2);padding:var(--pad)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">{{ modalId }} · {{ modalDate }}</div>
+            <div style="font-size:19px;font-weight:700;line-height:1.26;margin-top:4px">{{ modalName }}</div>
+          </div>
+          <button onClick="{{ closeModal }}" aria-label="Закрыть" style="width:44px;height:44px;border:1px solid var(--grey);border-radius:4px;background:transparent;color:var(--slate);cursor:pointer;flex:none" style-hover="background:var(--line)"><svg aria-hidden="true" style="width:20px;height:20px;flex:none"><use href="#ti-x"></use></svg></button>
+        </div>
+        <div style="display:flex;gap:32px;flex-wrap:wrap;margin-top:24px">
+          <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">ОБЪЕКТ</div><div style="margin-top:4px">{{ modalProject }}</div></div>
+          <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">СУММА, TJS</div><div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600;margin-top:4px">{{ modalSum }}</div></div>
+          <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;color:var(--slate)">СТАТУС</div>
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:{{ modalBg }};color:{{ modalFg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;margin-top:4px"><span style="width:6px;height:6px;background:{{ modalDot }}"></span>{{ modalStatus }}</span>
+          </div>
+        </div>
+        <div style="margin-top:24px;overflow-x:auto">
+          <table style="min-width:340px">
+            <thead>
+              <tr style="background:var(--forest);color:#FFFFFF">
+                <th style="padding:var(--cell);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">ОПИСАНИЕ</th>
+                <th style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">КОЛ-ВО</th>
+                <th style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.16em">СУММА, TJS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ expenses }}" as="e" hint-placeholder-count="4">
+                <tr style="height:44px;border-bottom:1px solid var(--line)">
+                  <td style="padding:var(--cell)">{{ e.title }}</td>
+                  <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--slate)">{{ e.qty }}</td>
+                  <td style="padding:var(--cell);text-align:right;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600">{{ e.total }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:24px;flex-wrap:wrap">
+          <button onClick="{{ goApprovals }}" style="height:44px;padding:0 16px;border:none;border-radius:4px;background:var(--green);color:#FFFFFF;font-weight:600;cursor:pointer;transition:background 150ms ease-out" style-hover="background:var(--green-d)">Открыть в согласовании</button>
+          <button onClick="{{ closeModal }}" style="height:44px;padding:0 16px;border:1px solid var(--grey);border-radius:4px;background:transparent;font-weight:600;cursor:pointer" style-hover="background:var(--line)">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toast }}">
+    <div style="position:fixed;top:80px;right:24px;z-index:70;display:flex;align-items:center;gap:12px;padding:16px;background:var(--paper);border:1px solid var(--line);border-left:2px solid {{ toastColor }};border-radius:4px;box-shadow:var(--sh2);animation:toastIn 150ms ease-out">
+      <span style="width:8px;height:8px;background:{{ toastColor }};flex:none"></span>
+      <span style="font-size:16px">{{ toastText }}</span>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dispatch&quot;,&quot;air&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dispatch&quot;,&quot;tsType&quot;:&quot;'dispatch' | 'air' | 'light'&quot;,&quot;section&quot;:&quot;Вариант&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;,&quot;section&quot;:&quot;Оформление&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dashboard&quot;,&quot;requests&quot;,&quot;approvals&quot;,&quot;reports&quot;,&quot;team&quot;,&quot;finance&quot;,&quot;settings&quot;,&quot;help&quot;,&quot;system&quot;],&quot;default&quot;:&quot;dashboard&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Оформление&quot;},&quot;showApprovalBanner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Панель&quot;}}">
+const S = {
+  pending:  { label: 'На утверждении', dot: '#E0A126', bg: 'var(--st-warn-bg)', fg: 'var(--st-warn-fg)' },
+  approved: { label: 'Одобрена',       dot: '#2E6FD9', bg: 'var(--st-info-bg)', fg: 'var(--st-info-fg)' },
+  paid:     { label: 'Оплачена',       dot: '#22A74E', bg: 'var(--st-ok-bg)',   fg: 'var(--st-ok-fg)' },
+  rejected: { label: 'Отклонена',      dot: '#B8382C', bg: 'var(--st-err-bg)',  fg: 'var(--st-err-fg)' },
+  draft:    { label: 'Черновик',       dot: '#9AA39C', bg: 'var(--st-off-bg)',  fg: 'var(--st-off-fg)' }
+};
+
+const DATA = [
+  { id: 'РЗ-2419', name: 'Иван Петров',       role: 'Мастер-отделочник', project: 'Вилла Колхозная', amount: 1850, status: 'pending',  date: '04.09.2026' },
+  { id: 'РЗ-2420', name: 'Мария Сидорова',    role: 'Дизайнер',          project: 'Офис на 7 этаже', amount: 950,  status: 'pending',  date: '05.09.2026' },
+  { id: 'РЗ-2417', name: 'Сергей Никитин',    role: 'Прораб',            project: 'Рекова 132',      amount: 2400, status: 'approved', date: '02.09.2026' },
+  { id: 'РЗ-2411', name: 'Екатерина Волкова', role: 'Менеджер проекта',  project: 'Речь',            amount: 3100, status: 'paid',     date: '28.08.2026' },
+  { id: 'РЗ-2421', name: 'Алексей Морозов',   role: 'Электрик',          project: 'Рекова 132',      amount: 1240, status: 'pending',  date: '05.09.2026' },
+  { id: 'РЗ-2415', name: 'Ольга Кузнецова',   role: 'Снабженец',         project: 'Вилла Колхозная', amount: 5600, status: 'rejected', date: '01.09.2026' },
+  { id: 'РЗ-2422', name: 'Дмитрий Соколов',   role: 'Инженер',           project: 'Офис на 7 этаже', amount: 780,  status: 'pending',  date: '06.09.2026' },
+  { id: 'РЗ-2413', name: 'Анна Лебедева',     role: 'Архитектор',        project: 'Речь',            amount: 2050, status: 'approved', date: '29.08.2026' }
+];
+
+const fmt = n => n.toLocaleString('ru-RU') + ',00';
+
+class Component extends DCLogic {
+  state = {
+    variant: 'dispatch',
+    theme: 'light', screen: 'dashboard', filter: 'all', tab: 'pending',
+    sort: null, dir: 1, decision: 'approve', modal: null, toast: null,
+    toggles: [true, true, false]
+  };
+
+  componentDidMount() {
+    this.setState({
+      theme: this.props.theme === 'dark' ? 'dark' : 'light',
+      screen: this.props.startScreen || 'dashboard',
+      variant: this.props.variant || 'dispatch'
+    });
+  }
+
+  componentWillUnmount() { clearTimeout(this._t); }
+
+  go = s => () => this.setState({ screen: s, modal: null });
+
+  flash(text, color) {
+    clearTimeout(this._t);
+    this.setState({ toast: { text, color } });
+    this._t = setTimeout(() => this.setState({ toast: null }), 3200);
+  }
+
+  decorate(list) {
+    return list.map(r => ({
+      ...r,
+      sum: fmt(r.amount),
+      status: S[r.status].label,
+      stBg: S[r.status].bg,
+      stFg: S[r.status].fg,
+      dot: S[r.status].dot,
+      action: r.status === 'pending' ? 'Рассмотреть' : 'Открыть',
+      open: () => this.setState({ modal: r })
+    }));
+  }
+
+  sorted(list) {
+    const { sort, dir } = this.state;
+    if (!sort) return list;
+    return [...list].sort((a, b) =>
+      sort === 'amount' ? (a.amount - b.amount) * dir : a.name.localeCompare(b.name, 'ru') * dir
+    );
+  }
+
+  navBtn(key, label, icon) {
+    const active = this.state.screen === key;
+    const light = this.state.variant === 'light';
+    return {
+      key, label, icon, go: this.go(key),
+      bg: active ? (light ? 'var(--st-ok-bg)' : '#186B36') : 'transparent',
+      fg: active
+        ? (light ? 'var(--st-ok-fg)' : '#FFFFFF')
+        : (light ? 'var(--slate)' : 'rgba(255,255,255,0.78)'),
+      weight: active ? 600 : 400
+    };
+  }
+
+  chip(active, label, go) {
+    return {
+      label, go,
+      bg: active ? 'var(--st-ok-bg)' : 'transparent',
+      fg: active ? 'var(--st-ok-fg)' : 'var(--slate)',
+      border: active ? '2px solid var(--green)' : '1px solid var(--grey)'
+    };
+  }
+
+  radio(active, accent) {
+    return {
+      border: active ? '2px solid ' + accent : '1px solid var(--grey)',
+      bg: active ? 'var(--mist)' : 'transparent',
+      dotBorder: active ? '2px solid ' + accent : '1px solid var(--grey)',
+      dot: active ? accent : 'transparent'
+    };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const filtered = st.filter === 'all' ? DATA : DATA.filter(r => r.status === st.filter);
+    const rows = this.decorate(this.sorted(filtered));
+    const m = st.modal;
+    const t = st.toast;
+    const approve = st.decision === 'approve';
+    const okRadio = this.radio(approve, '#22A74E');
+    const noRadio = this.radio(!approve, '#B8382C');
+
+    const V = {
+      air:      { label: 'A · ВОЗДУХ',     hint: 'Топ-бар Deep Forest, метрики карточками, сетка 24 px, одна карточка в согласовании', density: 'airy',    side: false, strip: false, tableFirst: false, queue: false },
+      dispatch: { label: 'B · ДИСПЕТЧЕР',  hint: 'Сайдбар 240 px по брендбуку, таблица заявок первым экраном, плотная сетка, очередь слева', density: 'compact', side: true,  strip: true,  tableFirst: true,  queue: true },
+      light:    { label: 'C · СВЕТЛЫЙ',    hint: 'Светлый сайдбар Mist, зелёный только в акцентах, средняя плотность, очередь слева', density: 'mid',     side: true,  strip: true,  tableFirst: false, queue: true }
+    };
+    const v = V[st.variant] || V.air;
+    const lightShell = st.variant === 'light';
+
+    return {
+      variants: Object.keys(V).map(k => ({
+        label: V[k].label, hint: V[k].hint,
+        go: () => this.setState({ variant: k }),
+        bg: st.variant === k ? 'var(--st-ok-bg)' : 'transparent',
+        fg: st.variant === k ? 'var(--st-ok-fg)' : 'var(--slate)',
+        border: st.variant === k ? '2px solid var(--green)' : '1px solid var(--grey)'
+      })),
+      variantHint: v.hint,
+      density: v.density,
+      isSide: v.side,
+      isTop: !v.side,
+      sideBg: lightShell ? 'var(--paper)' : '#0E3B21',
+      sideFg: lightShell ? 'var(--ink)' : '#FFFFFF',
+      sideBorder: lightShell ? '1px solid var(--line)' : 'none',
+      sideDivider: lightShell ? '1px solid var(--line)' : '1px solid rgba(255,255,255,0.2)',
+      sideBtnBorder: lightShell ? '1px solid var(--grey)' : '1px solid rgba(255,255,255,0.28)',
+      metricsCards: !v.strip,
+      metricsStrip: v.strip,
+      ordMetrics: v.tableFirst ? 3 : 1,
+      ordTable: v.tableFirst ? 1 : 3,
+      tableTitle: v.tableFirst ? 'Заявки за сентябрь' : 'Последние заявки',
+      isQueue: v.queue,
+      queue: this.decorate(DATA.filter(r => r.status === 'pending')).map((q, i) => ({
+        ...q,
+        go: q.open,
+        bg: i === 0 ? 'var(--mist)' : 'transparent',
+        mark: i === 0 ? '2px solid var(--green)' : '2px solid transparent',
+        weight: i === 0 ? 700 : 400
+      })),
+
+      theme: st.theme,
+      themeIcon: st.theme === 'dark' ? 'ti-sun' : 'ti-moon',
+      toggleTheme: () => this.setState({ theme: st.theme === 'dark' ? 'light' : 'dark' }),
+
+      nav: [
+        this.navBtn('dashboard', 'Панель', 'ti-layout-dashboard'),
+        this.navBtn('requests', 'Заявки', 'ti-file-text'),
+        this.navBtn('approvals', 'Согласование', 'ti-circle-check'),
+        this.navBtn('reports', 'Отчёты', 'ti-chart-bar'),
+        this.navBtn('team', 'Команда', 'ti-users'),
+        this.navBtn('finance', 'Финансы', 'ti-wallet'),
+        this.navBtn('settings', 'Параметры', 'ti-settings'),
+        this.navBtn('help', 'Справка', 'ti-help-circle')
+      ],
+      goSystem: this.go('system'),
+      goApprovals: this.go('approvals'),
+      goRequests: this.go('requests'),
+
+      isDashboard: st.screen === 'dashboard',
+      isRequests: st.screen === 'requests',
+      isApprovals: st.screen === 'approvals',
+      isReports: st.screen === 'reports',
+      isTeam: st.screen === 'team',
+      isFinance: st.screen === 'finance',
+      isSettings: st.screen === 'settings',
+      isHelp: st.screen === 'help',
+      isSystem: st.screen === 'system',
+
+      showBanner: this.props.showApprovalBanner !== false,
+      stats: [
+        { label: 'ВСЕГО ЗАЯВОК',      value: '24',         note: 'за сентябрь, 12 сотрудников' },
+        { label: 'ОДОБРЕНО, TJS',       value: '18 500,00',  note: '12 заявок, ждут выплаты' },
+        { label: 'НА УТВЕРЖДЕНИИ, TJS', value: '3 200,00',   note: '4 заявки ждут решения' },
+        { label: 'БЮДЖЕТ МЕСЯЦА, TJS',  value: '156 000,00', note: 'использовано 62%' }
+      ],
+      recent: this.decorate(this.sorted(v.tableFirst ? DATA : DATA.slice(0, 4))),
+      sortByAmount: () => this.setState({ sort: 'amount', dir: st.sort === 'amount' ? -st.dir : 1 }),
+      sortByName: () => this.setState({ sort: 'name', dir: st.sort === 'name' ? -st.dir : 1 }),
+
+      statusFilters: [['all', 'Все'], ['pending', S.pending.label], ['approved', S.approved.label], ['paid', S.paid.label], ['rejected', S.rejected.label], ['draft', S.draft.label]]
+        .map(([k, label]) => this.chip(st.filter === k, label, () => this.setState({ filter: k }))),
+      rows,
+      hasRows: rows.length > 0,
+      noRows: rows.length === 0,
+      resetFilter: () => this.setState({ filter: 'all' }),
+      filterCountLabel: rows.length + ' из ' + DATA.length + ' заявок показано · сентябрь 2026',
+      pageLabel: 'ПОКАЗАНО ' + rows.length + ' ИЗ 24',
+
+      approvalTabs: [['pending', 'На утверждении · 4'], ['approved', 'Утверждены · 12'], ['rejected', 'Отклонены · 2']]
+        .map(([k, label]) => this.chip(st.tab === k, label, () => this.setState({ tab: k }))),
+      expenses: [
+        { title: 'Проездной туда и обратно', qty: 1, price: '150,00',   total: '150,00' },
+        { title: 'Обед на одного',           qty: 1, price: '30,00',    total: '30,00' },
+        { title: 'Материалы для работы',     qty: 5, price: '120,00',   total: '600,00' },
+        { title: 'Такси до объекта',         qty: 2, price: '535,00',   total: '1 070,00' }
+      ],
+      limits: [
+        { k: 'ЛИМИТ СОТРУДНИКА', v: '5 000,00 сомони' },
+        { k: 'ИЗРАСХОДОВАНО',    v: '3 150,00 сомони' },
+        { k: 'ЧЕКИ',             v: '4 вложения' }
+      ],
+      history: [
+        { tint: 'var(--line)',  text: 'Заявка отправлена на утверждение',        meta: 'ИВАН ПЕТРОВ · 04.09.2026, 18:12' },
+        { tint: 'var(--line)',  text: 'Комментарий: «Чеки приложены»',           meta: 'ИВАН ПЕТРОВ · 04.09.2026, 18:14' },
+        { tint: 'var(--line)',  text: 'Заявка просмотрена супервайзером',        meta: 'ОЛЬГА КУЗНЕЦОВА · 05.09.2026, 09:40' },
+        { tint: '#22A74E',      text: 'Предыдущая заявка РЗ-2402 оплачена',      meta: 'ФИНАНСЫ · 30.08.2026, 12:05' }
+      ],
+      decisions: [
+        { label: 'Одобрить',  go: () => this.setState({ decision: 'approve' }), ...okRadio },
+        { label: 'Отклонить', go: () => this.setState({ decision: 'reject' }),  ...noRadio }
+      ],
+      commentHint: approve ? 'Необязательно' : 'Укажите причину отклонения: факт, причина, что делаем, срок',
+      submitBg: approve ? 'var(--green)' : '#B8382C',
+      submitHover: approve ? 'background:var(--green-d)' : 'background:#8A2A20',
+      submitLabel: approve ? 'Одобрить 1 850,00 сомони' : 'Отклонить заявку',
+      submit: () => approve
+        ? this.flash('Заявка РЗ-2419 одобрена', '#22A74E')
+        : this.flash('Заявка РЗ-2419 отклонена', '#B8382C'),
+
+      byProject: [
+        { name: 'Вилла Колхозная', sum: '42 300,00', pct: '44%', fill: 'var(--green)' },
+        { name: 'Рекова 132',      sum: '31 800,00', pct: '33%', fill: '#7FBF95' },
+        { name: 'Офис на 7 этаже', sum: '15 200,00', pct: '16%', fill: '#B7D6C2' },
+        { name: 'Речь',            sum: '7 420,00',  pct: '7%',  fill: '#DCEAE1' }
+      ],
+      paidHistory: [
+        { paidAt: '05.09.2026', id: 'РЗ-2411', name: 'Екатерина Волкова', project: 'Речь',            sum: '3 100,00', method: 'На карту',   doc: 'ПП-0412' },
+        { paidAt: '03.09.2026', id: 'РЗ-2408', name: 'Сергей Никитин',    project: 'Рекова 132',      sum: '1 480,00', method: 'На карту',   doc: 'ПП-0409' },
+        { paidAt: '02.09.2026', id: 'РЗ-2405', name: 'Дмитрий Соколов',   project: 'Офис на 7 этаже', sum: '640,00',   method: 'Наличными', doc: 'РКО-118' },
+        { paidAt: '30.08.2026', id: 'РЗ-2402', name: 'Иван Петров',       project: 'Вилла Колхозная', sum: '2 260,00', method: 'На карту',   doc: 'ПП-0398' },
+        { paidAt: '28.08.2026', id: 'РЗ-2396', name: 'Мария Сидорова',    project: 'Офис на 7 этаже', sum: '870,00',   method: 'На карту',   doc: 'ПП-0391' },
+        { paidAt: '27.08.2026', id: 'РЗ-2390', name: 'Анна Лебедева',     project: 'Речь',            sum: '1 930,00', method: 'Наличными', doc: 'РКО-112' }
+      ],
+      paidTotal: '10 280,00',
+      paidSummary: '6 выплат с 27.08 по 05.09.2026 · средний срок от одобрения до выплаты 2 дня',
+      months: [
+        { label: 'АПР', val: '58',  fact: '48%', fill: 'var(--line)' },
+        { label: 'МАЙ', val: '66',  fact: '55%', fill: 'var(--line)' },
+        { label: 'ИЮН', val: '74',  fact: '62%', fill: 'var(--line)' },
+        { label: 'ИЮЛ', val: '92',  fact: '77%', fill: 'var(--line)' },
+        { label: 'АВГ', val: '71',  fact: '59%', fill: 'var(--line)' },
+        { label: 'СЕН', val: '97',  fact: '81%', fill: 'var(--green)' }
+      ],
+      team: [
+        { name: 'Иван Петров',       role: 'Мастер-отделочник', limit: '5 000,00',  spent: '3 150,00', pct: '63%', tint: 'var(--green)', count: 6 },
+        { name: 'Мария Сидорова',    role: 'Дизайнер',          limit: '4 000,00',  spent: '1 900,00', pct: '48%', tint: 'var(--green)', count: 4 },
+        { name: 'Сергей Никитин',    role: 'Прораб',            limit: '8 000,00',  spent: '7 600,00', pct: '95%', tint: '#E0A126',      count: 9 },
+        { name: 'Екатерина Волкова', role: 'Менеджер проекта',  limit: '6 000,00',  spent: '3 100,00', pct: '52%', tint: 'var(--green)', count: 5 },
+        { name: 'Ольга Кузнецова',   role: 'Снабженец',         limit: '10 000,00', spent: '9 800,00', pct: '98%', tint: '#B8382C',      count: 12 }
+      ],
+      profile: [
+        { label: 'Имя и фамилия', value: 'Артём Ковалёв' },
+        { label: 'Рабочая почта', value: 'a.kovalev@it-hona.tj' },
+        { label: 'Порог автоодобрения, TJS', value: '500,00' }
+      ],
+      themeOptions: [
+        { label: 'Светлая', go: () => this.setState({ theme: 'light' }), ...this.radio(st.theme === 'light', '#22A74E') },
+        { label: 'Тёмная',  go: () => this.setState({ theme: 'dark' }),  ...this.radio(st.theme === 'dark', '#22A74E') }
+      ],
+      toggles: ['Новые заявки на утверждение', 'Напоминание о заявках старше 3 дней', 'Еженедельный отчёт по бюджету'].map((label, i) => ({
+        label,
+        box: st.toggles[i] ? '1px solid var(--green)' : '1px solid var(--grey)',
+        fill: st.toggles[i] ? 'var(--green)' : 'transparent',
+        icon: 'ti-check',
+        iconOpacity: st.toggles[i] ? 1 : 0,
+        go: () => this.setState(s => ({ toggles: s.toggles.map((v, j) => j === i ? !v : v) }))
+      })),
+      faq: [
+        { q: 'Как одобрить заявку сотрудника?', a: 'Раздел «Согласование» → заявка → отметьте решение и нажмите «Одобрить». Заявки до порога автоодобрения закрываются без вашего участия.' },
+        { q: 'Что означают статусы заявок?', a: 'На утверждении — требует решения. Одобрена — утверждена, ждёт выплаты. Оплачена — возмещение перечислено. Отклонена — отказано с комментарием. Черновик — сотрудник не отправил заявку.' },
+        { q: 'Как изменить лимит сотрудника?', a: 'Раздел «Команда» → сотрудник → поле «Лимит», в сомони. Изменения действуют с начала следующего месяца.' },
+        { q: 'Как выгрузить реестр в Excel?', a: 'В разделе «Отчёты» нажмите «Excel». Артикулы и коды выгружаются моно-гарнитурой, числа — с разделителем разрядов и запятой в копейках.' },
+        { q: 'Кто видит комментарии к заявке?', a: 'Сотрудник-автор и все согласующие в цепочке утверждения. Комментарий к отклонению обязателен.' }
+      ],
+      palette: [
+        { name: 'HONA Green',  hex: '#22A74E', use: 'Акцент, активные состояния, 10% носителя' },
+        { name: 'Deep Forest', hex: '#0E3B21', use: 'Фон навигации, шапки таблиц, обложки' },
+        { name: 'Ink',         hex: '#101613', use: 'Текст' }
+      ],
+      neutrals: [
+        { name: 'PAPER', hex: '#FFFFFF' }, { name: 'MIST', hex: '#F5F7F5' }, { name: 'LINE', hex: '#E3E7E3' },
+        { name: 'GREY', hex: '#9AA39C' }, { name: 'SLATE', hex: '#5A655D' }, { name: 'GRAPHITE', hex: '#3A443D' }
+      ],
+      badges: ['pending', 'approved', 'paid', 'rejected', 'draft'].map(k => ({
+        label: S[k].label, bg: S[k].bg, fg: S[k].fg, dot: S[k].dot
+      })),
+      icons: ['ti-layout-dashboard', 'ti-file-text', 'ti-circle-check', 'ti-circle-x', 'ti-clock-hour-4', 'ti-wallet', 'ti-users', 'ti-chart-bar', 'ti-settings', 'ti-help-circle', 'ti-download', 'ti-search', 'ti-filter', 'ti-plus', 'ti-server-2', 'ti-device-cctv'].map(n => ({ n })),
+      specs: [
+        { k: 'Высота шапки',          v: '64 px' },
+        { k: 'Ширина контента',       v: '1240 px' },
+        { k: 'Межколонник · поля',    v: '24 · 32/16 px' },
+        { k: 'Шаг отступов',          v: '4·8·12·16·24·32·48·64' },
+        { k: 'Радиусы',               v: '0 / 2 / 4 px' },
+        { k: 'Строка таблицы',        v: '44 px' },
+        { k: 'Ячейка',                v: '12 / 16 px' },
+        { k: 'Кнопка · моб. кнопка',  v: '44 / 48 px' },
+        { k: 'Обводки',               v: '1 px Line · 2 px Green' },
+        { k: 'Анимация',              v: '150 мс ease-out' }
+      ],
+      darkTokens: [
+        { name: 'Фон страницы',  l: '#FFFFFF', d: '#0B120E' },
+        { name: 'Поверхность',   l: '#F5F7F5', d: '#151E18' },
+        { name: 'Линия',         l: '#E3E7E3', d: '#26332B' },
+        { name: 'Текст',         l: '#101613', d: '#EDF2EE' },
+        { name: 'Текст втор.',   l: '#5A655D', d: '#8E9A91' },
+        { name: 'Акцент',        l: '#22A74E', d: '#33C561' }
+      ],
+
+      modal: !!m,
+      modalName: m ? m.name : '',
+      modalId: m ? m.id : '',
+      modalDate: m ? m.date : '',
+      modalProject: m ? m.project : '',
+      modalSum: m ? fmt(m.amount) : '',
+      modalStatus: m ? S[m.status].label : '',
+      modalBg: m ? S[m.status].bg : 'transparent',
+      modalFg: m ? S[m.status].fg : 'inherit',
+      modalDot: m ? S[m.status].dot : 'transparent',
+      closeModal: () => this.setState({ modal: null }),
+      stop: e => e.stopPropagation(),
+
+      toast: !!t,
+      toastText: t ? t.text : '',
+      toastColor: t ? t.color : 'transparent'
+    };
+  }
+}
+
+</script>
+</body>
+</html>

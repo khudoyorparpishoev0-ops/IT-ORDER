@@ -1,0 +1,126 @@
+/* ============================================================================
+   HONA CORE — дизайн-токены.
+   Источник: docs/DESIGN_HANDOFF.md + брендбук IT-HONA rev. 1.0 (раздел 03).
+   Менять значения только по брендбуку. Новые цвета в компонентах не вводить.
+   ========================================================================= */
+
+:root {
+  /* Типографика */
+  --font-sans: Manrope, 'Noto Sans', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Радиусы: 0 плашки · 2 поля/чипы/сайдбар · 4 кнопки/карточки/модалы */
+  --r-flat: 0px;
+  --r-field: 2px;
+  --r-card: 4px;
+
+  /* Шаг отступов брендбука */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  --content-max: 1240px;
+  --side-w: 240px;
+  --row-h: 44px;
+  --motion: 150ms ease-out;
+
+  /* Зелёная шкала графиков */
+  --chart-1: #0e3b21;
+  --chart-2: #186b36;
+  --chart-3: #22a74e;
+  --chart-4: #7fbf95;
+  --chart-5: #b7d6c2;
+  --chart-6: #dceae1;
+
+  /* Индикаторы статусов — одинаковы в обеих темах */
+  --dot-warn: #e0a126;
+  --dot-info: #2e6fd9;
+  --dot-ok: #22a74e;
+  --dot-err: #b8382c;
+  --dot-off: #9aa39c;
+
+  /* Опасное действие */
+  --danger: #b8382c;
+  --danger-d: #8a2a20;
+}
+
+/* Светлая тема — база. Дефолт, если data-theme не выставлен. */
+:root,
+[data-theme='light'] {
+  --paper: #ffffff;
+  --mist: #f5f7f5;
+  --line: #e3e7e3;
+  --ink: #101613;
+  --slate: #5a655d;
+  --grey: #9aa39c;
+  --green: #22a74e;
+  --green-d: #186b36;
+  --forest: #0e3b21;
+  --zebra: #fafbfa;
+  --sh1: 0 1px 2px rgba(16, 22, 19, 0.06);
+  --sh2: 0 8px 24px rgba(16, 22, 19, 0.14);
+  --st-warn-bg: #fbf1de;
+  --st-warn-fg: #7a5510;
+  --st-info-bg: #e4ecfa;
+  --st-info-fg: #1e4c99;
+  --st-ok-bg: #e0f2e6;
+  --st-ok-fg: #186b36;
+  --st-err-bg: #f7e4e2;
+  --st-err-fg: #8a2a20;
+  --st-off-bg: #eff1ef;
+  --st-off-fg: #5a655d;
+}
+
+[data-theme='dark'] {
+  --paper: #0b120e;
+  --mist: #151e18;
+  --line: #26332b;
+  --ink: #edf2ee;
+  --slate: #8e9a91;
+  --grey: #8e9a91;
+  --green: #33c561;
+  --green-d: #33c561;
+  --forest: #0e3b21;
+  --zebra: #101a14;
+  --sh1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sh2: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --st-warn-bg: #33280f;
+  --st-warn-fg: #e8be72;
+  --st-info-bg: #16233d;
+  --st-info-fg: #8fb3f0;
+  --st-ok-bg: #12301e;
+  --st-ok-fg: #6fd292;
+  --st-err-bg: #331a16;
+  --st-err-fg: #e39187;
+  --st-off-bg: #1d2721;
+  --st-off-fg: #9aa39c;
+}
+
+/* Плотность переключается вместе с вариантом шелла.
+   Значения по умолчанию — compact (вариант B «Диспетчер»). */
+:root,
+[data-density='compact'] {
+  --pad: 16px;
+  --gap: 12px;
+  --cell-y: 8px;
+  --cell-x: 12px;
+}
+
+[data-density='mid'] {
+  --pad: 20px;
+  --gap: 16px;
+  --cell-y: 10px;
+  --cell-x: 14px;
+}
+
+[data-density='airy'] {
+  --pad: 24px;
+  --gap: 24px;
+  --cell-y: 12px;
+  --cell-x: 16px;
+}

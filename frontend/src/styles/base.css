@@ -1,0 +1,408 @@
+/* Базовые стили и переиспользуемые классы. Правила берутся из брендбука:
+   радиусы 0/2/4, обводки 1px line / 2px green, анимация 150ms ease-out,
+   строка таблицы 44px, только горизонтальные линии, статус — цвет + слово. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.56;
+  color: var(--ink);
+  background: var(--mist);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--green-d);
+  text-decoration: none;
+  font-weight: 600;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Фокус единый: 2px green с отступом 2px, без смещения элемента */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* ---------- Типографика ---------- */
+.h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.16;
+  font-weight: 700;
+}
+.lead {
+  margin: 8px 0 0;
+  font-size: 26px;
+  line-height: 1.3;
+  font-weight: 300;
+  color: var(--slate);
+}
+.lead-sm {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--slate);
+}
+.h3 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.26;
+  font-weight: 700;
+}
+.caption {
+  font-size: 13px;
+  line-height: 1.46;
+  color: var(--slate);
+}
+.mono {
+  font-family: var(--font-mono);
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+.num {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.metric {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.metric-sm {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--slate);
+}
+
+/* ---------- Поверхности ---------- */
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh1);
+  padding: var(--pad);
+}
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh1);
+}
+.accent-rule {
+  width: 48px;
+  height: 3px;
+  background: var(--green);
+  margin-bottom: 12px;
+}
+.divider {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--sp-6) 0;
+}
+
+/* Срез угла 60° — один на носитель */
+.clip-corner {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 16px) 100%, 0 100%);
+}
+
+/* Штриховка 60° — зоны «в работе» и пустые состояния */
+.hatch {
+  background-image: repeating-linear-gradient(
+    60deg,
+    var(--mist) 0 6px,
+    transparent 6px 14px
+  );
+}
+
+/* ---------- Кнопки ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--r-card);
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background var(--motion), color var(--motion);
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--green);
+  color: #ffffff;
+  border-color: var(--green);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--green-d);
+  border-color: var(--green-d);
+}
+.btn-secondary {
+  border-color: var(--grey);
+  color: var(--ink);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--line);
+}
+.btn-danger {
+  background: var(--danger);
+  color: #ffffff;
+  border-color: var(--danger);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-d);
+  border-color: var(--danger-d);
+}
+.btn-ghost {
+  color: var(--slate);
+  font-size: 13px;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--mist);
+  color: var(--ink);
+}
+.btn-icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: var(--grey);
+}
+.btn-icon:hover:not(:disabled) {
+  background: var(--line);
+}
+
+@media (max-width: 640px) {
+  .btn {
+    height: 48px;
+  }
+}
+
+/* ---------- Поля ---------- */
+.field {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--grey);
+  border-radius: var(--r-field);
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+}
+.field::placeholder {
+  color: var(--grey);
+}
+.field:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.field-error {
+  border-color: var(--danger);
+}
+.field-error-text {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--danger);
+}
+textarea.field {
+  height: auto;
+  min-height: 104px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.56;
+}
+
+/* ---------- Чипы фильтров ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--grey);
+  border-radius: var(--r-field);
+  background: transparent;
+  color: var(--slate);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--motion), color var(--motion);
+}
+.chip:hover {
+  background: var(--mist);
+}
+.chip[aria-pressed='true'] {
+  background: var(--st-ok-bg);
+  color: var(--st-ok-fg);
+  border: 2px solid var(--green);
+}
+
+/* ---------- Таблицы ---------- */
+.table-wrap {
+  overflow-x: auto;
+}
+.tbl thead tr {
+  background: var(--forest);
+  color: #ffffff;
+}
+.tbl th {
+  padding: var(--cell-y) var(--cell-x);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+.tbl th.right,
+.tbl td.right {
+  text-align: right;
+}
+.tbl th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.tbl tbody tr {
+  height: var(--row-h);
+  border-bottom: 1px solid var(--line);
+  transition: background var(--motion);
+}
+.tbl tbody tr.clickable {
+  cursor: pointer;
+}
+.tbl tbody tr.clickable:hover {
+  background: var(--zebra);
+}
+.tbl td {
+  padding: var(--cell-y) var(--cell-x);
+  vertical-align: middle;
+}
+.tbl tr.total-row {
+  background: var(--mist);
+}
+.tbl tr.total-row td {
+  font-weight: 700;
+}
+
+/* ---------- Статус-плашка ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: var(--r-flat);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge .dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+}
+
+/* ---------- Полоса прогресса ---------- */
+.bar {
+  height: 10px;
+  background: var(--line);
+  border-radius: 0;
+  overflow: hidden;
+}
+.bar > span {
+  display: block;
+  height: 100%;
+}
+
+/* ---------- Сетки ---------- */
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--gap);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.row-between {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Тост ---------- */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
