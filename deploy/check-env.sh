@@ -29,8 +29,8 @@ REQUIRED=(
   BOOTSTRAP_ADMIN_PASSWORD
 )
 
-# Без этих не будет писем, но система работает.
-OPTIONAL=(SMTP_HOST SMTP_USER SMTP_PASSWORD)
+# Без этих не будет писем и уведомлений в Telegram, но система работает.
+OPTIONAL=(SMTP_HOST SMTP_USER SMTP_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USERNAME)
 
 problems=0
 
