@@ -2,7 +2,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
+/**
+ * Дата сборки попадает в бандл. По ней в панели видно, свежая ли версия:
+ * иначе после обновления сервера остаётся гадать, показывает браузер новый
+ * код или старый из кэша.
+ */
+const BUILD_DATE = new Date().toISOString().slice(0, 10);
+
 export default defineConfig({
+  define: { __BUILD_DATE__: JSON.stringify(BUILD_DATE) },
   plugins: [react()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

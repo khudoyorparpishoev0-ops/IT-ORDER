@@ -173,8 +173,14 @@ export function Sidebar({ open, onNavigate }: Props) {
           >
             Выйти
           </button>
-          <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>
-            {APP_VERSION}
+          {/* Дата сборки рядом с версией: по ней сразу видно, обновилась
+              панель или браузер держит старую в кэше. */}
+          <span
+            className="mono"
+            style={{ fontSize: 11, opacity: 0.7 }}
+            title={`Сборка панели от ${__BUILD_DATE__}`}
+          >
+            {APP_VERSION} · {__BUILD_DATE__.slice(5)}
           </span>
         </div>
       </div>
