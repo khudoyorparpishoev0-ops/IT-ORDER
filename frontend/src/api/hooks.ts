@@ -62,6 +62,10 @@ export function useProjects() {
     queryKey: keys.projects,
     queryFn: () => api<Project[]>('/api/projects'),
     staleTime: 5 * 60_000,
+    // Форму заявки открывают ровно тогда, когда список нужен свежим:
+    // администратор мог завести объект минуту назад, а вкладка у
+    // сотрудника открыта с утра. Запрос дешёвый — несколько строк.
+    refetchOnMount: 'always',
   });
 }
 

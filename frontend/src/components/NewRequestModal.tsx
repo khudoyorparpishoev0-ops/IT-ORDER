@@ -31,6 +31,22 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
 
   const activeProjects = (projects.data ?? []).filter((p) => p.active);
+  // Пустой список бывает по трём разным причинам, и лечатся они
+  // по-разному. Раньше во всех случаях писали «объекты не заведены» —
+  // и человек шёл искать не там.
+  const projectsNote = projects.isLoading
+    ? 'Загружаем список объектов…'
+    : projects.error
+      ? `Не удалось загрузить объекты: ${
+          projects.error instanceof Error ? projects.error.message : 'ошибка связи'
+        }. Обновите страницу.`
+      : activeProjects.length
+        ? undefined
+        : (projects.data ?? []).length
+          ? 'Все объекты отключены. Включить нужный можно в разделе «Объекты» — это делает администратор.'
+          : can('manage_reference')
+            ? 'Объектов нет. Заведите их в разделе «Объекты» — без объекта заявку не подать.'
+            : 'Объекты не заведены. Их создаёт администратор — без объекта заявку не подать.';
   const activeEmployees = (employees.data ?? []).filter((e) => e.active);
 
   const setLine = (index: number, patch: Partial<Line>) =>
@@ -134,16 +150,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        <Field
-          label="Объект"
-          note={
-            activeProjects.length
-              ? undefined
-              : can('manage_reference')
-                ? 'Объектов нет. Заведите их в разделе «Объекты» — без объекта заявку не подать.'
-                : 'Объекты не заведены. Их создаёт администратор — без объекта заявку не подать.'
-          }
-        >
+        <Field label="Объект" note={projectsNote}>
           {(id) => (
             <select
               id={id}
