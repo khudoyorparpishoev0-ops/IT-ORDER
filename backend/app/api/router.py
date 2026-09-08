@@ -10,6 +10,7 @@ from app.api.routes import (
     reference,
     reports,
     requests,
+    telegram,
 )
 
 api_router = APIRouter()
@@ -20,3 +21,4 @@ api_router.include_router(requests.router)
 api_router.include_router(reports.router)
 api_router.include_router(exports.router)
 api_router.include_router(audit.router)
+api_router.include_router(telegram.router)

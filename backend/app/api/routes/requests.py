@@ -184,6 +184,7 @@ def create_request(
     # а автор не должен ждать почтовый сервер.
     if request.status is RequestStatus.PENDING:
         background.add_task(_notify_later, request.id)
+    background.add_task(_notify_telegram_later, request.id)
     return detail
 
 
@@ -209,6 +210,13 @@ def _notify_priced_later(request_id: int) -> None:
     from app.services.notifications import notify_priced
 
     _in_own_session(notify_priced, request_id)
+
+
+def _notify_telegram_later(request_id: int) -> None:
+    """Автору — что стало с заявкой, следующему — что она пришла к нему."""
+    from app.services.telegram_notify import notify_request_state
+
+    _in_own_session(notify_request_state, request_id)
 
 
 def _notify_later(request_id: int) -> None:
@@ -254,6 +262,7 @@ def submit_request(
     detail = to_detail(session, request)
     if request.status is RequestStatus.PENDING:
         background.add_task(_notify_later, request.id)
+    background.add_task(_notify_telegram_later, request.id)
     return detail
 
 
@@ -280,6 +289,7 @@ def decide_request(
     # Согласована покупка — предупреждаем закуп, что заявка у них.
     if result.status is RequestStatus.SOURCING:
         background.add_task(_notify_sourcing_later, result.id)
+    background.add_task(_notify_telegram_later, result.id)
     return detail
 
 
@@ -308,13 +318,20 @@ def apply_sourcing(
     detail = to_detail(session, result)
     if result.status is RequestStatus.PRICED:
         background.add_task(_notify_priced_later, result.id)
+    background.add_task(_notify_telegram_later, result.id)
     return detail
 
 
 @router.post(
     "/{request_id}/payment", response_model=RequestDetail, dependencies=[can_pay]
 )
-def pay_request(session: DbSession, user: CurrentUser, request_id: int, data: PaymentIn):
+def pay_request(
+    session: DbSession,
+    user: CurrentUser,
+    request_id: int,
+    data: PaymentIn,
+    background: BackgroundTasks,
+):
     """Проведение выплаты.
 
     Разделение обязанностей: кто одобрил — тот не платит, и собственную
@@ -338,7 +355,9 @@ def pay_request(session: DbSession, user: CurrentUser, request_id: int, data: Pa
         )
     payment = data.model_copy(update={"actor": user.full_name})
     request = svc.pay_request(session, request_id, payment)
-    return to_detail(session, request)
+    detail = to_detail(session, request)
+    background.add_task(_notify_telegram_later, request_id)
+    return detail
 
 
 @router.delete(

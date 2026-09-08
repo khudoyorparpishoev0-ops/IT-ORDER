@@ -124,6 +124,23 @@ class Settings(BaseSettings):
     mail_from_name: str = "IT-HONA ORDER"
     smtp_timeout_seconds: int = Field(default=15, ge=1)
 
+    # --- Telegram ---
+    telegram_bot_token: str = Field(
+        default="",
+        description=(
+            "Токен бота от @BotFather. Пусто — уведомления в Telegram "
+            "выключены, всё остальное работает как раньше."
+        ),
+    )
+    telegram_bot_username: str = Field(
+        default="",
+        description=(
+            "Имя бота без @ — из него собирается ссылка привязки "
+            "https://t.me/<имя>?start=<код>."
+        ),
+    )
+    telegram_timeout_seconds: int = Field(default=10, ge=1)
+
     public_base_url: str = Field(
         default="",
         description=(
@@ -190,6 +207,26 @@ class Settings(BaseSettings):
     @property
     def mail_sender(self) -> str:
         return self.mail_from or self.smtp_user
+
+    @computed_field
+    @property
+    def telegram_enabled(self) -> bool:
+        """Уведомления в Telegram настроены. Без токена бот молчит, но
+        ничего не ломает: почта и панель работают сами по себе."""
+        return bool(self.telegram_bot_token)
+
+    @property
+    def telegram_webhook_secret(self) -> str:
+        """Секрет в адресе вебхука. Выводится из SECRET_KEY, чтобы не
+        заводить ещё одну переменную: адрес знает только Telegram.
+
+        Не computed_field намеренно: вычисляемые поля попадают в
+        model_dump и в repr настроек, а секрету там не место.
+        """
+        from hashlib import sha256
+
+        source = f"telegram-webhook:{self.secret_key}:{self.telegram_bot_token}"
+        return sha256(source.encode("utf-8")).hexdigest()[:32]
 
     @computed_field
     @property

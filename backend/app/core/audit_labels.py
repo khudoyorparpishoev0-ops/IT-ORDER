@@ -29,6 +29,8 @@ ACTION_LABEL: dict[str, str] = {
     "totp_reset_by_admin": "Второй фактор сброшен администратором",
     "recovery_code_used": "Вход по коду восстановления",
     "recovery_codes_reissued": "Коды восстановления перевыпущены",
+    "telegram_linked": "Telegram подключён",
+    "telegram_unlinked": "Telegram отключён",
     "bootstrap_admin": "Создан стартовый администратор",
     # Справочники
     "create": "Создание",

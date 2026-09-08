@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
-import { useHealth } from '@/api/hooks';
+import {
+  useHealth,
+  useTelegramLink,
+  useTelegramSetup,
+  useTelegramStatus,
+  useTelegramUnlink,
+} from '@/api/hooks';
 import { useAuth } from '@/api/auth';
 import { api } from '@/api/client';
 import { ROLE_LABEL } from '@/shell/config';
@@ -110,6 +116,7 @@ export function Settings() {
         </section>
 
         <NotificationsCard onFlash={flash} />
+        <TelegramCard onFlash={flash} />
         <section className="card">
           <div className="label">О СИСТЕМЕ</div>
           <dl style={{ display: 'grid', gap: 12, marginTop: 16, margin: '16px 0 0' }}>
@@ -537,6 +544,180 @@ function NotificationsCard({
 
       {can('manage_reference') && <MailCheck onFlash={onFlash} />}
     </section>
+  );
+}
+
+
+/**
+ * Уведомления в Telegram. Привязка идёт через самого бота: панель выдаёт
+ * одноразовую ссылку, человек открывает её, бот присылает нам id чата.
+ * Так никому не нужно знать и вводить внутренние идентификаторы.
+ */
+function TelegramCard({
+  onFlash,
+}: {
+  onFlash: (text: string, color: string) => void;
+}) {
+  const { can } = useAuth();
+  const [waiting, setWaiting] = useState(false);
+  const status = useTelegramStatus(waiting);
+  const link = useTelegramLink();
+  const unlink = useTelegramUnlink();
+
+  const linked = status.data?.linked ?? false;
+
+  // Привязка происходит на стороне Telegram: пока человек ходит по ссылке,
+  // панель опрашивает статус и сама гасит ожидание, когда чат подключился.
+  useEffect(() => {
+    if (waiting && linked) {
+      setWaiting(false);
+      onFlash('Telegram подключён', 'var(--dot-ok)');
+    }
+  }, [waiting, linked, onFlash]);
+
+  const connect = async () => {
+    try {
+      const data = await link.mutateAsync();
+      setWaiting(true);
+      window.open(data.url, '_blank', 'noopener');
+    } catch (err) {
+      onFlash(
+        err instanceof Error ? err.message : 'Не удалось получить ссылку',
+        'var(--dot-err)',
+      );
+    }
+  };
+
+  const disconnect = async () => {
+    try {
+      await unlink.mutateAsync();
+      setWaiting(false);
+      onFlash('Уведомления в Telegram отключены', 'var(--dot-off)');
+    } catch (err) {
+      onFlash(
+        err instanceof Error ? err.message : 'Не удалось отключить',
+        'var(--dot-err)',
+      );
+    }
+  };
+
+  return (
+    <section className="card">
+      <div className="label">УВЕДОМЛЕНИЯ В TELEGRAM</div>
+
+      <p className="caption" style={{ margin: '16px 0 0' }}>
+        Бот пишет автору заявки на каждом шаге: согласование покупки, оценка
+        закупа, решение по сумме, выплата. Тем, к кому заявка пришла, — что она
+        у них.
+      </p>
+
+      {!status.data?.configured ? (
+        <p className="caption" style={{ margin: '16px 0 0', color: 'var(--dot-warn)' }}>
+          Бот не настроен — уведомления не отправляются. Токен бота
+          (TELEGRAM_BOT_TOKEN) задаёт администратор сервера.
+        </p>
+      ) : linked ? (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minHeight: 44,
+              marginTop: 8,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{ width: 8, height: 8, background: 'var(--dot-ok)' }}
+            />
+            <span style={{ fontWeight: 600 }}>
+              Подключено
+              {status.data?.username ? ` · @${status.data.username}` : ''}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={unlink.isPending}
+            onClick={disconnect}
+          >
+            {unlink.isPending ? 'Отключаем…' : 'Отключить'}
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ marginTop: 16 }}
+            disabled={link.isPending}
+            onClick={connect}
+          >
+            {link.isPending ? 'Готовим ссылку…' : 'Подключить Telegram'}
+          </button>
+          {waiting && (
+            <p className="caption" style={{ margin: '12px 0 0' }}>
+              Откройте бота и нажмите «Старт». Ссылка одноразовая и живёт
+              полчаса — если не успели, нажмите «Подключить» ещё раз.
+              {link.data ? (
+                <>
+                  {' '}
+                  <a href={link.data.url} target="_blank" rel="noopener noreferrer">
+                    Открыть бота
+                  </a>
+                </>
+              ) : null}
+            </p>
+          )}
+        </>
+      )}
+
+      {can('manage_reference') && <WebhookSetup onFlash={onFlash} />}
+    </section>
+  );
+}
+
+/**
+ * Установка вебхука. Пока Telegram не знает адрес сервера, бот не получит
+ * ни одного «Старт», и привязка не сработает ни у кого. Кнопка нужна и
+ * после смены SECRET_KEY или адреса панели: адрес вебхука зависит от них.
+ */
+function WebhookSetup({
+  onFlash,
+}: {
+  onFlash: (text: string, color: string) => void;
+}) {
+  const setup = useTelegramSetup();
+
+  const run = async () => {
+    try {
+      await setup.mutateAsync();
+      onFlash('Telegram теперь знает адрес сервера', 'var(--dot-ok)');
+    } catch (err) {
+      onFlash(
+        err instanceof Error ? err.message : 'Не удалось настроить вебхук',
+        'var(--dot-err)',
+      );
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        style={{ marginTop: 16 }}
+        disabled={setup.isPending}
+        onClick={run}
+      >
+        {setup.isPending ? 'Настраиваем…' : 'Настроить бота на этот сервер'}
+      </button>
+      <p className="caption" style={{ margin: '8px 0 0' }}>
+        Нажимается один раз после запуска и после смены адреса панели или
+        SECRET_KEY: Telegram запоминает, куда слать сообщения боту.
+      </p>
+    </>
   );
 }
 

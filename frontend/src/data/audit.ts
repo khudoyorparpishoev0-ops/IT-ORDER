@@ -24,6 +24,8 @@ export const ACTION_LABEL: Record<string, string> = {
   totp_reset_by_admin: 'Второй фактор сброшен администратором',
   recovery_code_used: 'Вход по коду восстановления',
   recovery_codes_reissued: 'Коды восстановления перевыпущены',
+  telegram_linked: 'Telegram подключён',
+  telegram_unlinked: 'Telegram отключён',
   bootstrap_admin: 'Создан стартовый администратор',
   create: 'Создание',
   update: 'Изменение',
@@ -61,6 +63,8 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
       'totp_reset_by_admin',
       'recovery_code_used',
       'recovery_codes_reissued',
+      'telegram_linked',
+      'telegram_unlinked',
     ],
   },
   {

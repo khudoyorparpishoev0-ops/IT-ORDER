@@ -144,6 +144,16 @@ class Employee(Base):
     failed_logins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[Timestamp | None]
 
+    #: Чат в Telegram, куда слать уведомления. NULL — не привязан.
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger)
+    #: @имя из Telegram — чтобы человек узнал свою привязку в панели.
+    telegram_username: Mapped[str | None] = mapped_column(String(64))
+    telegram_linked_at: Mapped[Timestamp | None]
+    #: Одноразовый код привязки и срок его жизни. Код уходит в ссылку
+    #: https://t.me/бот?start=<код>, по нему бот и узнаёт, кто написал.
+    telegram_link_code: Mapped[str | None] = mapped_column(String(32))
+    telegram_link_expires_at: Mapped[Timestamp | None]
+
     #: Письмо о новой заявке на согласование. Приходит только тем, кто
     #: вправе принимать решения.
     notify_new_requests: Mapped[bool] = mapped_column(default=True, nullable=False)
@@ -169,6 +179,10 @@ class Employee(Base):
             "monthly_limit IS NULL OR monthly_limit >= 0",
             name="ck_employees_limit_non_negative",
         ),
+        # Один чат — один сотрудник: иначе уведомления двух человек
+        # сходились бы в одну переписку.
+        UniqueConstraint("telegram_chat_id", name="uq_employees_telegram_chat"),
+        Index("ix_employees_telegram_code", "telegram_link_code"),
     )
 
 

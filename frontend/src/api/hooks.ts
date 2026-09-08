@@ -30,12 +30,16 @@ import type {
   RequestStatus,
   SourcingInput,
   TeamMember,
+  TelegramLink,
+  TelegramSetup,
+  TelegramStatus,
 } from './types';
 
 export const keys = {
   health: ['health'] as const,
   projects: ['projects'] as const,
   materials: ['materials'] as const,
+  telegram: ['telegram'] as const,
   employees: ['employees'] as const,
   employeeAccess: ['employees', 'access'] as const,
   team: ['team'] as const,
@@ -180,6 +184,42 @@ export function useMaterials() {
     queryFn: () => api<Material[]>('/api/materials'),
     staleTime: 5 * 60_000,
     refetchOnMount: 'always',
+  });
+}
+
+/**
+ * Привязка Telegram. `poll` включается, пока человек ходит по ссылке к
+ * боту: привязка случается на стороне Telegram, и панель узнаёт о ней
+ * только опросом.
+ */
+export function useTelegramStatus(poll = false) {
+  return useQuery({
+    queryKey: keys.telegram,
+    queryFn: () => api<TelegramStatus>('/api/telegram/status'),
+    refetchInterval: poll ? 3000 : false,
+  });
+}
+
+export function useTelegramLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<TelegramLink>('/api/telegram/link', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.telegram }),
+  });
+}
+
+export function useTelegramUnlink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<TelegramStatus>('/api/telegram/unlink', { method: 'POST' }),
+    onSuccess: (data) => qc.setQueryData(keys.telegram, data),
+  });
+}
+
+/** Установка вебхука: администратор говорит Telegram, куда слать обновления. */
+export function useTelegramSetup() {
+  return useMutation({
+    mutationFn: () => api<TelegramSetup>('/api/telegram/setup', { method: 'POST' }),
   });
 }
 

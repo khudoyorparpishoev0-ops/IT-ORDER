@@ -103,6 +103,43 @@ def _no_outgoing_mail():
     mail.set_transport(None)
 
 
+@pytest.fixture(autouse=True)
+def _no_outgoing_telegram():
+    """Бот в тестах молчит. Фикстура telegram_box подменяет транспорт своим."""
+    from app.core import telegram
+
+    class Silent:
+        def send(self, message) -> None:
+            pass
+
+    telegram.set_transport(Silent())
+    yield
+    telegram.set_transport(None)
+
+
+@pytest.fixture
+def telegram_box(monkeypatch):
+    """Перехватывает сообщения бота и включает Telegram в настройках.
+
+    Токен и имя бота подменяются в уже собранных настройках: пересоздавать
+    Settings из-за одного поля дороже, чем поправить кэшированный объект.
+    """
+    from app.core import telegram
+
+    sent: list[telegram.Message] = []
+
+    class Collecting:
+        def send(self, message: telegram.Message) -> None:
+            sent.append(message)
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "telegram_bot_token", "123:test-token")
+    monkeypatch.setattr(settings, "telegram_bot_username", "hona_order_bot")
+    telegram.set_transport(Collecting())
+    yield sent
+    telegram.set_transport(None)
+
+
 @pytest.fixture
 def mailbox(monkeypatch):
     """Перехватывает отправку почты. В сеть тесты не ходят."""

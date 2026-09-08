@@ -69,6 +69,25 @@ export type Material = {
   uses: number;
 };
 
+/** Состояние привязки Telegram у текущего сотрудника. */
+export type TelegramStatus = {
+  /** Бот настроен администратором сервера: есть токен и имя бота. */
+  configured: boolean;
+  linked: boolean;
+  username: string | null;
+  bot_username: string | null;
+};
+
+export type TelegramLink = {
+  url: string;
+  expires_in_minutes: number;
+};
+
+export type TelegramSetup = {
+  webhook_url: string;
+  bot_username: string | null;
+};
+
 export type ProjectInput = {
   name: string;
   active: boolean;
