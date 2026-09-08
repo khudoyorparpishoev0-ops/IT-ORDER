@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import DbSession, PeriodDep, RequirePermission
+from app.api.deps import DbSession, PeriodDep, RequirePermission, bind_audit_actor
 from app.core.permissions import Permission
 from app.schemas.report import (
     ApprovalQueueInfo,
+    BudgetIn,
     BudgetInfo,
     DashboardStats,
     MonthFact,
     PaymentsRegister,
     ProjectShare,
 )
+from app.services import budget as budget_svc
 from app.services import reports as svc
 
 # Отчёты видят руководитель, финансы и администратор. Рядовой сотрудник —
@@ -56,4 +58,22 @@ def payments(
 
 @router.get("/budget", response_model=BudgetInfo)
 def budget(session: DbSession, period: PeriodDep):
+    return svc.budget_info(session, year=period.year, month=period.month)
+
+
+@router.put(
+    "/budget",
+    response_model=BudgetInfo,
+    dependencies=[
+        Depends(bind_audit_actor),
+        # Сумму месяца ставит бухгалтерия (и администратор). Руководитель
+        # бюджет видит, но не назначает: это распоряжение деньгами.
+        Depends(RequirePermission(Permission.PAY_REQUEST)),
+    ],
+)
+def set_budget(session: DbSession, period: PeriodDep, data: BudgetIn):
+    """Бюджет на месяц. Период — параметрами `year` и `month`."""
+    budget_svc.set_budget(
+        session, year=period.year, month=period.month, amount=data.amount
+    )
     return svc.budget_info(session, year=period.year, month=period.month)

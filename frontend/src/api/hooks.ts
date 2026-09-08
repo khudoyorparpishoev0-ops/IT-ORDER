@@ -337,6 +337,22 @@ export function useBudget() {
   });
 }
 
+/** Бюджет месяца задаёт бухгалтерия. Сводки от него зависят — сбрасываем их. */
+export function useSetBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: string) =>
+      api<BudgetInfo>('/api/reports/budget', {
+        method: 'PUT',
+        body: JSON.stringify({ amount }),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.budget, data);
+      qc.invalidateQueries({ queryKey: keys.dashboard });
+    },
+  });
+}
+
 /** Всё, что зависит от заявок и их статусов. Сбрасываем разом: заявка
  *  меняет и списки, и сводки, и бюджет, и расход по сотруднику. */
 function invalidateRequests(qc: ReturnType<typeof useQueryClient>) {

@@ -8,6 +8,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   employee: 'Сотрудник',
   project: 'Объект',
   job: 'Фоновая задача',
+  budget: 'Бюджет месяца',
   request: 'Заявка',
 };
 
@@ -46,6 +47,7 @@ export const ENTITY_FILTER = [
   { value: 'request', label: 'Заявки' },
   { value: 'project', label: 'Объекты' },
   { value: 'job', label: 'Фоновые задачи' },
+  { value: 'budget', label: 'Бюджет' },
 ];
 
 /** Действия в фильтре сгруппированы: доступ отдельно, работа отдельно. */

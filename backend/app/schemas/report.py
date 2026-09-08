@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.db.models import PaymentMethod
 
@@ -62,6 +62,12 @@ class PaymentsRegister(BaseModel):
     items: list[PaidRecord]
     total: Decimal
     summary: str
+
+
+class BudgetIn(BaseModel):
+    """Сумма бюджета на месяц. Период — в параметрах запроса."""
+
+    amount: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
 
 
 class BudgetInfo(BaseModel):

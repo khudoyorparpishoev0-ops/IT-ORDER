@@ -13,6 +13,7 @@ ENTITY_LABEL: dict[str, str] = {
     "project": "Объект",
     "request": "Заявка",
     "job": "Фоновая задача",
+    "budget": "Бюджет месяца",
 }
 
 ACTION_LABEL: dict[str, str] = {
