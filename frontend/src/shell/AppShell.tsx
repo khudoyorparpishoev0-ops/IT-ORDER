@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Icon, IconSprite } from '@/components/Icon';
+import { IthonaLogo } from '@/components/Logo';
 import { Toast } from '@/components/Toast';
 import { Sidebar } from './Sidebar';
 import { useShell } from './ShellContext';
@@ -26,15 +27,20 @@ export function AppShell() {
         )}
 
         <div className="shell-main">
-          <button
-            type="button"
-            className="btn btn-secondary shell-burger"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-expanded={menuOpen}
-            aria-label="Меню разделов"
-          >
-            <Icon name="ti-menu-2" />
-          </button>
+          {/* Полоса сверху видна только на телефоне: сайдбар там скрыт, и без
+              неё непонятно, где ты находишься и чем открыть разделы. */}
+          <header className="shell-topbar">
+            <button
+              type="button"
+              className="btn btn-secondary shell-burger"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-expanded={menuOpen}
+              aria-label="Меню разделов"
+            >
+              <Icon name="ti-menu-2" />
+            </button>
+            <IthonaLogo height={22} style={{ color: 'var(--logo)' }} />
+          </header>
 
           <main className="shell-content">
             <Outlet />

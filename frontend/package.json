@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "mobile": "node scripts/mobile.mjs"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "5.1.2",

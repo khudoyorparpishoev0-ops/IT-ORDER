@@ -130,7 +130,10 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
 
         {detail && (
           <div className="table-wrap">
-            <table className="tbl" style={{ minWidth: 340 }}>
+            <table
+                  className="tbl fit"
+                  style={{ ['--tbl-min' as string]: '340px' }}
+                >
               <thead>
                 <tr>
                   <th>ОПИСАНИЕ</th>

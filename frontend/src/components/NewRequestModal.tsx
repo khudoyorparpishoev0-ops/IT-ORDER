@@ -192,15 +192,11 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
           <div className="label">СОСТАВ РАСХОДОВ</div>
           {/* Подписи столбцов: плейсхолдер исчезает при вводе, и без них
               непонятно, где количество, а где цена. */}
-          <div
-            aria-hidden="true"
-            className="caption"
-            style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}
-          >
-            <span style={{ flex: '3 1 200px' }}>Что нужно</span>
-            <span style={{ flex: '0 1 80px' }}>Кол-во</span>
-            <span style={{ flex: '1 1 120px' }}>Единица</span>
-            <span style={{ width: 44 }} />
+          <div aria-hidden="true" className="caption line-head">
+            <span className="line-title">Что нужно</span>
+            <span className="line-qty">Кол-во</span>
+            <span className="line-unit">Единица</span>
+            <span className="line-del" />
           </div>
           {/* Один список на все строки формы: id в datalist общий. */}
           <datalist id="known-materials">
@@ -213,14 +209,14 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
 
           <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
             {lines.map((line, index) => (
-              <div
-                key={index}
-                style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}
-              >
+              <div key={index} className="line-row">
                 <input
-                  className="field"
-                  style={{ flex: '3 1 200px' }}
+                  className="field line-title"
                   aria-label={`Описание строки ${index + 1}`}
+                  // Плейсхолдер, а не только подпись столбца: на телефоне
+                  // подписи скрыты, поля идут в столбик.
+                  placeholder="Что нужно"
+
                   // Подсказки из прошлых заявок: браузер сам фильтрует
                   // список по мере ввода. Так одно и то же не пишут
                   // тремя способами, и отчёты не рассыпаются.
@@ -230,16 +226,14 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setTitle(index, e.target.value)}
                 />
                 <input
-                  className="field num"
-                  style={{ flex: '0 1 80px' }}
+                  className="field num line-qty"
                   inputMode="numeric"
                   aria-label={`Количество в строке ${index + 1}`}
                   value={line.quantity}
                   onChange={(e) => setLine(index, { quantity: e.target.value })}
                 />
                 <input
-                  className="field"
-                  style={{ flex: '1 1 120px' }}
+                  className="field line-unit"
                   aria-label={`Единица в строке ${index + 1}`}
                   placeholder="шт."
                   value={line.unit}
@@ -247,7 +241,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
                 />
                 <button
                   type="button"
-                  className="btn btn-icon"
+                  className="btn btn-icon line-del"
                   aria-label={`Убрать строку ${index + 1}`}
                   disabled={lines.length === 1}
                   onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}

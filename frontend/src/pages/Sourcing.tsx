@@ -179,7 +179,10 @@ export function Sourcing() {
               </div>
 
               <div className="table-wrap" style={{ marginTop: 24 }}>
-                <table className="tbl" style={{ minWidth: 420 }}>
+                <table
+                  className="tbl fit"
+                  style={{ ['--tbl-min' as string]: '420px' }}
+                >
                   <thead>
                     <tr>
                       <th style={{ width: '40%' }}>ЧТО НУЖНО</th>

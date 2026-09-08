@@ -4,6 +4,16 @@
   background: var(--mist);
 }
 
+.sidebar {
+  flex: 0 0 var(--side-w);
+  width: var(--side-w);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
 .shell-main {
   flex: 1;
   min-width: 0;
@@ -15,6 +25,10 @@
   padding: 32px;
 }
 
+.shell-topbar {
+  display: none;
+}
+
 .shell-burger {
   display: none;
 }
@@ -24,14 +38,18 @@
 }
 
 @media (max-width: 900px) {
-  .shell > aside {
+  /* Сайдбар уходит из потока: на телефоне он выезжает поверх содержимого,
+     а не отнимает у него треть ширины. */
+  .sidebar {
     position: fixed;
     z-index: 40;
+    flex: none;
+    width: min(86vw, 320px);
     transform: translateX(-100%);
     transition: transform var(--motion);
   }
 
-  .shell[data-menu-open='true'] > aside {
+  .shell[data-menu-open='true'] .sidebar {
     transform: translateX(0);
   }
 
@@ -46,12 +64,25 @@
     cursor: pointer;
   }
 
+  .shell-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 8px 16px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+
   .shell-burger {
     display: inline-flex;
-    margin: 16px 16px 0;
+    margin: 0;
     width: 48px;
     height: 48px;
     padding: 0;
+    flex: none;
   }
 
   .shell-content {

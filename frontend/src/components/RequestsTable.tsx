@@ -35,7 +35,13 @@ export function RequestsTable({
 
   return (
     <div className="table-wrap">
-      <table className="tbl" style={{ minWidth }}>
+      {/* Минимальная ширина — переменной, а не инлайновым min-width:
+          на телефоне медиазапрос снимает её и раскладывает строку
+          карточкой, а инлайновый стиль он бы не перебил. */}
+      <table
+        className="tbl stack"
+        style={{ ['--tbl-min' as string]: `${minWidth}px` }}
+      >
         <thead>
           <tr>
             <th

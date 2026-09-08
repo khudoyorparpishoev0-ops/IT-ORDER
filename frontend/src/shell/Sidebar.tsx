@@ -21,19 +21,17 @@ export function Sidebar({ open, onNavigate }: Props) {
   const btnBorder = lightShell ? '1px solid var(--grey)' : '1px solid rgba(255,255,255,0.28)';
 
   return (
+    // Раскладка сайдбара — только в shell.css: инлайновый стиль сильнее
+    // медиазапроса, и на телефоне колонка продолжала занимать место, уводя
+    // всю страницу вправо. Здесь остаются цвета: они зависят от варианта
+    // оформления, который выбирает человек.
     <aside
+      className="sidebar"
       data-open={open}
       style={{
-        flex: '0 0 var(--side-w)',
-        width: 'var(--side-w)',
         background: bg,
         color: fg,
         borderRight: lightShell ? '1px solid var(--line)' : 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
       }}
     >
       <div style={{ padding: '24px 16px', borderBottom: divider }}>

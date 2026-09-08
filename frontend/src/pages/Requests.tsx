@@ -91,31 +91,24 @@ export function Requests() {
         }
       />
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginBottom: 'var(--gap)',
-        }}
-      >
-        {chips.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            className="chip"
-            aria-pressed={filter === c.key}
-            onClick={() => setFilterAndReset(c.key)}
-          >
-            {c.label}
-          </button>
-        ))}
-        <label style={{ marginLeft: 'auto' }}>
+      <div className="filters">
+        <div className="chips">
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              className="chip"
+              aria-pressed={filter === c.key}
+              onClick={() => setFilterAndReset(c.key)}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <label className="period">
           <span className="sr-only">Период</span>
           <select
             className="field"
-            style={{ width: 'auto' }}
             value={allPeriods ? 'all' : 'current'}
             onChange={(e) => {
               setAllPeriods(e.target.value === 'all');

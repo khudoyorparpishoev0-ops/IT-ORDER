@@ -218,7 +218,9 @@ export function Approvals() {
                       flexWrap: 'wrap',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: 12 }}>
+                    {/* minWidth: 0 обязателен: без него длинная почта не даёт
+                        блоку сжаться, и карточка вылезает за экран телефона. */}
+                    <div style={{ display: 'flex', gap: 12, minWidth: 0 }}>
                       <div
                         aria-hidden="true"
                         style={{
@@ -235,7 +237,7 @@ export function Approvals() {
                       >
                         {initials(active.employee_name)}
                       </div>
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <div className="h3">{active.employee_name}</div>
                         <div className="caption">
                           {active.employee_position} · объект «{active.project_name}»
@@ -256,7 +258,10 @@ export function Approvals() {
                   </div>
 
                   <div className="table-wrap" style={{ marginTop: 24 }}>
-                    <table className="tbl" style={{ minWidth: 380 }}>
+                    <table
+                  className="tbl fit"
+                  style={{ ['--tbl-min' as string]: '380px' }}
+                >
                       <thead>
                         <tr>
                           <th>ОПИСАНИЕ</th>
