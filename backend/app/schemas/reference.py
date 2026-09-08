@@ -33,6 +33,16 @@ class ProjectUpdate(BaseModel):
     active: bool | None = None
 
 
+class MaterialOut(BaseModel):
+    """Подсказка для поля «что нужно»: как это называли раньше."""
+
+    title: str
+    #: Единица из последней заявки с этим названием — подставляется сама.
+    unit: str | None
+    #: Сколько раз встречалось: по нему подсказки идут от частых к редким.
+    uses: int
+
+
 class EmployeeOut(ORMModel):
     id: int
     full_name: str

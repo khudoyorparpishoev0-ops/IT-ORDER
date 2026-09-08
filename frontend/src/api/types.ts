@@ -62,6 +62,13 @@ export type Project = {
   spent: Money;
 };
 
+/** Подсказка для поля «что нужно»: как это называли раньше. */
+export type Material = {
+  title: string;
+  unit: string | null;
+  uses: number;
+};
+
 export type ProjectInput = {
   name: string;
   active: boolean;

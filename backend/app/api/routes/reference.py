@@ -25,6 +25,7 @@ from app.schemas.reference import (
     EmployeeCreate,
     EmployeeOut,
     EmployeeUpdate,
+    MaterialOut,
     ProjectCreate,
     ProjectOut,
     ProjectUpdate,
@@ -88,6 +89,25 @@ def update_project(session: DbSession, project_id: int, data: ProjectUpdate):
         requests_count=count,
         spent=spent,
     )
+
+
+@router.get("/materials", response_model=list[MaterialOut])
+def list_materials(
+    session: DbSession,
+    _: CurrentUser,
+    search: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=200, ge=1, le=500),
+):
+    """Подсказки для поля «что нужно» — из того, что уже заказывали.
+
+    Открыто любому вошедшему: подсказки нужны тому, кто заполняет заявку.
+    """
+    return [
+        MaterialOut(title=title, unit=unit, uses=uses)
+        for title, unit, uses in svc.materials_catalog(
+            session, search=search, limit=limit
+        )
+    ]
 
 
 @router.get("/employees", response_model=list[EmployeeOut])

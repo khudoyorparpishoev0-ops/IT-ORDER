@@ -16,6 +16,7 @@ import type {
   EmployeeAccess,
   EmployeeInput,
   Health,
+  Material,
   MonthFact,
   Page,
   PaymentInput,
@@ -34,6 +35,7 @@ import type {
 export const keys = {
   health: ['health'] as const,
   projects: ['projects'] as const,
+  materials: ['materials'] as const,
   employees: ['employees'] as const,
   employeeAccess: ['employees', 'access'] as const,
   team: ['team'] as const,
@@ -163,6 +165,22 @@ export function useUpdateProject() {
       body: JSON.stringify(data),
     }),
   );
+}
+
+/**
+ * Что уже заказывали — подсказки для поля «что нужно».
+ *
+ * Забираем список целиком и фильтруем в браузере силами datalist:
+ * позиций сотни, а не тысячи, зато нет запроса на каждую букву и
+ * подсказка появляется мгновенно.
+ */
+export function useMaterials() {
+  return useQuery({
+    queryKey: keys.materials,
+    queryFn: () => api<Material[]>('/api/materials'),
+    staleTime: 5 * 60_000,
+    refetchOnMount: 'always',
+  });
 }
 
 export function useTeam() {

@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.core.money import to_decimal
 from app.db.models import (
     Employee,
+    ExpenseLine,
     EmployeeRole,
     ExpenseRequest,
     Project,
@@ -39,6 +40,38 @@ def list_projects(session: Session, *, only_active: bool = False) -> list[Projec
     if only_active:
         stmt = stmt.where(Project.active.is_(True))
     return list(session.scalars(stmt))
+
+
+def materials_catalog(
+    session: Session, *, search: str | None = None, limit: int = 200
+) -> list[tuple[str, str | None, int]]:
+    """Что уже заказывали: название, единица, сколько раз встречалось.
+
+    Отдельного справочника материалов у нас нет и заводить его никто не
+    станет — он устареет через месяц. Подсказки берём из самих заявок:
+    так они появляются сами и всегда отражают то, чем реально пользуются.
+
+    Варианты написания одного и того же («Хомут» и «хомут») схлопываются
+    по нижнему регистру, а показывается написание из самой свежей заявки —
+    иначе подсказка тянула бы за собой старую опечатку.
+    """
+    key = func.lower(ExpenseLine.title)
+    grouped = select(
+        key.label("key"),
+        func.max(ExpenseLine.id).label("last_id"),
+        func.count().label("uses"),
+    ).group_by(key)
+    if search and search.strip():
+        grouped = grouped.where(ExpenseLine.title.ilike(f"%{search.strip()}%"))
+    grouped = grouped.subquery()
+
+    rows = session.execute(
+        select(ExpenseLine.title, ExpenseLine.unit, grouped.c.uses)
+        .join(grouped, grouped.c.last_id == ExpenseLine.id)
+        .order_by(grouped.c.uses.desc(), ExpenseLine.title)
+        .limit(limit)
+    ).all()
+    return [(title, unit, int(uses)) for title, unit, uses in rows]
 
 
 def projects_overview(

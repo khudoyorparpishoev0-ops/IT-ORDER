@@ -3,8 +3,9 @@ import { Field } from './Field';
 import { Icon } from './Icon';
 import { Overlay } from './Overlay';
 import { useAuth } from '@/api/auth';
-import { useCreateRequest, useEmployees, useProjects } from '@/api/hooks';
+import { useCreateRequest, useEmployees, useMaterials, useProjects } from '@/api/hooks';
 import type { ExpenseLineInput } from '@/api/types';
+import { plural } from '@/data/format';
 import { useShell } from '@/shell/ShellContext';
 
 type Line = { title: string; quantity: string; unit: string };
@@ -21,6 +22,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
   const { flash } = useShell();
   const projects = useProjects();
   const employees = useEmployees();
+  const materials = useMaterials();
   const create = useCreateRequest();
 
   const forOthers = can('create_request_for_others');
@@ -51,6 +53,24 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
 
   const setLine = (index: number, patch: Partial<Line>) =>
     setLines((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  /**
+   * Название из подсказки тянет за собой единицу измерения: в прошлый раз
+   * этот же материал считали в мешках, и заново вспоминать это незачем.
+   * Уже введённую единицу не трогаем — человек мог поправить её намеренно.
+   */
+  const setTitle = (index: number, title: string) => {
+    const known = (materials.data ?? []).find(
+      (m) => m.title.toLowerCase() === title.trim().toLowerCase(),
+    );
+    setLines((rows) =>
+      rows.map((row, i) =>
+        i === index
+          ? { ...row, title, unit: row.unit || known?.unit || '' }
+          : row,
+      ),
+    );
+  };
 
   const filled = lines.filter((l) => l.title.trim());
 
@@ -182,6 +202,15 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
             <span style={{ flex: '1 1 120px' }}>Единица</span>
             <span style={{ width: 44 }} />
           </div>
+          {/* Один список на все строки формы: id в datalist общий. */}
+          <datalist id="known-materials">
+            {(materials.data ?? []).map((m) => (
+              <option key={m.title} value={m.title}>
+                {m.unit ? `${m.unit} · заказывали ${m.uses} ${plural(m.uses, 'раз', 'раза', 'раз')}` : undefined}
+              </option>
+            ))}
+          </datalist>
+
           <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
             {lines.map((line, index) => (
               <div
@@ -192,8 +221,13 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
                   className="field"
                   style={{ flex: '3 1 200px' }}
                   aria-label={`Описание строки ${index + 1}`}
+                  // Подсказки из прошлых заявок: браузер сам фильтрует
+                  // список по мере ввода. Так одно и то же не пишут
+                  // тремя способами, и отчёты не рассыпаются.
+                  list="known-materials"
+                  autoComplete="off"
                   value={line.title}
-                  onChange={(e) => setLine(index, { title: e.target.value })}
+                  onChange={(e) => setTitle(index, e.target.value)}
                 />
                 <input
                   className="field num"
@@ -223,6 +257,13 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
               </div>
             ))}
           </div>
+          {(materials.data ?? []).length > 0 && (
+            <div className="caption" style={{ marginTop: 8 }}>
+              Начните печатать — панель подскажет, как это называли раньше, и
+              подставит единицу измерения.
+            </div>
+          )}
+
           <button
             type="button"
             className="btn btn-ghost"
