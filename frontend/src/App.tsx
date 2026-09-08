@@ -15,6 +15,7 @@ import { Projects } from '@/pages/Projects';
 import { Reports } from '@/pages/Reports';
 import { Requests } from '@/pages/Requests';
 import { Settings } from '@/pages/Settings';
+import { Sourcing } from '@/pages/Sourcing';
 import { Team } from '@/pages/Team';
 import type { ReactElement } from 'react';
 
@@ -74,6 +75,14 @@ export function App() {
           element={
             <Guarded need="decide_request">
               <Approvals />
+            </Guarded>
+          }
+        />
+        <Route
+          path="sourcing"
+          element={
+            <Guarded need="source_request">
+              <Sourcing />
             </Guarded>
           }
         />

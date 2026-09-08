@@ -29,7 +29,14 @@ from app.db.models import (
     Project,
 )
 from app.db.session import get_session_factory
-from app.schemas.request import DecisionIn, ExpenseLineIn, PaymentIn, RequestCreate
+from app.schemas.request import (
+    DecisionIn,
+    ExpenseLineIn,
+    PaymentIn,
+    RequestCreate,
+    SourcingIn,
+    SourcingLineIn,
+)
 from app.services import requests as svc
 from app.services.reports import current_period
 
@@ -58,7 +65,7 @@ EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str | None]] = [
     ("Сергей Никитин", "Прораб", "s.nikitin", EmployeeRole.EMPLOYEE, "8000.00"),
     ("Екатерина Волкова", "Менеджер проекта", "e.volkova", EmployeeRole.EMPLOYEE, "6000.00"),
     ("Алексей Морозов", "Электрик", "a.morozov", EmployeeRole.EMPLOYEE, "3000.00"),
-    ("Ольга Кузнецова", "Снабженец", "o.kuznetsova", EmployeeRole.EMPLOYEE, "10000.00"),
+    ("Ольга Кузнецова", "Снабженец", "o.kuznetsova", EmployeeRole.PROCUREMENT, "10000.00"),
     ("Дмитрий Соколов", "Инженер", "d.sokolov", EmployeeRole.EMPLOYEE, "4000.00"),
     ("Анна Лебедева", "Архитектор", "a.lebedeva", EmployeeRole.EMPLOYEE, "5000.00"),
     ("Артём Ковалёв", "Руководитель отдела", "a.kovalev", EmployeeRole.MANAGER, None),
@@ -66,28 +73,55 @@ EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str | None]] = [
     ("Администратор", "Администратор системы", "admin", EmployeeRole.ADMIN, None),
 ]
 
-#: (сотрудник, объект, строки расхода, решение, выплата)
+#: Демо-сценарий по нынешнему пути заявки.
+#:  (сотрудник, объект, строки «что нужно», этап, документ выплаты)
+#: Этап: None — ждёт согласования покупки; "sourcing" — ушла в закуп;
+#: "priced" — закуп оценил, ждёт решения по сумме; "approved" — сумма
+#: утверждена; "stock" — всё нашлось на складе; "reject" — отклонена.
+#: Цены закупа заданы отдельно, в SOURCING_PRICES.
 SCENARIO: list[tuple[str, str, list[tuple[str, int, str]], str | None, str | None]] = [
     (
         "Иван Петров", "Вилла Колхозная",
         [
-            ("Проездной туда и обратно", 1, "150.00"),
-            ("Обед на одного", 1, "30.00"),
-            ("Материалы для работы", 5, "120.00"),
-            ("Такси до объекта", 2, "535.00"),
+            ("Грунтовка глубокого проникновения", 2, "канистра"),
+            ("Шпатель 45 см", 1, "шт."),
+            ("Мешки для мусора", 5, "упаковка"),
         ],
         None, None,
     ),
-    ("Мария Сидорова", "Офис на 7 этаже", [("Печать макетов", 1, "950.00")], None, None),
-    ("Сергей Никитин", "Рекова 132", [("Крепёж и расходники", 4, "600.00")], "approve", None),
-    ("Екатерина Волкова", "Речь", [("Аренда оборудования", 1, "3100.00")], "approve", "ПП-0412"),
-    ("Алексей Морозов", "Рекова 132", [("Кабель ВВГ", 2, "620.00")], None, None),
-    ("Ольга Кузнецова", "Вилла Колхозная", [("Партия плитки", 1, "5600.00")], "reject", None),
-    ("Дмитрий Соколов", "Офис на 7 этаже", [("Замер и выезд", 1, "780.00")], None, None),
-    ("Анна Лебедева", "Речь", [("Печать чертежей", 1, "2050.00")], "approve", None),
-    ("Иван Петров", "Вилла Колхозная", [("Возмещение проезда", 1, "260.00")], None, None),
-    ("Сергей Никитин", "Рекова 132", [("Инструмент", 1, "1480.00")], "approve", "ПП-0409"),
+    ("Мария Сидорова", "Офис на 7 этаже", [("Печать макетов А1", 6, "лист")], None, None),
+    ("Сергей Никитин", "Рекова 132", [("Крепёж и расходники", 4, "коробка")], "sourcing", None),
+    (
+        "Екатерина Волкова", "Речь",
+        [("Аренда прожекторов", 1, "комплект"), ("Удлинитель 20 м", 2, "шт.")],
+        "priced", None,
+    ),
+    ("Алексей Морозов", "Рекова 132", [("Кабель ВВГ 3×2,5", 2, "бухта")], "approved", None),
+    ("Ольга Кузнецова", "Вилла Колхозная", [("Партия плитки", 1, "паллета")], "reject", None),
+    ("Дмитрий Соколов", "Офис на 7 этаже", [("Стремянка 5 ступеней", 1, "шт.")], "stock", None),
+    ("Анна Лебедева", "Речь", [("Печать чертежей", 12, "лист")], "priced", None),
+    ("Иван Петров", "Вилла Колхозная", [("Перчатки рабочие", 10, "пара")], "stock", None),
+    (
+        "Сергей Никитин", "Рекова 132",
+        [("Перфоратор в аренду", 1, "шт."), ("Буры", 3, "шт.")],
+        "paid", "ПП-0409",
+    ),
 ]
+
+#: Что закуп отвечает по каждой строке демо-заявок: цена или «есть на
+#: складе». Ключ — название строки.
+SOURCING_PRICES: dict[str, str | None] = {
+    "Крепёж и расходники": "600.00",
+    "Аренда прожекторов": "2400.00",
+    "Удлинитель 20 м": "350.00",
+    "Кабель ВВГ 3×2,5": "620.00",
+    "Партия плитки": "5600.00",
+    "Стремянка 5 ступеней": None,
+    "Печать чертежей": "170.00",
+    "Перчатки рабочие": None,
+    "Перфоратор в аренду": "1200.00",
+    "Буры": "95.00",
+}
 
 
 def seed() -> None:
@@ -140,24 +174,21 @@ def seed() -> None:
             )
 
         manager = employees["Артём Ковалёв"].full_name
-        for who, where, lines, decision, document in SCENARIO:
+        buyer = employees["Ольга Кузнецова"].full_name
+        for who, where, lines, stage, document in SCENARIO:
             request = svc.create_request(
                 session,
                 RequestCreate(
                     employee_id=employees[who].id,
                     project_id=projects[where].id,
                     lines=[
-                        ExpenseLineIn(title=title, quantity=qty, price=price)
-                        for title, qty, price in lines
+                        ExpenseLineIn(title=title, quantity=qty, unit=unit)
+                        for title, qty, unit in lines
                     ],
                     submit=True,
                 ),
             )
-            if decision == "approve" and request.status.value == "pending":
-                svc.decide_request(
-                    session, request.id, DecisionIn(approve=True, actor=manager)
-                )
-            elif decision == "reject":
+            if stage == "reject":
                 svc.decide_request(
                     session,
                     request.id,
@@ -165,11 +196,40 @@ def seed() -> None:
                         approve=False,
                         comment=(
                             "Закупка не согласована с прорабом. Оформите заявку "
-                            "через снабжение до 12-го числа."
+                            "заново после уточнения объёмов."
                         ),
                         actor=manager,
                     ),
                 )
+            elif stage is not None:
+                # Потребность согласована — заявка уходит в закуп.
+                svc.decide_request(
+                    session, request.id, DecisionIn(approve=True, actor=manager)
+                )
+
+            if stage in ("priced", "approved", "paid", "stock"):
+                svc.apply_sourcing(
+                    session,
+                    request.id,
+                    SourcingIn(
+                        lines=[
+                            SourcingLineIn(
+                                id=line.id,
+                                from_stock=SOURCING_PRICES.get(line.title) is None,
+                                price=SOURCING_PRICES.get(line.title),
+                            )
+                            for line in request.lines
+                        ],
+                        comment=None,
+                    ),
+                    actor=buyer,
+                )
+
+            if stage in ("approved", "paid"):
+                svc.decide_request(
+                    session, request.id, DecisionIn(approve=True, actor=manager)
+                )
+
             if document:
                 svc.pay_request(
                     session,

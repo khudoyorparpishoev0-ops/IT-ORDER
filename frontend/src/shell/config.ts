@@ -35,6 +35,7 @@ export const NAV: NavItem[] = [
   { to: '/', label: 'Панель', icon: 'ti-layout-dashboard' },
   { to: '/requests', label: 'Заявки', icon: 'ti-file-text' },
   { to: '/approvals', label: 'Согласование', icon: 'ti-circle-check', need: 'decide_request' },
+  { to: '/sourcing', label: 'Закуп', icon: 'ti-package', need: 'source_request' },
   { to: '/reports', label: 'Отчёты', icon: 'ti-chart-bar', need: 'view_reports' },
   { to: '/team', label: 'Команда', icon: 'ti-users', need: 'view_reports' },
   { to: '/finance', label: 'Финансы', icon: 'ti-wallet', need: 'view_reports' },
@@ -49,6 +50,7 @@ export const NAV: NavItem[] = [
 export const ROLE_LABEL: Record<string, string> = {
   employee: 'Сотрудник',
   manager: 'Руководитель',
+  procurement: 'Отдел закупа',
   finance: 'Финансы',
   admin: 'Администратор',
 };

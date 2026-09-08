@@ -83,7 +83,17 @@ export function RequestsTable({
                   {r.number} · {r.date}
                 </div>
               </td>
-              <td className="right num">{money(r.amount)}</td>
+              {/* Пока закуп не назвал цену, суммы нет: ноль в колонке
+                  читался бы как «бесплатно». */}
+              <td className="right">
+                {r.status === 'fulfilled' ? (
+                  <span className="caption">со склада</span>
+                ) : r.priced ? (
+                  <span className="num">{money(r.amount)}</span>
+                ) : (
+                  <span className="caption">не оценена</span>
+                )}
+              </td>
               <td>
                 <div
                   style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}

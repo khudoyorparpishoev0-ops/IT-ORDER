@@ -75,8 +75,10 @@ def dashboard_stats(session: Session, *, year: int, month: int) -> DashboardStat
     approved_amount = _sum_where(
         session, ExpenseRequest.status == RequestStatus.APPROVED, *period
     )
+    # «Ждёт решения» в деньгах — только оценённые заявки: у тех, что ещё
+    # не были в закупе, суммы нет вовсе, и складывать там нечего.
     pending_amount = _sum_where(
-        session, ExpenseRequest.status == RequestStatus.PENDING, *period
+        session, ExpenseRequest.status == RequestStatus.PRICED, *period
     )
     spent = _sum_where(session, ExpenseRequest.status.in_(SPENT_STATUSES), *period)
 
@@ -101,8 +103,14 @@ def dashboard_stats(session: Session, *, year: int, month: int) -> DashboardStat
             session, ExpenseRequest.status == RequestStatus.APPROVED, *period
         ),
         pending_amount=pending_amount,
+        # А по счётчику — всё, что лежит у руководителя: и согласование
+        # покупки, и утверждение суммы.
         pending_count=_count_where(
-            session, ExpenseRequest.status == RequestStatus.PENDING, *period
+            session,
+            ExpenseRequest.status.in_(
+                (RequestStatus.PENDING, RequestStatus.PRICED)
+            ),
+            *period,
         ),
         budget_amount=budget_amount,
         budget_used_pct=used_pct,
@@ -119,20 +127,17 @@ def approval_queue(session: Session) -> ApprovalQueueInfo:
             .order_by(ExpenseRequest.submitted_at.asc().nulls_last())
         )
     )
-    threshold = to_decimal(get_settings().auto_approve_threshold)
+    priced = _count_where(session, ExpenseRequest.status == RequestStatus.PRICED)
     if not pending:
         return ApprovalQueueInfo(
-            count=0,
-            oldest_employee=None,
-            oldest_days=None,
-            auto_approve_threshold=threshold,
+            count=0, oldest_employee=None, oldest_days=None, priced_count=priced
         )
     oldest = pending[0]
     return ApprovalQueueInfo(
         count=len(pending),
         oldest_employee=oldest.employee.full_name,
         oldest_days=pending_age_days(oldest),
-        auto_approve_threshold=threshold,
+        priced_count=priced,
     )
 
 

@@ -283,12 +283,23 @@ def request_pdf(detail) -> bytes:
     ]
     rows = [head]
     for line in detail.lines:
+        # Строка со склада денег не стоила, неоценённая ещё не имеет цены —
+        # в обоих случаях в колонках суммы стоит пояснение, а не ноль.
+        if line.from_stock:
+            price_cell = total_cell = "со склада"
+        elif line.price is None:
+            price_cell = total_cell = "не оценено"
+        else:
+            price_cell = money(line.price)
+            total_cell = money(line.total)
         rows.append(
             [
-                Paragraph(line.title, st["td"]),
+                Paragraph(
+                    f"{line.title} · {line.unit}" if line.unit else line.title, st["td"]
+                ),
                 Paragraph(str(line.quantity), st["td_num"]),
-                Paragraph(money(line.price), st["td_num"]),
-                Paragraph(money(line.total), st["td_num"]),
+                Paragraph(price_cell, st["td_num"]),
+                Paragraph(total_cell, st["td_num"]),
             ]
         )
     rows.append(

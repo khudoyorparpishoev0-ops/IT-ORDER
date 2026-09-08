@@ -29,14 +29,6 @@ class Settings(BaseSettings):
     postgres_password: str = ""
 
     # --- Правила согласования ---
-    auto_approve_threshold: str = Field(
-        default="500.00",
-        description=(
-            "Порог автоодобрения в сомони. Заявка на сумму не выше порога "
-            "одобряется без участия руководителя. Значение по умолчанию "
-            "взято из макета и подлежит подтверждению заказчиком."
-        ),
-    )
     request_number_prefix: str = Field(
         default="РЗ",
         description="Префикс номера заявки: РЗ-2419.",

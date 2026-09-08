@@ -3,15 +3,37 @@
  * При изменении схемы на бэкенде обновлять здесь же.
  */
 
-export type RequestStatus = 'draft' | 'pending' | 'approved' | 'paid' | 'rejected';
+export type RequestStatus =
+  | 'draft'
+  /** Потребность на согласовании у руководителя. */
+  | 'pending'
+  /** У отдела закупа: проверка склада и цены. */
+  | 'sourcing'
+  /** Закуп оценил, сумма ждёт решения руководителя. */
+  | 'priced'
+  /** Сумма утверждена, ждёт оплаты. */
+  | 'approved'
+  | 'paid'
+  /** Всё нашлось на складе — денег не потребовалось. */
+  | 'fulfilled'
+  | 'rejected';
 export type PaymentMethod = 'card' | 'cash';
-export type EmployeeRole = 'employee' | 'manager' | 'finance' | 'admin';
+export type EmployeeRole =
+  | 'employee'
+  | 'manager'
+  /** Отдел закупа: склад и цены. */
+  | 'procurement'
+  | 'finance'
+  | 'admin';
 
 export type EventKind =
   | 'created'
   | 'submitted'
   | 'commented'
   | 'viewed'
+  | 'sourcing'
+  | 'priced'
+  | 'fulfilled'
   | 'approved'
   | 'auto_approved'
   | 'rejected'
@@ -116,15 +138,32 @@ export type ExpenseLine = {
   id: number;
   title: string;
   quantity: number;
-  price: Money;
-  total: Money;
+  unit: string | null;
+  /** null — строку ещё не оценил закуп. */
+  price: Money | null;
+  total: Money | null;
+  /** Нашлось на складе: покупать не нужно, в сумму не входит. */
+  from_stock: boolean;
+};
+
+/** Ответ закупа по строке: со склада или почём купить. */
+export type SourcingLineInput = {
+  id: number;
+  from_stock: boolean;
+  price: Money | null;
+};
+
+export type SourcingInput = {
+  lines: SourcingLineInput[];
+  comment?: string | null;
 };
 
 /** Строка сметы при заведении заявки. Сумма считается сервером. */
 export type ExpenseLineInput = {
   title: string;
   quantity: number;
-  price: Money;
+  /** «шт.», «мешок», «м²» — словами. Цен у сотрудника нет. */
+  unit: string | null;
 };
 
 export type RequestInput = {
@@ -165,6 +204,8 @@ export type RequestListItem = {
   project_id: number;
   project_name: string;
   amount: Money;
+  /** false — заявку ещё не оценил закуп, сумма пока ничего не значит. */
+  priced: boolean;
   status: RequestStatus;
   /** Дата уже в поясе компании, строкой 04.09.2026. */
   date: string;
@@ -180,6 +221,10 @@ export type RequestDetail = RequestListItem & {
   payment: PaymentInfo | null;
   decision_comment: string | null;
   decided_by: string | null;
+  /** Кто из закупа оценил заявку. */
+  sourced_by: string | null;
+  /** Пояснение закупа: почему такие цены, что нашлось на складе. */
+  sourcing_comment: string | null;
 };
 
 export type Page<T> = {
@@ -201,10 +246,12 @@ export type DashboardStats = {
 };
 
 export type ApprovalQueueInfo = {
+  /** Сколько заявок ждёт согласования самой покупки. */
   count: number;
   oldest_employee: string | null;
   oldest_days: number | null;
-  auto_approve_threshold: Money;
+  /** Сколько вернулось из закупа и ждёт решения по сумме. */
+  priced_count: number;
 };
 
 export type ProjectShare = {
@@ -257,6 +304,7 @@ export type Permission =
   | 'pay_request'
   | 'view_reports'
   | 'manage_reference'
+  | 'source_request'
   | 'view_audit';
 
 export type CurrentUser = {

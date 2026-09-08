@@ -98,11 +98,16 @@ def request_awaiting_approval(
     project: str,
     amount,
     url: str,
+    #: Что именно ждёт человека: согласовать покупку или утвердить сумму.
+    stage: str = "Новая заявка на согласование",
 ) -> Letter:
-    summary = f"{employee_name} · {project} · {money(amount)} сомони"
+    # До оценки закупа суммы нет: писать «0,00 сомони» — вводить в
+    # заблуждение, поэтому в письме честное «сумму назовёт закуп».
+    amount_text = f"{money(amount)} сомони" if amount is not None else "сумма пока не известна"
+    summary = f"{employee_name} · {project} · {amount_text}"
     text = (
         f"{approver_name}, здравствуйте.\n\n"
-        f"Новая заявка на согласование: {number}\n"
+        f"{stage}: {number}\n"
         f"{summary}\n\n"
         f"Открыть: {url}\n\n"
         "Уведомления можно отключить в разделе «Параметры».\n\n"
@@ -111,7 +116,7 @@ def request_awaiting_approval(
     html = _wrap(
         "Заявка ждёт решения",
         f"<p style=\"margin:0 0 12px\">{approver_name}, здравствуйте.</p>"
-        "<p style=\"margin:0 0 12px\">На согласование поступила заявка "
+        f"<p style=\"margin:0 0 12px\">{stage.lower().capitalize()}: заявка "
         f"<strong>{number}</strong>.</p>"
         f"<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
         f"border=\"0\" width=\"100%\" style=\"background:{MIST};"
@@ -119,12 +124,46 @@ def request_awaiting_approval(
         f"<tr><td style=\"font-size:14px\">{employee_name}<br>"
         f"<span style=\"color:{SLATE}\">{project}</span></td>"
         f"<td align=\"right\" style=\"font-family:'Courier New',monospace;"
-        f"font-weight:bold;white-space:nowrap\">{money(amount)}</td></tr></table>"
+        f"font-weight:bold;white-space:nowrap\">{amount_text}</td></tr></table>"
         f"<p style=\"margin:12px 0 0;color:{SLATE};font-size:13px\">"
         "Уведомления можно отключить в разделе «Параметры».</p>",
         action=("Перейти к согласованию", url),
     )
     return Letter(to="", subject=f"Заявка {number} ждёт решения", text=text, html=html)
+
+
+def request_for_procurement(
+    *,
+    buyer_name: str,
+    employee_name: str,
+    number: str,
+    project: str,
+    url: str,
+) -> Letter:
+    """Письмо отделу закупа: потребность согласована, нужна оценка."""
+    text = (
+        f"{buyer_name}, здравствуйте.\n\n"
+        f"Заявка {number} согласована руководителем и ждёт оценки.\n"
+        f"{employee_name} · {project}\n\n"
+        "Проверьте, есть ли материалы на складе, а на остальные "
+        "проставьте цены.\n\n"
+        f"Открыть: {url}\n\n"
+        f"{FOOTER_TEXT}"
+    )
+    html = _wrap(
+        "Заявка ждёт оценки",
+        f"<p style=\"margin:0 0 12px\">{buyer_name}, здравствуйте.</p>"
+        f"<p style=\"margin:0 0 12px\">Заявка <strong>{number}</strong> "
+        "согласована руководителем. Проверьте склад и проставьте цены на то, "
+        "чего нет.</p>"
+        f"<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
+        f"border=\"0\" width=\"100%\" style=\"background:{MIST};"
+        f"border:1px solid {LINE};padding:12px\">"
+        f"<tr><td style=\"font-size:14px\">{employee_name}<br>"
+        f"<span style=\"color:{SLATE}\">{project}</span></td></tr></table>",
+        action=("Открыть заявку", url),
+    )
+    return Letter(to="", subject=f"Заявка {number} ждёт оценки закупа", text=text, html=html)
 
 
 def test_letter(*, to: str) -> Letter:

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+#: Сотрудник описывает потребность: что нужно и сколько. Цен у него нет.
 BIG_LINES = [
-    {"title": "Материалы", "quantity": 5, "price": "120.00"},
-    {"title": "Такси", "quantity": 2, "price": "535.00"},
+    {"title": "Материалы", "quantity": 5, "unit": "мешок"},
+    {"title": "Скотч", "quantity": 2, "unit": "шт."},
 ]
+PRICES = {"Материалы": "120.00", "Скотч": "535.00"}
 
 
 def create(client, employee, project, lines=None, submit=True, expect=201):
@@ -40,21 +42,29 @@ def test_create_returns_detail(as_manager, manager, project) -> None:
     body = create(as_manager, manager, project)
     assert body["number"].startswith("РЗ-")
     assert body["status"] == "pending"
-    assert Decimal(body["amount"]) == Decimal("1670.00")
+    # Суммы ещё нет: цены проставит закуп.
+    assert Decimal(body["amount"]) == Decimal("0.00")
+    assert body["priced"] is False
+    assert body["lines"][0]["price"] is None
     assert body["project_name"] == "Вилла Колхозная"
     assert len(body["lines"]) == 2
     assert body["events"], "история должна содержать хотя бы создание"
 
 
-def test_list_filters_by_status(as_manager, manager, project) -> None:
-    create(as_manager, manager, project)
-    create(as_manager, manager, project, lines=[{"title": "Обед", "quantity": 1, "price": "30.00"}])
+def test_list_filters_by_status(
+    client, login, employee, manager, procurement, project, pipeline
+) -> None:
+    login(employee)
+    waiting = create(client, employee, project)
+    priced = create(client, employee, project, lines=[{"title": "Обед", "quantity": 1}])
+    pipeline(priced["id"], manager=manager, buyer=procurement, to="priced")
 
-    pending = as_manager.get("/api/requests", params={"status": "pending"}).json()
-    approved = as_manager.get("/api/requests", params={"status": "approved"}).json()
+    login(manager)
+    pending = client.get("/api/requests", params={"status": "pending"}).json()
+    on_sourcing = client.get("/api/requests", params={"status": "priced"}).json()
     assert pending["total"] == 1
-    assert approved["total"] == 1
-    assert pending["items"][0]["status"] == "pending"
+    assert pending["items"][0]["id"] == waiting["id"]
+    assert on_sourcing["total"] == 1
 
 
 def test_list_search_by_employee_name(as_manager, manager, project) -> None:
@@ -104,9 +114,14 @@ def test_reject_with_comment_succeeds(client, login, employee, manager, project)
     assert response.json()["status"] == "rejected"
 
 
-def test_decided_by_comes_from_session(client, login, employee, manager, project) -> None:
+def test_decided_by_comes_from_session(
+    client, login, employee, manager, procurement, project, pipeline
+) -> None:
     """Имя согласующего берётся из сессии: клиент не может его подменить."""
     request = submit_as_employee(client, login, employee, manager, project)
+    pipeline(request["id"], manager=manager, buyer=procurement, to="priced")
+
+    login(manager)
     body = client.post(
         f"/api/requests/{request['id']}/decision",
         json={"approve": True, "actor": "Кто-то другой"},
@@ -114,7 +129,10 @@ def test_decided_by_comes_from_session(client, login, employee, manager, project
     assert body["decided_by"] == manager.full_name
 
 
-def test_double_decision_is_409(client, login, employee, manager, project) -> None:
+def test_second_decision_before_sourcing_is_409(
+    client, login, employee, manager, project
+) -> None:
+    """Заявка ушла в закуп — второго решения на этом шаге быть не может."""
     request = submit_as_employee(client, login, employee, manager, project)
     client.post(f"/api/requests/{request['id']}/decision", json={"approve": True})
     again = client.post(
@@ -127,9 +145,15 @@ def test_unknown_request_is_404(as_manager) -> None:
     assert as_manager.get("/api/requests/99999").status_code == 404
 
 
-def test_payment_flow(client, login, manager, finance, employee, project) -> None:
+def test_payment_flow(
+    client, login, manager, finance, procurement, employee, project, pipeline
+) -> None:
     request = submit_as_employee(client, login, employee, manager, project)
-    client.post(f"/api/requests/{request['id']}/decision", json={"approve": True})
+    approved = pipeline(
+        request["id"], manager=manager, buyer=procurement, prices=PRICES
+    )
+    assert approved["status"] == "approved"
+    assert Decimal(approved["amount"]) == Decimal("1670.00")
 
     login(finance)
     paid = client.post(

@@ -26,6 +26,72 @@ def panel_url(path: str = "/") -> str:
     return f"{base}{path}" if base else path
 
 
+def _load(session: Session, request_id: int) -> ExpenseRequest | None:
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    return session.scalar(
+        select(ExpenseRequest)
+        .options(
+            selectinload(ExpenseRequest.employee),
+            selectinload(ExpenseRequest.project),
+        )
+        .where(ExpenseRequest.id == request_id)
+    )
+
+
+def notify_sourcing(session: Session, request_id: int) -> None:
+    """Письмо отделу закупа: потребность согласована, нужна оценка."""
+    from app.core.permissions import Permission
+    from app.services.auth import notifiable_by_permission
+
+    expense = _load(session, request_id)
+    if expense is None:
+        return
+
+    for person in notifiable_by_permission(session, Permission.SOURCE_REQUEST):
+        if person.id == expense.employee_id:
+            continue
+        letter = templates.request_for_procurement(
+            buyer_name=person.full_name,
+            employee_name=expense.employee.full_name,
+            number=expense.number,
+            project=expense.project.name,
+            url=panel_url("/sourcing"),
+        )
+        letter.to = person.email or ""
+        letter.headers["X-Entity-Ref"] = expense.number
+        if letter.to:
+            send_quietly(letter)
+
+
+def notify_priced(session: Session, request_id: int) -> None:
+    """Письмо руководителю: закуп вернул заявку с суммой."""
+    from app.core.permissions import Permission
+    from app.services.auth import notifiable_by_permission
+
+    expense = _load(session, request_id)
+    if expense is None:
+        return
+
+    for person in notifiable_by_permission(session, Permission.DECIDE_REQUEST):
+        if person.id == expense.employee_id:
+            continue
+        letter = templates.request_awaiting_approval(
+            approver_name=person.full_name,
+            employee_name=expense.employee.full_name,
+            number=expense.number,
+            project=expense.project.name,
+            amount=expense.amount,
+            url=panel_url("/approvals"),
+            stage="Закуп оценил заявку, нужна ваша подпись под суммой",
+        )
+        letter.to = person.email or ""
+        letter.headers["X-Entity-Ref"] = expense.number
+        if letter.to:
+            send_quietly(letter)
+
+
 def notify_new_request(session: Session, request_id: int) -> None:
     """Письмо согласующим о заявке, ждущей решения.
 
@@ -62,8 +128,10 @@ def notify_new_request(session: Session, request_id: int) -> None:
             employee_name=expense.employee.full_name,
             number=expense.number,
             project=expense.project.name,
-            amount=expense.amount,
+            # Суммы на этом шаге нет: согласуется сама покупка.
+            amount=None,
             url=panel_url("/approvals"),
+            stage="Новая заявка на согласование покупки",
         )
         letter.to = person.email or ""
         letter.headers["X-Entity-Ref"] = expense.number

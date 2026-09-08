@@ -19,6 +19,9 @@ type Props = {
 export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const { can } = useAuth();
+  // Сумма показывается числом только там, где она настоящая: заявка
+  // оценена и закрыта не складом.
+  const showAmount = Boolean(request?.priced) && request?.status !== 'fulfilled';
   const { data: detail, isLoading } = useRequest(request?.id ?? null);
   const { download, busy } = useDownload();
 
@@ -102,12 +105,17 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
             <dd
               style={{
                 margin: '4px 0 0',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 16,
-                fontWeight: 600,
+                fontFamily: showAmount ? 'var(--font-mono)' : undefined,
+                fontSize: showAmount ? 16 : 13,
+                fontWeight: showAmount ? 600 : 400,
+                color: showAmount ? undefined : 'var(--slate)',
               }}
             >
-              {money(request.amount)}
+              {request.status === 'fulfilled'
+                ? 'выдано со склада'
+                : request.priced
+                  ? money(request.amount)
+                  : 'ещё не оценена'}
             </dd>
           </div>
           <div>
@@ -126,10 +134,10 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
               <thead>
                 <tr>
                   <th>ОПИСАНИЕ</th>
-                  <th style={{ width: 64 }} className="right">
+                  <th style={{ width: 80 }} className="right">
                     КОЛ-ВО
                   </th>
-                  <th style={{ width: 110 }} className="right">
+                  <th style={{ width: 130 }} className="right">
                     СУММА, TJS
                   </th>
                 </tr>
@@ -138,13 +146,41 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
                 {detail.lines.map((line) => (
                   <tr key={line.id}>
                     <td>{line.title}</td>
-                    <td className="right num">{line.quantity}</td>
-                    <td className="right num">{money(line.total)}</td>
+                    <td className="right num">
+                      {line.quantity}
+                      {line.unit ? ` ${line.unit}` : ''}
+                    </td>
+                    {/* Со склада — денег не было; без цены — закуп ещё
+                        не оценил. Ноль в обоих случаях вводил бы в
+                        заблуждение. */}
+                    <td className="right">
+                      {line.from_stock ? (
+                        <span className="caption">со склада</span>
+                      ) : line.total === null ? (
+                        <span className="caption">не оценено</span>
+                      ) : (
+                        <span className="num">{money(line.total)}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+
+        {detail?.sourcing_comment && (
+          <p
+            style={{
+              borderLeft: '2px solid var(--line)',
+              paddingLeft: 12,
+              margin: '16px 0 0',
+              color: 'var(--slate)',
+            }}
+          >
+            Закуп{detail.sourced_by ? ` (${detail.sourced_by})` : ''}:{' '}
+            {detail.sourcing_comment}
+          </p>
         )}
 
         {detail?.decision_comment && (

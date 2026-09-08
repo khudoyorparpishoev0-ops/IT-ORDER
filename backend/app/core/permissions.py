@@ -3,9 +3,11 @@
 Разрешения описаны явной таблицей, а не разбросаны по роутерам: так видно
 всю картину сразу и невозможно забыть закрыть новый эндпоинт.
 
-Предположения, согласованные по умолчанию (подтвердить у заказчика):
-согласование одноступенчатое — решение принимает MANAGER или ADMIN;
-выплату проводит FINANCE или ADMIN. Цепочки из нескольких согласующих нет.
+Путь заявки: сотрудник описывает потребность без цен, MANAGER (или ADMIN)
+согласует саму покупку, PROCUREMENT проверяет склад и проставляет цены,
+MANAGER утверждает сумму, FINANCE проводит выплату. Один человек не
+проходит весь путь: свою заявку не согласуют и не оплачивают, а кто
+одобрил — тот не платит.
 """
 
 from __future__ import annotations
@@ -24,8 +26,10 @@ class Permission(str, enum.Enum):
     CREATE_REQUEST = "create_request"
     #: Подавать заявку от имени другого сотрудника.
     CREATE_REQUEST_FOR_OTHERS = "create_request_for_others"
-    #: Одобрять и отклонять.
+    #: Одобрять и отклонять — и потребность, и сумму.
     DECIDE_REQUEST = "decide_request"
+    #: Проверять склад и проставлять цены (отдел закупа).
+    SOURCE_REQUEST = "source_request"
     #: Проводить выплату.
     PAY_REQUEST = "pay_request"
     #: Сводки, отчёты, лимиты команды, бюджет.
@@ -44,6 +48,11 @@ _MANAGER = _EMPLOYEE | {
     Permission.VIEW_REPORTS,
 }
 
+_PROCUREMENT = _EMPLOYEE | {
+    Permission.VIEW_ALL_REQUESTS,
+    Permission.SOURCE_REQUEST,
+}
+
 _FINANCE = _EMPLOYEE | {
     Permission.VIEW_ALL_REQUESTS,
     Permission.PAY_REQUEST,
@@ -55,6 +64,7 @@ _ADMIN = frozenset(Permission)
 ROLE_PERMISSIONS: dict[EmployeeRole, frozenset[Permission]] = {
     EmployeeRole.EMPLOYEE: _EMPLOYEE,
     EmployeeRole.MANAGER: frozenset(_MANAGER),
+    EmployeeRole.PROCUREMENT: frozenset(_PROCUREMENT),
     EmployeeRole.FINANCE: frozenset(_FINANCE),
     EmployeeRole.ADMIN: _ADMIN,
 }

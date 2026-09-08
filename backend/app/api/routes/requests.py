@@ -38,6 +38,7 @@ from app.schemas.request import (
     RequestEventOut,
     RequestListItem,
     RequestUpdate,
+    SourcingIn,
 )
 from app.services import requests as svc
 from app.services.notifications import notify_new_request
@@ -48,6 +49,7 @@ router = APIRouter(
 
 can_decide = Depends(RequirePermission(Permission.DECIDE_REQUEST))
 can_pay = Depends(RequirePermission(Permission.PAY_REQUEST))
+can_source = Depends(RequirePermission(Permission.SOURCE_REQUEST))
 
 
 def _forbidden() -> HTTPException:
@@ -84,6 +86,7 @@ def to_list_item(request: ExpenseRequest) -> RequestListItem:
         project_id=request.project_id,
         project_name=request.project.name,
         amount=request.amount,
+        priced=svc.is_priced(request),
         status=request.status,
         date=svc.display_date(request),
     )
@@ -114,6 +117,8 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
         payment=(PaymentOut.model_validate(request.payment) if request.payment else None),
         decision_comment=request.decision_comment,
         decided_by=request.decided_by,
+        sourced_by=request.sourced_by,
+        sourcing_comment=request.sourcing_comment,
     )
 
 
@@ -178,6 +183,30 @@ def create_request(
     return detail
 
 
+def _in_own_session(job, request_id: int) -> None:
+    """Фоновая отправка идёт в собственной сессии: сессия запроса
+    к этому моменту уже закрыта."""
+    from app.db.session import get_session_factory
+
+    session = get_session_factory()()
+    try:
+        job(session, request_id)
+    finally:
+        session.close()
+
+
+def _notify_sourcing_later(request_id: int) -> None:
+    from app.services.notifications import notify_sourcing
+
+    _in_own_session(notify_sourcing, request_id)
+
+
+def _notify_priced_later(request_id: int) -> None:
+    from app.services.notifications import notify_priced
+
+    _in_own_session(notify_priced, request_id)
+
+
 def _notify_later(request_id: int) -> None:
     """Отправка в фоне идёт в собственной сессии: сессия запроса
     к этому моменту уже закрыта."""
@@ -228,7 +257,11 @@ def submit_request(
     "/{request_id}/decision", response_model=RequestDetail, dependencies=[can_decide]
 )
 def decide_request(
-    session: DbSession, user: CurrentUser, request_id: int, data: DecisionIn
+    session: DbSession,
+    user: CurrentUser,
+    request_id: int,
+    data: DecisionIn,
+    background: BackgroundTasks,
 ):
     """Решение по заявке. Имя согласующего берётся из сессии, а не от клиента."""
     request = svc.get_request(session, request_id)
@@ -239,7 +272,39 @@ def decide_request(
         )
     decision = data.model_copy(update={"actor": user.full_name})
     result = svc.decide_request(session, request_id, decision)
-    return to_detail(session, result)
+    detail = to_detail(session, result)
+    # Согласована покупка — предупреждаем закуп, что заявка у них.
+    if result.status is RequestStatus.SOURCING:
+        background.add_task(_notify_sourcing_later, result.id)
+    return detail
+
+
+@router.post(
+    "/{request_id}/sourcing", response_model=RequestDetail, dependencies=[can_source]
+)
+def apply_sourcing(
+    session: DbSession,
+    user: CurrentUser,
+    request_id: int,
+    data: SourcingIn,
+    background: BackgroundTasks,
+):
+    """Ответ отдела закупа: что есть на складе, а что почём купить.
+
+    Свою заявку не оценивает даже закупщик: цену на собственную покупку
+    он назначал бы сам себе.
+    """
+    request = svc.get_request(session, request_id)
+    if request.employee_id == user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Нельзя оценивать собственную заявку",
+        )
+    result = svc.apply_sourcing(session, request_id, data, actor=user.full_name)
+    detail = to_detail(session, result)
+    if result.status is RequestStatus.PRICED:
+        background.add_task(_notify_priced_later, result.id)
+    return detail
 
 
 @router.post(

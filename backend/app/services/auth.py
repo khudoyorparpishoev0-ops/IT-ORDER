@@ -607,6 +607,21 @@ def apply_password_reset(session: Session, token: str, new_password: str) -> Emp
     return employee
 
 
+def notifiable_by_permission(session: Session, permission) -> list[Employee]:
+    """Кому можно писать по этому праву: активные, с почтой и не
+    отключившие уведомления о заявках."""
+    from app.core.permissions import has_permission
+
+    candidates = session.scalars(
+        select(Employee).where(
+            Employee.active.is_(True),
+            Employee.notify_new_requests.is_(True),
+            Employee.email.is_not(None),
+        )
+    )
+    return [e for e in candidates if has_permission(e.role, permission)]
+
+
 def approvers_to_notify(session: Session) -> list[Employee]:
     """Кому слать письмо о новой заявке.
 

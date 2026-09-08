@@ -1,4 +1,8 @@
-"""Жизненный цикл заявки: переходы статусов, автоодобрение, суммы."""
+"""Жизненный цикл заявки: путь через закуп, суммы, переходы статусов.
+
+    DRAFT → PENDING → SOURCING → PRICED → APPROVED → PAID
+                                     └→ FULFILLED (всё нашлось на складе)
+"""
 
 from __future__ import annotations
 
@@ -14,8 +18,13 @@ from app.schemas.request import (
     PaymentIn,
     RequestCreate,
     RequestUpdate,
+    SourcingIn,
+    SourcingLineIn,
 )
 from app.services import requests as svc
+
+MANAGER = "Артём Ковалёв"
+BUYER = "Ольга Кузнецова"
 
 
 def make(employee, project, lines, submit=True) -> RequestCreate:
@@ -28,50 +37,41 @@ def make(employee, project, lines, submit=True) -> RequestCreate:
 
 
 BIG = [
-    {"title": "Проездной туда и обратно", "quantity": 1, "price": "150.00"},
-    {"title": "Обед на одного", "quantity": 1, "price": "30.00"},
-    {"title": "Материалы для работы", "quantity": 5, "price": "120.00"},
-    {"title": "Такси до объекта", "quantity": 2, "price": "535.00"},
+    {"title": "Грунтовка", "quantity": 2, "unit": "канистра"},
+    {"title": "Шпатель", "quantity": 1, "unit": "шт."},
+    {"title": "Мешки для мусора", "quantity": 5},
 ]
-SMALL = [{"title": "Такси", "quantity": 1, "price": "300.00"}]
+PRICES = {"Грунтовка": "150.00", "Шпатель": "80.00", "Мешки для мусора": "40.00"}
 
 
-def test_amount_is_sum_of_lines(session, employee, project) -> None:
-    request = svc.create_request(session, make(employee, project, BIG))
-    # 150 + 30 + 5*120 + 2*535 = 1850
-    assert request.amount == Decimal("1850.00")
-    assert [line.total for line in request.lines] == [
-        Decimal("150.00"),
-        Decimal("30.00"),
-        Decimal("600.00"),
-        Decimal("1070.00"),
-    ]
+def sourcing(request, prices: dict[str, str]) -> SourcingIn:
+    """Ответ закупа: строка без цены считается найденной на складе."""
+    return SourcingIn(
+        lines=[
+            SourcingLineIn(
+                id=line.id,
+                from_stock=line.title not in prices,
+                price=prices.get(line.title),
+            )
+            for line in request.lines
+        ]
+    )
 
 
-def test_above_threshold_waits_for_decision(session, employee, project) -> None:
+# --------------------------------------------------------------------------
+# Подача: сотрудник описывает потребность, цен у него нет
+# --------------------------------------------------------------------------
+def test_new_request_has_no_amount(session, employee, project) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
     assert request.status is RequestStatus.PENDING
-    assert request.submitted_at is not None
-    assert request.decided_at is None
+    assert request.amount == Decimal("0.00")
+    assert all(line.price is None and line.total is None for line in request.lines)
+    assert svc.is_priced(request) is False
 
 
-def test_at_or_below_threshold_auto_approved(session, employee, project) -> None:
-    """Порог 500,00: заявка на 300 закрывается без руководителя."""
-    request = svc.create_request(session, make(employee, project, SMALL))
-    assert request.status is RequestStatus.APPROVED
-    assert request.decided_by == svc.SYSTEM_ACTOR
-    kinds = [e.kind for e in request.events]
-    assert EventKind.AUTO_APPROVED in kinds
-
-
-def test_threshold_boundary_is_inclusive(session, employee, project) -> None:
-    exact = [{"title": "Ровно порог", "quantity": 1, "price": "500.00"}]
-    request = svc.create_request(session, make(employee, project, exact))
-    assert request.status is RequestStatus.APPROVED
-
-    over = [{"title": "На копейку выше", "quantity": 1, "price": "500.01"}]
-    request2 = svc.create_request(session, make(employee, project, over))
-    assert request2.status is RequestStatus.PENDING
+def test_units_are_kept_as_written(session, employee, project) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    assert [line.unit for line in request.lines] == ["канистра", "шт.", None]
 
 
 def test_draft_is_not_submitted(session, employee, project) -> None:
@@ -80,54 +80,178 @@ def test_draft_is_not_submitted(session, employee, project) -> None:
     assert request.submitted_at is None
 
 
-def test_approve_moves_to_approved(session, employee, project) -> None:
+# --------------------------------------------------------------------------
+# Первое решение: нужна ли покупка
+# --------------------------------------------------------------------------
+def test_approval_sends_request_to_procurement(session, employee, project) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    svc.decide_request(session, request.id, DecisionIn(approve=True, actor=MANAGER))
+    session.refresh(request)
+
+    assert request.status is RequestStatus.SOURCING
+    # Решения по деньгам ещё не было: сумма не утверждена.
+    assert request.decided_at is None
+    assert EventKind.SOURCING in [e.kind for e in request.events]
+
+
+def test_reject_before_sourcing_closes_request(session, employee, project) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
     svc.decide_request(
-        session, request.id, DecisionIn(approve=True, actor="Артём Ковалёв")
+        session,
+        request.id,
+        DecisionIn(approve=False, comment="Есть в другом отделе", actor=MANAGER),
     )
     session.refresh(request)
-    assert request.status is RequestStatus.APPROVED
-    assert request.decided_by == "Артём Ковалёв"
+    assert request.status is RequestStatus.REJECTED
+    assert "другом отделе" in (request.decision_comment or "")
 
 
 def test_reject_requires_comment(session, employee, project) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
-    # Схема ловит пустой комментарий ещё до сервиса
     with pytest.raises(ValueError):
         DecisionIn(approve=False, comment="   ")
-    # Сервис проверяет то же самое, если его вызвали в обход схемы
     with pytest.raises(ValidationError):
         svc.decide_request(
             session, request.id, DecisionIn.model_construct(approve=False, comment=None)
         )
 
 
-def test_reject_stores_comment(session, employee, project) -> None:
+# --------------------------------------------------------------------------
+# Закуп: склад и цены
+# --------------------------------------------------------------------------
+def test_sourcing_prices_the_request(session, employee, project, advance) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="priced", prices=PRICES)
+    session.refresh(request)
+
+    assert request.status is RequestStatus.PRICED
+    # 2×150 + 1×80 + 5×40 = 580
+    assert request.amount == Decimal("580.00")
+    assert request.sourced_by == BUYER
+    assert request.sourced_at is not None
+    assert svc.is_priced(request) is True
+
+
+def test_stock_lines_cost_nothing(session, employee, project, advance) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="priced", prices={"Грунтовка": "150.00"})
+    session.refresh(request)
+
+    assert request.amount == Decimal("300.00")
+    stock = [line for line in request.lines if line.from_stock]
+    assert len(stock) == 2
+    assert all(line.price is None and line.total is None for line in stock)
+
+
+def test_everything_from_stock_closes_without_payment(
+    session, employee, project, advance
+) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="fulfilled", prices={})
+    session.refresh(request)
+
+    assert request.status is RequestStatus.FULFILLED
+    assert request.amount == Decimal("0.00")
+    assert EventKind.FULFILLED in [e.kind for e in request.events]
+
+
+def test_fulfilled_request_is_not_paid(session, employee, project, advance) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="fulfilled", prices={})
+    with pytest.raises(ConflictError):
+        svc.pay_request(
+            session, request.id, PaymentIn(method=PaymentMethod.CASH, document="РКО-1")
+        )
+
+
+def test_sourcing_needs_every_line(session, employee, project) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    svc.decide_request(session, request.id, DecisionIn(approve=True, actor=MANAGER))
+    partial = SourcingIn(
+        lines=[SourcingLineIn(id=request.lines[0].id, price="100.00")]
+    )
+    with pytest.raises(ValidationError):
+        svc.apply_sourcing(session, request.id, partial, actor=BUYER)
+
+
+def test_price_required_unless_from_stock(session, employee, project) -> None:
+    """Строка без цены и без отметки о складе — недосказанность."""
+    with pytest.raises(ValueError):
+        SourcingLineIn(id=1, from_stock=False, price=None)
+
+
+def test_sourcing_only_after_approval(session, employee, project) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    with pytest.raises(ConflictError):
+        svc.apply_sourcing(session, request.id, sourcing(request, PRICES), actor=BUYER)
+
+
+def test_sourcing_only_once(session, employee, project, advance) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="priced", prices=PRICES)
+    with pytest.raises(ConflictError):
+        svc.apply_sourcing(session, request.id, sourcing(request, PRICES), actor=BUYER)
+
+
+# --------------------------------------------------------------------------
+# Второе решение: согласие с суммой
+# --------------------------------------------------------------------------
+def test_amount_approval_opens_payment(session, employee, project, advance) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="approved", prices=PRICES)
+    session.refresh(request)
+
+    assert request.status is RequestStatus.APPROVED
+    assert request.decided_by == MANAGER
+    assert request.decided_at is not None
+
+
+def test_amount_can_be_rejected(session, employee, project, advance) -> None:
+    request = svc.create_request(session, make(employee, project, BIG))
+    advance(request, to="priced", prices=PRICES)
     svc.decide_request(
         session,
         request.id,
-        DecisionIn(approve=False, comment="Нет чеков, приложите до 10.09", actor="Артём"),
+        DecisionIn(approve=False, comment="Дорого, ищите дешевле", actor=MANAGER),
     )
     session.refresh(request)
     assert request.status is RequestStatus.REJECTED
-    assert "чеков" in (request.decision_comment or "")
+    # Заявка была оценена — сумма в ней настоящая, её видно в отчётах.
+    assert svc.is_priced(request) is True
 
 
-def test_decision_only_once(session, employee, project) -> None:
+def test_no_auto_approval_by_amount(session, employee, project, advance) -> None:
+    """Дешёвая заявка тоже ждёт руководителя: порогов больше нет."""
+    request = svc.create_request(
+        session, make(employee, project, [{"title": "Скотч", "quantity": 1}])
+    )
+    advance(request, to="priced", prices={"Скотч": "12.00"})
+    session.refresh(request)
+    assert request.status is RequestStatus.PRICED
+
+
+def test_decision_only_once(session, employee, project, advance) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
-    svc.decide_request(session, request.id, DecisionIn(approve=True))
+    advance(request, to="approved", prices=PRICES)
     with pytest.raises(ConflictError):
-        svc.decide_request(session, request.id, DecisionIn(approve=True))
+        svc.decide_request(session, request.id, DecisionIn(approve=True, actor=MANAGER))
 
 
-def test_payment_requires_approved(session, employee, project) -> None:
+# --------------------------------------------------------------------------
+# Оплата
+# --------------------------------------------------------------------------
+def test_payment_requires_approved_amount(session, employee, project, advance) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
     payment = PaymentIn(method=PaymentMethod.CARD, document="ПП-0412")
+
     with pytest.raises(ConflictError):
         svc.pay_request(session, request.id, payment)
 
-    svc.decide_request(session, request.id, DecisionIn(approve=True))
+    advance(request, to="priced", prices=PRICES)
+    with pytest.raises(ConflictError):
+        svc.pay_request(session, request.id, payment)
+
+    svc.decide_request(session, request.id, DecisionIn(approve=True, actor=MANAGER))
     svc.pay_request(session, request.id, payment)
     session.refresh(request)
     assert request.status is RequestStatus.PAID
@@ -135,34 +259,38 @@ def test_payment_requires_approved(session, employee, project) -> None:
     assert request.payment.amount == request.amount
 
 
-def test_payment_only_once(session, employee, project) -> None:
+def test_payment_only_once(session, employee, project, advance) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
-    svc.decide_request(session, request.id, DecisionIn(approve=True))
+    advance(request, to="approved", prices=PRICES)
     payment = PaymentIn(method=PaymentMethod.CASH, document="РКО-118")
     svc.pay_request(session, request.id, payment)
     with pytest.raises(ConflictError):
         svc.pay_request(session, request.id, payment)
 
 
+# --------------------------------------------------------------------------
+# Правки, номера, лимиты
+# --------------------------------------------------------------------------
 def test_submitted_request_cannot_be_edited(session, employee, project) -> None:
     request = svc.create_request(session, make(employee, project, BIG))
     with pytest.raises(ConflictError):
         svc.update_request(
             session,
             request.id,
-            RequestUpdate(lines=[ExpenseLineIn(title="Другое", quantity=1, price="10.00")]),
+            RequestUpdate(lines=[ExpenseLineIn(title="Другое", quantity=1)]),
         )
 
 
-def test_draft_can_be_edited_and_recalculated(session, employee, project) -> None:
+def test_draft_can_be_edited(session, employee, project) -> None:
     request = svc.create_request(session, make(employee, project, BIG, submit=False))
     svc.update_request(
         session,
         request.id,
-        RequestUpdate(lines=[ExpenseLineIn(title="Только такси", quantity=3, price="100.00")]),
+        RequestUpdate(lines=[ExpenseLineIn(title="Только скотч", quantity=3, unit="шт.")]),
     )
-    assert request.amount == Decimal("300.00")
     assert len(request.lines) == 1
+    assert request.lines[0].unit == "шт."
+    assert request.amount == Decimal("0.00")
 
 
 def test_only_draft_can_be_deleted(session, employee, project) -> None:
@@ -182,8 +310,6 @@ def test_numbers_are_sequential_and_unique(session, employee, project) -> None:
 
 
 def test_deleted_draft_does_not_free_its_number(session, employee, project) -> None:
-    """Номер удалённого черновика не должен достаться другой заявке:
-    черновик мог быть распечатан или отправлен до удаления."""
     first = svc.create_request(session, make(employee, project, BIG, submit=False))
     svc.delete_request(session, first.id)
     session.flush()
@@ -191,30 +317,45 @@ def test_deleted_draft_does_not_free_its_number(session, employee, project) -> N
     assert second.number == "РЗ-0002"
 
 
-def test_rejected_does_not_consume_limit(session, employee, project) -> None:
+def test_limit_counts_only_priced_requests(session, employee, project, advance) -> None:
+    """Пока закуп не назвал цену, тратить нечего — лимит не расходуется."""
+    from app.services.reports import current_period
+
+    year, month = current_period()
+    waiting = svc.create_request(session, make(employee, project, BIG))
+    session.flush()
+    assert svc.spent_by_employee(session, employee.id, year=year, month=month) == Decimal(
+        "0.00"
+    )
+
+    advance(waiting, to="priced", prices=PRICES)
+    session.flush()
+    assert svc.spent_by_employee(session, employee.id, year=year, month=month) == Decimal(
+        "580.00"
+    )
+
+
+def test_rejected_and_stock_do_not_consume_limit(
+    session, employee, project, advance
+) -> None:
     from app.services.reports import current_period
 
     year, month = current_period()
     approved = svc.create_request(session, make(employee, project, BIG))
-    svc.decide_request(session, approved.id, DecisionIn(approve=True))
+    advance(approved, to="approved", prices=PRICES)
 
     rejected = svc.create_request(session, make(employee, project, BIG))
+    advance(rejected, to="priced", prices=PRICES)
     svc.decide_request(
         session, rejected.id, DecisionIn(approve=False, comment="Не по проекту")
     )
+
+    from_stock = svc.create_request(session, make(employee, project, BIG))
+    advance(from_stock, to="fulfilled", prices={})
     session.flush()
 
     spent = svc.spent_by_employee(session, employee.id, year=year, month=month)
-    assert spent == Decimal("1850.00")
-
-
-def test_draft_does_not_consume_limit(session, employee, project) -> None:
-    from app.services.reports import current_period
-
-    year, month = current_period()
-    svc.create_request(session, make(employee, project, BIG, submit=False))
-    session.flush()
-    assert svc.spent_by_employee(session, employee.id, year=year, month=month) == Decimal("0.00")
+    assert spent == Decimal("580.00")
 
 
 def test_inactive_employee_cannot_submit(session, employee, project) -> None:

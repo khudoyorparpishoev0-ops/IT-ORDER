@@ -15,6 +15,7 @@ export type IconName =
   | 'ti-users'
   | 'ti-user-plus'
   | 'ti-building'
+  | 'ti-package'
   | 'ti-wallet'
   | 'ti-settings'
   | 'ti-help-circle'
@@ -92,6 +93,13 @@ export function IconSprite() {
       <path d="M9 7h1"></path>
       <path d="M9 11h1"></path>
       <path d="M9 15h1"></path>
+      </symbol>
+      <symbol id="ti-package" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"></path>
+      <path d="M12 12l8 -4.5"></path>
+      <path d="M12 12v9"></path>
+      <path d="M12 12l-8 -4.5"></path>
+      <path d="M16 5.25l-8 4.5"></path>
       </symbol>
       <symbol id="ti-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12"></path>

@@ -18,16 +18,19 @@ def as_admin(client, admin, login):
 
 
 def create_request(client, employee, project, price="1500.00") -> dict:
+    """Потребность без цены. Цену вернём в PRICES для шага закупа."""
     response = client.post(
         "/api/requests",
         json={
             "employee_id": employee.id,
             "project_id": project.id,
-            "lines": [{"title": "Материалы", "quantity": 1, "price": price}],
+            "lines": [{"title": "Материалы", "quantity": 1}],
         },
     )
     assert response.status_code == 201, response.text
-    return response.json()
+    request = response.json()
+    request["_price"] = price
+    return request
 
 
 # --------------------------------------------------------------------------
@@ -106,11 +109,12 @@ def test_required_project_fields_cannot_be_nulled(as_admin, project, field) -> N
 # --------------------------------------------------------------------------
 # Даты выплат
 # --------------------------------------------------------------------------
-def test_payment_in_the_future_is_rejected(client, login, employee, manager, finance, project) -> None:
+def test_payment_in_the_future_is_rejected(
+    client, login, employee, manager, procurement, finance, project, pipeline
+) -> None:
     login(employee)
     request = create_request(client, employee, project)
-    login(manager)
-    client.post(f"/api/requests/{request['id']}/decision", json={"approve": True})
+    pipeline(request["id"], manager=manager, buyer=procurement)
 
     login(finance)
     future = (utcnow() + timedelta(days=400)).isoformat()
@@ -122,11 +126,12 @@ def test_payment_in_the_future_is_rejected(client, login, employee, manager, fin
     assert "будущем" in response.json()["detail"]
 
 
-def test_payment_before_decision_is_rejected(client, login, employee, manager, finance, project) -> None:
+def test_payment_before_decision_is_rejected(
+    client, login, employee, manager, procurement, finance, project, pipeline
+) -> None:
     login(employee)
     request = create_request(client, employee, project)
-    login(manager)
-    client.post(f"/api/requests/{request['id']}/decision", json={"approve": True})
+    pipeline(request["id"], manager=manager, buyer=procurement)
 
     login(finance)
     earlier = (utcnow() - timedelta(days=3)).isoformat()
@@ -141,17 +146,15 @@ def test_payment_before_decision_is_rejected(client, login, employee, manager, f
 # --------------------------------------------------------------------------
 # Разделение обязанностей
 # --------------------------------------------------------------------------
-def test_approver_cannot_pay(client, login, admin, employee, project) -> None:
+def test_approver_cannot_pay(
+    client, login, admin, employee, procurement, project, pipeline
+) -> None:
     """У администратора есть оба права — и именно поэтому проверка нужна."""
     login(employee)
     request = create_request(client, employee, project)
+    pipeline(request["id"], manager=admin, buyer=procurement)
 
     login(admin)
-    decided = client.post(
-        f"/api/requests/{request['id']}/decision", json={"approve": True}
-    )
-    assert decided.status_code == 200, decided.text
-
     response = client.post(
         f"/api/requests/{request['id']}/payment",
         json={"method": "card", "document": "ПП-САМ"},
@@ -161,12 +164,11 @@ def test_approver_cannot_pay(client, login, admin, employee, project) -> None:
 
 
 def test_someone_else_can_pay_what_admin_approved(
-    client, login, admin, employee, finance, project
+    client, login, admin, employee, procurement, finance, project, pipeline
 ) -> None:
     login(employee)
     request = create_request(client, employee, project)
-    login(admin)
-    client.post(f"/api/requests/{request['id']}/decision", json={"approve": True})
+    pipeline(request["id"], manager=admin, buyer=procurement)
 
     login(finance)
     paid = client.post(
@@ -176,12 +178,13 @@ def test_someone_else_can_pay_what_admin_approved(
     assert paid.status_code == 200, paid.text
 
 
-def test_nobody_pays_their_own_request(client, login, finance, admin, project, session) -> None:
+def test_nobody_pays_their_own_request(
+    client, login, finance, admin, procurement, project, pipeline
+) -> None:
     """Даже с правом на выплату свою заявку оплачивает кто-то другой."""
     login(finance)
     request = create_request(client, finance, project)
-    login(admin)
-    client.post(f"/api/requests/{request['id']}/decision", json={"approve": True})
+    pipeline(request["id"], manager=admin, buyer=procurement)
 
     login(finance)
     response = client.post(
@@ -192,18 +195,23 @@ def test_nobody_pays_their_own_request(client, login, finance, admin, project, s
     assert "собственной заявке" in response.json()["detail"]
 
 
-def test_auto_approved_request_can_be_paid(client, login, employee, finance, project) -> None:
-    """Автоодобрение выполняет система, а не человек: выплата не блокируется."""
+def test_request_closed_by_stock_is_not_paid(
+    client, login, employee, manager, procurement, finance, project, pipeline
+) -> None:
+    """Всё нашлось на складе — платить нечего, и попытка отклоняется."""
     login(employee)
-    request = create_request(client, employee, project, price="100.00")
-    assert request["status"] == "approved"
+    request = create_request(client, employee, project)
+    closed = pipeline(
+        request["id"], manager=manager, buyer=procurement, prices={}, to="fulfilled"
+    )
+    assert closed["status"] == "fulfilled"
 
     login(finance)
-    paid = client.post(
+    response = client.post(
         f"/api/requests/{request['id']}/payment",
-        json={"method": "cash", "document": "ПП-МЕЛОЧЬ"},
+        json={"method": "cash", "document": "РКО-1"},
     )
-    assert paid.status_code == 200, paid.text
+    assert response.status_code == 409
 
 
 # --------------------------------------------------------------------------
@@ -218,7 +226,7 @@ def test_draft_cannot_move_to_disabled_project(client, login, admin, employee, p
         json={
             "employee_id": employee.id,
             "project_id": project.id,
-            "lines": [{"title": "Кисти", "quantity": 2, "price": "50.00"}],
+            "lines": [{"title": "Кисти", "quantity": 2}],
             "submit": False,
         },
     ).json()

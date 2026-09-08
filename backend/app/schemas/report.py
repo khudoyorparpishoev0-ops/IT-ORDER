@@ -25,10 +25,12 @@ class DashboardStats(BaseModel):
 class ApprovalQueueInfo(BaseModel):
     """Баннер очереди на панели."""
 
+    #: Сколько заявок ждёт согласования самой покупки.
     count: int
     oldest_employee: str | None
     oldest_days: int | None
-    auto_approve_threshold: Decimal
+    #: Сколько заявок вернулось из закупа и ждёт решения по сумме.
+    priced_count: int = 0
 
 
 class ProjectShare(BaseModel):

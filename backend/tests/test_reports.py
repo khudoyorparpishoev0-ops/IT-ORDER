@@ -7,23 +7,44 @@ from decimal import Decimal
 import pytest
 
 from app.db.models import Employee, PaymentMethod, Project
-from app.schemas.request import DecisionIn, ExpenseLineIn, PaymentIn, RequestCreate
+from app.schemas.request import (
+    DecisionIn,
+    ExpenseLineIn,
+    PaymentIn,
+    RequestCreate,
+    SourcingIn,
+    SourcingLineIn,
+)
 from app.services import reports as rep
 from app.services import requests as svc
 
 
 def add_request(session, employee, project, amount: str, *, approve=False, pay=False):
+    """Заявка на заданную сумму, проведённая по пути закупки.
+
+    Сумма появляется только после оценки закупа, поэтому «заявка на 1000»
+    в отчётах — это всегда заявка, дошедшая как минимум до PRICED.
+    """
     request = svc.create_request(
         session,
         RequestCreate(
             employee_id=employee.id,
             project_id=project.id,
-            lines=[ExpenseLineIn(title="Расход", quantity=1, price=amount)],
+            lines=[ExpenseLineIn(title="Расход", quantity=1)],
             submit=True,
         ),
     )
-    if approve and request.status.value == "pending":
-        svc.decide_request(session, request.id, DecisionIn(approve=True))
+    svc.decide_request(session, request.id, DecisionIn(approve=True, actor="Руководитель"))
+    svc.apply_sourcing(
+        session,
+        request.id,
+        SourcingIn(lines=[SourcingLineIn(id=request.lines[0].id, price=amount)]),
+        actor="Закуп",
+    )
+    if approve or pay:
+        svc.decide_request(
+            session, request.id, DecisionIn(approve=True, actor="Руководитель")
+        )
     if pay:
         svc.pay_request(
             session, request.id, PaymentIn(method=PaymentMethod.CARD, document="ПП-0001")
@@ -91,12 +112,25 @@ def test_dashboard_without_budget(session, employee, project) -> None:
 
 
 def test_queue_reports_oldest(session, employee, project) -> None:
-    add_request(session, employee, project, "2000.00")
+    """Очередь считает оба шага руководителя по отдельности: сколько ждёт
+    согласования покупки и сколько уже оценено закупом."""
+    svc.create_request(
+        session,
+        RequestCreate(
+            employee_id=employee.id,
+            project_id=project.id,
+            lines=[ExpenseLineIn(title="Расход", quantity=1)],
+            submit=True,
+        ),
+    )
+    add_request(session, employee, project, "2000.00")  # дошла до оценки
+    session.flush()
+
     queue = rep.approval_queue(session)
     assert queue.count == 1
     assert queue.oldest_employee == "Иван Петров"
     assert queue.oldest_days == 0
-    assert queue.auto_approve_threshold == Decimal("500.00")
+    assert queue.priced_count == 1
 
 
 def test_queue_empty(session) -> None:

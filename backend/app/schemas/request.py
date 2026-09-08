@@ -12,17 +12,54 @@ from app.schemas.common import ORMModel
 
 
 class ExpenseLineIn(BaseModel):
+    """Строка заявки от сотрудника: что нужно и сколько.
+
+    Цены здесь нет намеренно — их проставляет отдел закупа после проверки
+    склада. Сотрудник описывает потребность, а не смету.
+    """
+
     title: str = Field(min_length=1, max_length=200)
     quantity: int = Field(ge=1)
-    price: Decimal = Field(ge=0, decimal_places=2)
+    #: «шт.», «мешок», «м²» — словами, справочника единиц нет.
+    unit: str | None = Field(default=None, max_length=32)
 
 
 class ExpenseLineOut(ORMModel):
     id: int
     title: str
     quantity: int
-    price: Decimal
-    total: Decimal
+    unit: str | None
+    #: NULL — строку ещё не оценил закуп.
+    price: Decimal | None
+    total: Decimal | None
+    #: Нашлось на складе: покупать не нужно, в сумму не входит.
+    from_stock: bool
+
+
+class SourcingLineIn(BaseModel):
+    """Решение закупа по одной строке: со склада или почём купить."""
+
+    id: int
+    from_stock: bool = False
+    price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+
+    @model_validator(mode="after")
+    def price_required_unless_from_stock(self) -> "SourcingLineIn":
+        if self.from_stock:
+            # Цена со склада не нужна: денег по этой строке не будет.
+            return self
+        if self.price is None:
+            raise ValueError(
+                "Укажите цену или отметьте, что материал есть на складе"
+            )
+        return self
+
+
+class SourcingIn(BaseModel):
+    """Ответ отдела закупа по всей заявке."""
+
+    lines: list[SourcingLineIn] = Field(min_length=1)
+    comment: str | None = Field(default=None, max_length=2000)
 
 
 class RequestEventOut(BaseModel):
@@ -52,6 +89,8 @@ class RequestListItem(BaseModel):
     project_id: int
     project_name: str
     amount: Decimal
+    #: false — заявку ещё не оценил закуп, сумма пока ничего не значит.
+    priced: bool
     status: RequestStatus
     #: Дата подачи в формате 04.09.2026. Для черновика — дата создания.
     date: str
@@ -67,6 +106,8 @@ class RequestDetail(RequestListItem):
     payment: PaymentOut | None
     decision_comment: str | None
     decided_by: str | None
+    sourced_by: str | None
+    sourcing_comment: str | None
 
 
 class RequestCreate(BaseModel):

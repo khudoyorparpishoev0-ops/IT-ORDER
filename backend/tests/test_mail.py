@@ -227,21 +227,24 @@ def test_new_request_notifies_approvers(
     assert employee.email not in recipients, "автору о своей заявке не пишем"
 
 
-def test_auto_approved_request_sends_nothing(
-    client, login, employee, manager, project, mailbox
+def test_sourcing_notifies_procurement(
+    client, login, employee, manager, procurement, project, mailbox, pipeline
 ) -> None:
-    """Заявка ниже порога закрывается сама — решать нечего."""
+    """Потребность согласована — письмо уходит в отдел закупа."""
     login(employee)
-    mailbox.clear()
-    client.post(
+    created = client.post(
         "/api/requests",
         json={
             "employee_id": employee.id,
             "project_id": project.id,
-            "lines": [{"title": "Обед", "quantity": 1, "price": "30.00"}],
+            "lines": [{"title": "Обед", "quantity": 1}],
         },
-    )
-    assert mailbox == []
+    ).json()
+    mailbox.clear()
+    pipeline(created["id"], manager=manager, buyer=procurement, to="sourcing")
+
+    assert [m["To"] for m in mailbox] == [procurement.email]
+    assert "оценки" in mailbox[0]["Subject"]
 
 
 def test_notification_can_be_turned_off(

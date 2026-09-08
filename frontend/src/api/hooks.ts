@@ -27,6 +27,7 @@ import type {
   RequestInput,
   RequestListItem,
   RequestStatus,
+  SourcingInput,
   TeamMember,
 } from './types';
 
@@ -287,6 +288,22 @@ export function usePayRequest() {
   return useMutation({
     mutationFn: ({ id, ...data }: PaymentInput & { id: number }) =>
       api<RequestDetail>(`/api/requests/${id}/payment`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_data, variables) => {
+      invalidateRequests(qc);
+      qc.invalidateQueries({ queryKey: keys.request(variables.id) });
+    },
+  });
+}
+
+/** Ответ отдела закупа: что со склада, что почём купить. */
+export function useSourcing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: SourcingInput & { id: number }) =>
+      api<RequestDetail>(`/api/requests/${id}/sourcing`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),

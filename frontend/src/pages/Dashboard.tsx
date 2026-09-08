@@ -9,7 +9,7 @@ import { RequestsTable } from '@/components/RequestsTable';
 import { useDownload } from '@/hooks/useDownload';
 import { useSortedRequests } from '@/hooks/useSortedRequests';
 import { useDashboard, useQueueInfo, useRequests } from '@/api/hooks';
-import { money, monthAfterZa, periodLabel, plural, somoni } from '@/data/format';
+import { money, monthAfterZa, periodLabel, plural } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 import { useShell } from '@/shell/ShellContext';
 import { useAuth } from '@/api/auth';
@@ -148,7 +148,9 @@ export function Dashboard() {
                 .{' '}
               </>
             )}
-            Порог автоодобрения — {somoni(q.auto_approve_threshold)}
+            {q.priced_count > 0
+              ? `Ещё ${q.priced_count} ${plural(q.priced_count, 'заявка', 'заявки', 'заявок')} вернулись из закупа и ждут решения по сумме.`
+              : 'Заявок с ценами от закупа сейчас нет.'}
           </div>
         </div>
       </div>

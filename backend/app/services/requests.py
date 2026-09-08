@@ -2,13 +2,22 @@
 
 Переходы статусов — единственное место, где меняется `status`:
 
-    DRAFT ──submit──▶ PENDING ──approve──▶ APPROVED ──pay──▶ PAID
-                         │
-                         └──reject──▶ REJECTED
+    DRAFT ─submit─▶ PENDING ─approve─▶ SOURCING ─priced──▶ PRICED
+                       │                   │                 │
+                       │                   └─всё со склада──▶ FULFILLED
+                       │                                     │
+                       └──reject──▶ REJECTED ◀──reject───────┘
+                                                    │
+                                          PRICED ─approve─▶ APPROVED ─pay─▶ PAID
 
-Заявка на сумму не выше порога автоодобрения проходит из DRAFT сразу
-в APPROVED. Обратных переходов нет: ошибочное решение исправляется
-новой заявкой, история неизменяема.
+Сотрудник описывает потребность без цен: цены знает отдел закупа.
+Руководитель решает дважды — сначала нужна ли покупка (PENDING), потом
+согласен ли он с суммой (PRICED). Между решениями закуп проверяет склад:
+что нашлось — закрывает складом, на остальное ставит цены. Нашлось всё —
+заявка закрывается как FULFILLED, денег не потребовалось.
+
+Обратных переходов нет: ошибочное решение исправляется новой заявкой,
+история неизменяема.
 """
 
 from __future__ import annotations
@@ -46,13 +55,20 @@ from app.schemas.request import (
     PaymentIn,
     RequestCreate,
     RequestUpdate,
+    SourcingIn,
 )
 from app.services.audit import write_audit
 
 SYSTEM_ACTOR = "СИСТЕМА"
 
-#: Статусы, в которых заявка уже потрачена из лимита сотрудника.
-SPENT_STATUSES = (RequestStatus.PENDING, RequestStatus.APPROVED, RequestStatus.PAID)
+#: Статусы, в которых у заявки есть настоящая сумма и она считается
+#: расходом. До оценки закупа суммы нет вовсе, а закрытая складом заявка
+#: денег не стоила.
+SPENT_STATUSES = (
+    RequestStatus.PRICED,
+    RequestStatus.APPROVED,
+    RequestStatus.PAID,
+)
 
 
 # --------------------------------------------------------------------------
@@ -167,26 +183,47 @@ def spent_by_employee(
 # --------------------------------------------------------------------------
 # Запись
 # --------------------------------------------------------------------------
-def _line_total(line: ExpenseLineIn) -> Decimal:
-    return to_decimal(to_decimal(line.price) * line.quantity)
-
-
 def _apply_lines(request: ExpenseRequest, lines: list[ExpenseLineIn]) -> None:
-    """Заменяет состав заявки и пересчитывает итог."""
+    """Заменяет состав заявки. Цен здесь нет — их проставит закуп."""
     request.lines.clear()
-    total = Decimal("0.00")
     for line in lines:
-        line_total = _line_total(line)
-        total += line_total
         request.lines.append(
             ExpenseLine(
                 title=line.title,
                 quantity=line.quantity,
-                price=to_decimal(line.price),
-                total=line_total,
+                unit=(line.unit or "").strip() or None,
+                price=None,
+                total=None,
+                from_stock=False,
             )
         )
+    request.amount = Decimal("0.00")
+
+
+def recalculate_amount(request: ExpenseRequest) -> Decimal:
+    """Сумма заявки — только оценённые строки, которых нет на складе.
+
+    Складские строки денег не стоят и в сумму не входят: иначе бюджет
+    показывал бы расход, которого не было.
+    """
+    total = sum(
+        (to_decimal(line.total) for line in request.lines if not line.from_stock and line.total),
+        Decimal("0.00"),
+    )
     request.amount = to_decimal(total)
+    return request.amount
+
+
+def is_priced(request: ExpenseRequest) -> bool:
+    """Прошла ли заявка оценку закупа. До этого сумма ничего не значит."""
+    return request.status in (
+        RequestStatus.PRICED,
+        RequestStatus.APPROVED,
+        RequestStatus.PAID,
+        RequestStatus.FULFILLED,
+    ) or (
+        request.status is RequestStatus.REJECTED and request.sourced_at is not None
+    )
 
 
 def _add_event(
@@ -257,46 +294,144 @@ def update_request(
 def submit_request(
     session: Session, request: ExpenseRequest, *, actor: str | None = None
 ) -> ExpenseRequest:
-    """Отправляет черновик на согласование.
+    """Отправляет черновик руководителю — согласовать саму покупку.
 
-    Сумма не выше порога автоодобрения закрывается без участия руководителя.
+    Автоодобрения по сумме здесь нет и быть не может: суммы на этом шаге
+    ещё не существует, её узнает закуп.
     """
     if request.status is not RequestStatus.DRAFT:
         raise ConflictError(f"Заявка {request.number} уже подана")
     if not request.lines:
-        raise ValidationError("В заявке нет ни одной строки расхода")
+        raise ValidationError("В заявке нет ни одной строки")
 
-    now = utcnow()
     request.status = RequestStatus.PENDING
-    request.submitted_at = now
-    _add_event(request, EventKind.SUBMITTED, "Заявка отправлена на утверждение", actor)
-
-    threshold = to_decimal(get_settings().auto_approve_threshold)
-    if request.amount <= threshold:
-        request.status = RequestStatus.APPROVED
-        request.decided_at = now
-        request.decided_by = SYSTEM_ACTOR
-        _add_event(
-            request,
-            EventKind.AUTO_APPROVED,
-            f"Одобрено автоматически: сумма не превышает порог {somoni(threshold)}",
-        )
-        write_audit(
-            session, entity="request", entity_id=request.number, action="auto_approve"
-        )
-    else:
-        write_audit(session, entity="request", entity_id=request.number, action="submit")
-
+    request.submitted_at = utcnow()
+    _add_event(
+        request, EventKind.SUBMITTED, "Заявка отправлена на согласование", actor
+    )
+    write_audit(session, entity="request", entity_id=request.number, action="submit")
     session.flush()
     return request
+
+
+def start_sourcing(
+    session: Session, request: ExpenseRequest, *, actor: str | None = None
+) -> None:
+    """Потребность одобрена — заявка уходит в отдел закупа."""
+    request.status = RequestStatus.SOURCING
+    _add_event(
+        request,
+        EventKind.SOURCING,
+        "Потребность одобрена, заявка передана в отдел закупа",
+        actor,
+    )
+    write_audit(session, entity="request", entity_id=request.number, action="sourcing")
+
+
+def apply_sourcing(
+    session: Session, request_id: int, data: SourcingIn, *, actor: str
+) -> ExpenseRequest:
+    """Ответ отдела закупа: что нашлось на складе, а что почём купить.
+
+    Заявка возвращается руководителю на утверждение суммы. Если склад
+    закрыл всё, покупать нечего — заявка завершается без оплаты.
+    """
+    request = get_request(session, request_id, full=True)
+    if request.status is not RequestStatus.SOURCING:
+        raise ConflictError(
+            f"Заявка {request.number} не ждёт оценки закупа "
+            f"(статус {request.status.value})"
+        )
+
+    decisions = {item.id: item for item in data.lines}
+    known = {line.id for line in request.lines}
+    if decisions.keys() != known:
+        raise ValidationError(
+            "Ответ закупа должен покрывать все строки заявки, и только их"
+        )
+
+    for line in request.lines:
+        decision = decisions[line.id]
+        line.from_stock = decision.from_stock
+        if decision.from_stock:
+            # Со склада — денег по строке нет, цену не храним.
+            line.price = None
+            line.total = None
+        else:
+            line.price = to_decimal(decision.price)
+            line.total = to_decimal(line.price * line.quantity)
+
+    recalculate_amount(request)
+    now = utcnow()
+    request.sourced_at = now
+    request.sourced_by = actor
+    request.sourcing_comment = (data.comment or "").strip() or None
+
+    from_stock = [line for line in request.lines if line.from_stock]
+    to_buy = [line for line in request.lines if not line.from_stock]
+
+    if from_stock:
+        _add_event(
+            request,
+            EventKind.FULFILLED,
+            "Со склада: " + ", ".join(line.title for line in from_stock),
+            actor,
+        )
+
+    if to_buy:
+        request.status = RequestStatus.PRICED
+        _add_event(
+            request,
+            EventKind.PRICED,
+            f"Закуп оценил заявку на {somoni(request.amount)}"
+            + (f", {len(from_stock)} поз. закрыто складом" if from_stock else ""),
+            actor,
+        )
+        action = "priced"
+    else:
+        # Покупать нечего: заявка закрыта складом, оплаты не будет.
+        request.status = RequestStatus.FULFILLED
+        request.decided_at = now
+        _add_event(
+            request,
+            EventKind.FULFILLED,
+            "Всё нашлось на складе, покупка не требуется",
+            actor,
+        )
+        action = "fulfilled"
+
+    if request.sourcing_comment:
+        _add_event(
+            request, EventKind.COMMENTED, f"Закуп: «{request.sourcing_comment}»", actor
+        )
+
+    write_audit(
+        session,
+        entity="request",
+        entity_id=request.number,
+        action=action,
+        username=actor,
+        details=somoni(request.amount) if to_buy else "закрыто складом",
+    )
+    session.flush()
+    return request
+
+
+#: Статусы, в которых заявка ждёт решения руководителя. Их два: сначала
+#: согласуется сама покупка, потом — сумма, которую назвал закуп.
+DECIDABLE = (RequestStatus.PENDING, RequestStatus.PRICED)
 
 
 def decide_request(
     session: Session, request_id: int, data: DecisionIn
 ) -> ExpenseRequest:
-    """Решение руководителя: одобрить или отклонить."""
+    """Решение руководителя.
+
+    Из PENDING одобрение отправляет заявку в закуп, из PRICED — в оплату.
+    Отказ на любом шаге закрывает заявку.
+    """
     request = get_request(session, request_id, full=True)
-    if request.status is not RequestStatus.PENDING:
+    if request.status not in DECIDABLE:
         raise ConflictError(
             f"Заявка {request.number} не ждёт решения (статус {request.status.value})"
         )
@@ -305,27 +440,52 @@ def decide_request(
     if not data.approve and not comment:
         raise ValidationError("Комментарий обязателен при отклонении заявки")
 
-    request.status = RequestStatus.APPROVED if data.approve else RequestStatus.REJECTED
-    request.decided_at = utcnow()
-    request.decided_by = data.actor
-    request.decision_comment = comment
+    deciding_amount = request.status is RequestStatus.PRICED
 
-    if data.approve:
+    if not data.approve:
+        request.status = RequestStatus.REJECTED
+        request.decided_at = utcnow()
+        request.decided_by = data.actor
+        request.decision_comment = comment
         _add_event(
-            request, EventKind.APPROVED, f"Заявка одобрена на {somoni(request.amount)}", data.actor
+            request, EventKind.REJECTED, f"Заявка отклонена: {comment}", data.actor
+        )
+        write_audit(
+            session,
+            entity="request",
+            entity_id=request.number,
+            action="reject",
+            username=data.actor,
+        )
+        session.flush()
+        return request
+
+    if deciding_amount:
+        request.status = RequestStatus.APPROVED
+        request.decided_at = utcnow()
+        request.decided_by = data.actor
+        request.decision_comment = comment
+        _add_event(
+            request,
+            EventKind.APPROVED,
+            f"Сумма утверждена: {somoni(request.amount)}",
+            data.actor,
+        )
+        write_audit(
+            session,
+            entity="request",
+            entity_id=request.number,
+            action="approve",
+            username=data.actor,
         )
     else:
-        _add_event(request, EventKind.REJECTED, f"Заявка отклонена: {comment}", data.actor)
-    if comment and data.approve:
+        # Согласована потребность, не деньги: суммы ещё нет.
+        request.decision_comment = comment
+        start_sourcing(session, request, actor=data.actor)
+
+    if comment:
         _add_event(request, EventKind.COMMENTED, f"Комментарий: «{comment}»", data.actor)
 
-    write_audit(
-        session,
-        entity="request",
-        entity_id=request.number,
-        action="approve" if data.approve else "reject",
-        username=data.actor,
-    )
     session.flush()
     return request
 

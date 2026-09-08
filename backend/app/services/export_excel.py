@@ -36,9 +36,12 @@ CELL_BORDER = Border(bottom=_thin)
 
 STATUS_LABEL: dict[RequestStatus, str] = {
     RequestStatus.DRAFT: "Черновик",
-    RequestStatus.PENDING: "На утверждении",
-    RequestStatus.APPROVED: "Одобрена",
+    RequestStatus.PENDING: "Согласование покупки",
+    RequestStatus.SOURCING: "У закупа",
+    RequestStatus.PRICED: "Согласование суммы",
+    RequestStatus.APPROVED: "К оплате",
     RequestStatus.PAID: "Оплачена",
+    RequestStatus.FULFILLED: "Выдано со склада",
     RequestStatus.REJECTED: "Отклонена",
 }
 

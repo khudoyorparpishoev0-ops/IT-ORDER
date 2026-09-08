@@ -24,12 +24,21 @@ import { useShell } from '@/shell/ShellContext';
  *  иначе панель разрешит ввод, который тут же отклонит API. */
 const MIN_PASSWORD = 10;
 
-const ROLES: EmployeeRole[] = ['employee', 'manager', 'finance', 'admin'];
+const ROLES: EmployeeRole[] = [
+  'employee',
+  'manager',
+  'procurement',
+  'finance',
+  'admin',
+];
 
 /** Что роль даёт — подсказка под выбором, чтобы права не назначали наугад. */
 const ROLE_NOTE: Record<EmployeeRole, string> = {
   employee: 'Подаёт заявки и видит только свои.',
-  manager: 'Видит все заявки, утверждает и отклоняет, смотрит отчёты.',
+  manager:
+    'Видит все заявки, согласует покупку и утверждает сумму, смотрит отчёты.',
+  procurement:
+    'Видит все заявки, проверяет склад и проставляет цены. Решений не принимает.',
   finance: 'Видит все заявки, проводит выплаты, смотрит отчёты.',
   admin: 'Всё перечисленное плюс справочники, роли и пароли.',
 };

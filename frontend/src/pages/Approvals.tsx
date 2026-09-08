@@ -12,9 +12,16 @@ type Decision = 'approve' | 'reject';
 
 const PAGE_SIZE = 50;
 
+//: Статусы, в которых руководителю есть что решать.
+const DECIDABLE: RequestStatus[] = ['pending', 'priced'];
+
 const TABS: { key: RequestStatus; label: string }[] = [
-  { key: 'pending', label: 'На утверждении' },
-  { key: 'approved', label: 'Утверждены' },
+  // Два решения руководителя — две очереди: сперва нужна ли покупка,
+  // потом согласен ли он с суммой, которую назвал закуп.
+  { key: 'pending', label: 'Покупка' },
+  { key: 'priced', label: 'Сумма' },
+  { key: 'sourcing', label: 'У закупа' },
+  { key: 'approved', label: 'К оплате' },
   { key: 'rejected', label: 'Отклонены' },
 ];
 
@@ -70,9 +77,11 @@ export function Approvals() {
       {
         onSuccess: () => {
           flash(
-            approve
-              ? `Заявка ${active.number} одобрена`
-              : `Заявка ${active.number} отклонена`,
+            !approve
+              ? `Заявка ${active.number} отклонена`
+              : active.priced
+                ? `Заявка ${active.number} утверждена к оплате`
+                : `Заявка ${active.number} передана в отдел закупа`,
             approve ? 'var(--dot-ok)' : 'var(--dot-err)',
           );
           reset();
@@ -87,7 +96,7 @@ export function Approvals() {
       <PageHeader
         kicker={periodLabel()}
         title="Согласование"
-        lead="Решения по заявкам сотрудников, комментарий к отклонению обязателен"
+        lead="Сперва согласуйте саму покупку, после оценки закупа — сумму. Комментарий к отклонению обязателен"
       />
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--gap)' }}>
@@ -115,12 +124,18 @@ export function Approvals() {
         error={list.error}
         isEmpty={items.length === 0}
         emptyTitle={
-          tab === 'pending' ? 'Все заявки рассмотрены' : 'В этой вкладке заявок нет'
+          tab === 'pending'
+            ? 'Все заявки рассмотрены'
+            : tab === 'priced'
+              ? 'Оценённых заявок нет'
+              : 'В этой вкладке заявок нет'
         }
         emptyNote={
           tab === 'pending'
             ? 'Новые заявки появятся здесь сразу после подачи.'
-            : undefined
+            : tab === 'priced'
+              ? 'Здесь появятся заявки, которые вернул отдел закупа с ценами.'
+              : undefined
         }
         onRetry={() => list.refetch()}
       >
@@ -260,14 +275,35 @@ export function Approvals() {
                         {active.lines.map((l) => (
                           <tr key={l.id}>
                             <td>{l.title}</td>
-                            <td className="right num">{l.quantity}</td>
-                            <td className="right num">{money(l.price)}</td>
-                            <td className="right num">{money(l.total)}</td>
+                            <td className="right num">
+                              {l.quantity}
+                              {l.unit ? ` ${l.unit}` : ''}
+                            </td>
+                            <td className="right">
+                              {l.from_stock ? (
+                                <span className="caption">со склада</span>
+                              ) : l.price === null ? (
+                                <span className="caption">—</span>
+                              ) : (
+                                <span className="num">{money(l.price)}</span>
+                              )}
+                            </td>
+                            <td className="right">
+                              {l.from_stock || l.total === null ? (
+                                <span className="caption">—</span>
+                              ) : (
+                                <span className="num">{money(l.total)}</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                         <tr className="total-row">
-                          <td colSpan={3}>Итого к возмещению</td>
-                          <td className="right metric-sm">{money(active.amount)}</td>
+                          <td colSpan={3}>
+                            {active.priced ? 'Итого к оплате' : 'Сумму назовёт закуп'}
+                          </td>
+                          <td className="right metric-sm">
+                            {active.priced ? money(active.amount) : '—'}
+                          </td>
                         </tr>
                       </tbody>
                     </table>
@@ -329,7 +365,7 @@ export function Approvals() {
             )}
           </div>
 
-          {active && active.status === 'pending' && active.employee_id === user?.id && (
+          {active && DECIDABLE.includes(active.status) && active.employee_id === user?.id && (
             <section
               className="card"
               style={{ flex: '1 1 300px', minWidth: 0, position: 'sticky', top: 88 }}
@@ -342,7 +378,7 @@ export function Approvals() {
             </section>
           )}
 
-          {active && active.status === 'pending' && active.employee_id !== user?.id && (
+          {active && DECIDABLE.includes(active.status) && active.employee_id !== user?.id && (
             <section
               className="card"
               aria-label="Решение по заявке"
@@ -355,7 +391,7 @@ export function Approvals() {
                 style={{ display: 'grid', gap: 8, marginTop: 16 }}
               >
                 <DecisionOption
-                  label="Одобрить"
+                  label={active.priced ? 'Утвердить сумму' : 'Согласовать покупку'}
                   accent="var(--dot-ok)"
                   active={approve}
                   onSelect={() => {
@@ -405,9 +441,11 @@ export function Approvals() {
                 >
                   {decide.isPending
                     ? 'Сохраняем…'
-                    : approve
-                      ? `Одобрить ${somoni(active.amount)}`
-                      : 'Отклонить заявку'}
+                    : !approve
+                      ? 'Отклонить заявку'
+                      : active.priced
+                        ? `Утвердить ${somoni(active.amount)}`
+                        : 'Согласовать покупку'}
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={reset}>
                   Отмена

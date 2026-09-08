@@ -205,6 +205,17 @@ def finance(session) -> Employee:
 
 
 @pytest.fixture
+def procurement(session) -> Employee:
+    return make_employee(
+        session,
+        full_name="Ольга Кузнецова",
+        position="Снабженец",
+        email="o.kuznetsova@it-hona.tj",
+        role=EmployeeRole.PROCUREMENT,
+    )
+
+
+@pytest.fixture
 def admin(session) -> Employee:
     return make_employee(
         session,
@@ -289,6 +300,119 @@ def as_manager(client, manager, login):
     """Клиент, вошедший руководителем — самая частая роль в тестах API."""
     login(manager)
     return client
+
+
+@pytest.fixture
+def advance(session):
+    """Проводит заявку по пути закупки до нужного шага.
+
+    Путь длинный (согласование покупки → закуп → согласование суммы →
+    оплата), и повторять его в каждом тесте — значит переписать все тесты
+    при следующей правке процесса.
+
+    `prices` задаёт цену по названию строки; строка без цены считается
+    найденной на складе.
+    """
+    from app.schemas.request import DecisionIn, SourcingIn, SourcingLineIn
+    from app.services import requests as svc
+
+    def _advance(
+        request,
+        *,
+        to: str,
+        prices: dict[str, str] | None = None,
+        manager: str = "Артём Ковалёв",
+        buyer: str = "Ольга Кузнецова",
+        comment: str | None = None,
+    ):
+        if to == "pending":
+            return request
+
+        svc.decide_request(session, request.id, DecisionIn(approve=True, actor=manager))
+        if to == "sourcing":
+            return request
+
+        # Пустой словарь — осмысленный ввод: «всё нашлось на складе».
+        # `prices or {...}` затирал бы его набором цен по умолчанию.
+        if prices is None:
+            prices = {line.title: "100.00" for line in request.lines}
+        svc.apply_sourcing(
+            session,
+            request.id,
+            SourcingIn(
+                lines=[
+                    SourcingLineIn(
+                        id=line.id,
+                        from_stock=line.title not in prices,
+                        price=prices.get(line.title),
+                    )
+                    for line in request.lines
+                ],
+                comment=comment,
+            ),
+            actor=buyer,
+        )
+        if to in ("priced", "fulfilled"):
+            return request
+
+        svc.decide_request(session, request.id, DecisionIn(approve=True, actor=manager))
+        return request
+
+    return _advance
+
+
+@pytest.fixture
+def pipeline(client, login):
+    """То же, что `advance`, но через API и под нужными ролями.
+
+    Возвращает карточку заявки на том шаге, до которого её довели.
+    """
+
+    def _pipeline(
+        request_id: int,
+        *,
+        manager: Employee,
+        buyer: Employee,
+        prices: dict[str, str] | None = None,
+        to: str = "approved",
+    ) -> dict:
+        login(manager)
+        response = client.post(
+            f"/api/requests/{request_id}/decision", json={"approve": True}
+        )
+        assert response.status_code == 200, response.text
+        if to == "sourcing":
+            return response.json()
+
+        login(buyer)
+        detail = client.get(f"/api/requests/{request_id}").json()
+        if prices is None:
+            prices = {line["title"]: "100.00" for line in detail["lines"]}
+        sourcing = client.post(
+            f"/api/requests/{request_id}/sourcing",
+            json={
+                "lines": [
+                    {
+                        "id": line["id"],
+                        "from_stock": line["title"] not in prices,
+                        "price": prices.get(line["title"]),
+                    }
+                    for line in detail["lines"]
+                ]
+            },
+        )
+        assert sourcing.status_code == 200, sourcing.text
+        if to in ("priced", "fulfilled"):
+            return sourcing.json()
+
+        login(manager)
+        decided = client.post(
+            f"/api/requests/{request_id}/decision", json={"approve": True}
+        )
+        assert decided.status_code == 200, decided.text
+        return decided.json()
+
+    return _pipeline
 
 
 @pytest.fixture

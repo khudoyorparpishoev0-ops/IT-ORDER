@@ -24,25 +24,41 @@ from app.db.base import Base, CreatedAt, Money, Name, ShortStr, Timestamp
 
 
 class RequestStatus(str, enum.Enum):
-    """Статусы заявки. Совпадают с макетом и фронтендом."""
+    """Статусы заявки. Порядок соответствует пути закупки.
+
+    Сотрудник описывает потребность без цен: цены знает отдел закупа.
+    Руководитель решает дважды — сначала нужна ли покупка вообще, потом
+    согласна ли компания с суммой.
+    """
 
     DRAFT = "draft"
+    #: Потребность на согласовании у руководителя.
     PENDING = "pending"
+    #: У отдела закупа: проверка склада и цены.
+    SOURCING = "sourcing"
+    #: Цены проставлены, сумма ждёт решения руководителя.
+    PRICED = "priced"
+    #: Сумма утверждена, ждёт оплаты.
     APPROVED = "approved"
     PAID = "paid"
+    #: Всё нашлось на складе — выдано, денег не потребовалось.
+    FULFILLED = "fulfilled"
     REJECTED = "rejected"
 
 
 class EmployeeRole(str, enum.Enum):
     """Роль в согласовании.
 
-    EMPLOYEE подаёт заявки и видит только свои. MANAGER согласует чужие,
-    FINANCE проводит выплаты, ADMIN ведёт справочники и может всё.
+    EMPLOYEE подаёт заявки и видит только свои. MANAGER согласует чужие —
+    сначала потребность, потом сумму. PROCUREMENT проверяет склад и ставит
+    цены. FINANCE проводит выплаты, ADMIN ведёт справочники и может всё.
     Права проверяются в app/core/permissions.py.
     """
 
     EMPLOYEE = "employee"
     MANAGER = "manager"
+    #: Отдел закупа: проверяет склад и проставляет цены.
+    PROCUREMENT = "procurement"
     FINANCE = "finance"
     ADMIN = "admin"
 
@@ -59,6 +75,12 @@ class EventKind(str, enum.Enum):
     SUBMITTED = "submitted"
     COMMENTED = "commented"
     VIEWED = "viewed"
+    #: Потребность одобрена, заявка ушла в закуп.
+    SOURCING = "sourcing"
+    #: Закуп проверил склад и проставил цены.
+    PRICED = "priced"
+    #: Строка закрыта складом — покупать не нужно.
+    FULFILLED = "fulfilled"
     APPROVED = "approved"
     AUTO_APPROVED = "auto_approved"
     REJECTED = "rejected"
@@ -205,6 +227,9 @@ class ExpenseRequest(Base):
 
     created_at: Mapped[CreatedAt]
     submitted_at: Mapped[Timestamp | None]
+    #: Когда закуп вернул заявку с ценами или закрыл её складом.
+    sourced_at: Mapped[Timestamp | None]
+    #: Итоговое решение по сумме.
     decided_at: Mapped[Timestamp | None]
     paid_at: Mapped[Timestamp | None]
 
@@ -212,6 +237,10 @@ class ExpenseRequest(Base):
     decision_comment: Mapped[str | None] = mapped_column(Text)
     #: Кто принял решение. Заполняется из сессии с фазы 3.
     decided_by: Mapped[str | None] = mapped_column(String(200))
+    #: Кто из отдела закупа оценил заявку.
+    sourced_by: Mapped[str | None] = mapped_column(String(200))
+    #: Комментарий закупа: почему такие цены, что нашлось на складе.
+    sourcing_comment: Mapped[str | None] = mapped_column(Text)
 
     employee: Mapped[Employee] = relationship(back_populates="requests")
     project: Mapped[Project] = relationship(back_populates="requests")
@@ -247,17 +276,25 @@ class ExpenseLine(Base):
     )
     title: Mapped[Name]
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    price: Mapped[Money] = mapped_column(nullable=False)
+    #: Единица измерения словами: «шт.», «мешок», «м²». Сотрудник пишет
+    #: как привык — справочника единиц у нас нет.
+    unit: Mapped[str | None] = mapped_column(String(32))
+    #: Цена за единицу. NULL — строку ещё не оценил закуп: сотрудник
+    #: описывает потребность, цены он знать не обязан.
+    price: Mapped[Money | None] = mapped_column()
     #: Итог строки хранится, а не считается на лету: цена может измениться
     #: в справочнике, а сумма поданной заявки меняться не должна.
-    total: Mapped[Money] = mapped_column(nullable=False)
+    total: Mapped[Money | None] = mapped_column()
+    #: Закуп нашёл материал на складе: покупать не нужно, в сумму заявки
+    #: строка не входит.
+    from_stock: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     request: Mapped[ExpenseRequest] = relationship(back_populates="lines")
 
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_lines_quantity_positive"),
-        CheckConstraint("price >= 0", name="ck_lines_price_non_negative"),
-        CheckConstraint("total >= 0", name="ck_lines_total_non_negative"),
+        CheckConstraint("price IS NULL OR price >= 0", name="ck_lines_price_non_negative"),
+        CheckConstraint("total IS NULL OR total >= 0", name="ck_lines_total_non_negative"),
         Index("ix_lines_request", "request_id"),
     )
 

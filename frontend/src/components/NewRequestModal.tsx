@@ -5,12 +5,11 @@ import { Overlay } from './Overlay';
 import { useAuth } from '@/api/auth';
 import { useCreateRequest, useEmployees, useProjects } from '@/api/hooks';
 import type { ExpenseLineInput } from '@/api/types';
-import { money } from '@/data/format';
 import { useShell } from '@/shell/ShellContext';
 
-type Line = { title: string; quantity: string; price: string };
+type Line = { title: string; quantity: string; unit: string };
 
-const EMPTY: Line = { title: '', quantity: '1', price: '' };
+const EMPTY: Line = { title: '', quantity: '1', unit: '' };
 
 /**
  * Подача заявки. Сумму по строкам считаем и здесь — чтобы человек видел
@@ -34,17 +33,10 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
   const activeProjects = (projects.data ?? []).filter((p) => p.active);
   const activeEmployees = (employees.data ?? []).filter((e) => e.active);
 
-  const total = lines.reduce((sum, line) => {
-    const price = Number(line.price.replace(',', '.'));
-    const quantity = Number(line.quantity);
-    if (!Number.isFinite(price) || !Number.isFinite(quantity)) return sum;
-    return sum + price * quantity;
-  }, 0);
-
   const setLine = (index: number, patch: Partial<Line>) =>
     setLines((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
-  const filled = lines.filter((l) => l.title.trim() && l.price.trim());
+  const filled = lines.filter((l) => l.title.trim());
 
   const submit = async (send: boolean) => {
     if (!employeeId || !projectId) {
@@ -52,7 +44,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
       return;
     }
     if (!filled.length) {
-      setError('Добавьте хотя бы одну строку с описанием и суммой');
+      setError('Добавьте хотя бы одну строку: что нужно купить');
       return;
     }
     setError(null);
@@ -61,8 +53,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
       const payload: ExpenseLineInput[] = filled.map((l) => ({
         title: l.title.trim(),
         quantity: Number(l.quantity) || 1,
-        // Запятую из русской раскладки сервер не поймёт — переводим в точку.
-        price: l.price.trim().replace(',', '.'),
+        unit: l.unit.trim() || null,
       }));
       const created = await create.mutateAsync({
         employee_id: employeeId,
@@ -73,9 +64,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
       flash(
         created.status === 'draft'
           ? `Черновик ${created.number} сохранён`
-          : created.status === 'approved'
-            ? `Заявка ${created.number} одобрена автоматически`
-            : `Заявка ${created.number} отправлена на согласование`,
+          : `Заявка ${created.number} отправлена на согласование`,
         'var(--dot-ok)',
       );
       onClose();
@@ -89,7 +78,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
   // Что-то введено — окно не закроется молча по клику мимо или Escape.
   const dirty =
     projectId !== null ||
-    lines.some((l) => l.title.trim() || l.price.trim() || l.quantity !== '1') ||
+    lines.some((l) => l.title.trim() || l.unit.trim() || l.quantity !== '1') ||
     (forOthers && employeeId !== (user?.id ?? null));
 
   return (
@@ -98,7 +87,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
         <div>
           <div className="label">НОВАЯ ЗАЯВКА</div>
           <div className="h3" style={{ marginTop: 4 }}>
-            Расходы к согласованию
+            Что нужно купить
           </div>
         </div>
         <button
@@ -181,9 +170,9 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
             className="caption"
             style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}
           >
-            <span style={{ flex: '3 1 200px' }}>Что покупаем</span>
+            <span style={{ flex: '3 1 200px' }}>Что нужно</span>
             <span style={{ flex: '0 1 80px' }}>Кол-во</span>
-            <span style={{ flex: '1 1 120px' }}>Цена, TJS</span>
+            <span style={{ flex: '1 1 120px' }}>Единица</span>
             <span style={{ width: 44 }} />
           </div>
           <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
@@ -208,12 +197,12 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setLine(index, { quantity: e.target.value })}
                 />
                 <input
-                  className="field num"
+                  className="field"
                   style={{ flex: '1 1 120px' }}
-                  inputMode="decimal"
-                  aria-label={`Цена в строке ${index + 1}`}
-                  value={line.price}
-                  onChange={(e) => setLine(index, { price: e.target.value })}
+                  aria-label={`Единица в строке ${index + 1}`}
+                  placeholder="шт."
+                  value={line.unit}
+                  onChange={(e) => setLine(index, { unit: e.target.value })}
                 />
                 <button
                   type="button"
@@ -238,11 +227,15 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="row-between" style={{ borderTop: '1px solid var(--line)', paddingTop: 16 }}>
-          <span className="label">ИТОГО, TJS</span>
-          <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>
-            {money(total)}
-          </span>
+        <div
+          style={{
+            borderTop: '1px solid var(--line)',
+            paddingTop: 16,
+            color: 'var(--slate)',
+          }}
+        >
+          Цены указывать не нужно: заявку сперва согласует руководитель, потом
+          отдел закупа проверит склад и проставит стоимость того, чего нет.
         </div>
 
         {error && (

@@ -52,24 +52,34 @@ def test_disabled_project_is_not_offered_but_stays(as_admin, project) -> None:
 
 
 def test_counters_show_work_on_the_project(
-    client, login, employee, manager, admin, project
+    client, login, employee, manager, procurement, admin, project, pipeline
 ) -> None:
     login(employee)
+    ids = []
     for price in ("1500.00", "200.00"):
         created = client.post(
             "/api/requests",
             json={
                 "employee_id": employee.id,
                 "project_id": project.id,
-                "lines": [{"title": "Материалы", "quantity": 1, "price": price}],
+                "lines": [{"title": "Материалы", "quantity": 1}],
             },
         )
         assert created.status_code == 201, created.text
+        ids.append((created.json()["id"], price))
+
+    for request_id, price in ids:
+        pipeline(
+            request_id,
+            manager=manager,
+            buyer=procurement,
+            prices={"Материалы": price},
+            to="priced",
+        )
 
     login(admin)
     row = next(p for p in client.get("/api/projects").json() if p["id"] == project.id)
     assert row["requests_count"] == 2
-    # 1500 ждёт решения, 200 одобрены автоматически — расход считаем по обеим.
     assert row["spent"] == "1700.00"
 
 
@@ -80,7 +90,7 @@ def test_draft_counts_but_does_not_spend(client, login, employee, admin, project
         json={
             "employee_id": employee.id,
             "project_id": project.id,
-            "lines": [{"title": "Черновик", "quantity": 1, "price": "900.00"}],
+            "lines": [{"title": "Черновик", "quantity": 1}],
             "submit": False,
         },
     )

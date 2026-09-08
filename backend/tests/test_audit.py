@@ -100,29 +100,30 @@ def test_reference_change_records_who_did_it(as_admin, admin) -> None:
 
 
 def test_request_actions_visible_to_admin(
-    client, login, employee, manager, admin, project
+    client, login, employee, manager, procurement, admin, project, pipeline
 ) -> None:
+    """Весь путь заявки виден в журнале: подача, закуп, оценка, решение."""
     login(employee)
     created = client.post(
         "/api/requests",
         json={
             "employee_id": employee.id,
             "project_id": project.id,
-            # Сумма выше порога автоодобрения: нужно живое решение
-            # руководителя, иначе в журнале не будет ни submit, ни approve.
-            "lines": [{"title": "Плинтус", "quantity": 10, "price": "350.00"}],
+            "lines": [{"title": "Плинтус", "quantity": 10, "unit": "шт."}],
         },
     )
     request_id = created.json()["id"]
     number = created.json()["number"]
-    login(manager)
-    client.post(f"/api/requests/{request_id}/decision", json={"approve": True})
+    pipeline(request_id, manager=manager, buyer=procurement)
 
     login(admin)
     rows = entries(client, entity="request")
     by_action = {r["action"]: r for r in rows}
-    assert "create" in by_action and "submit" in by_action and "approve" in by_action
+    for action in ("create", "submit", "sourcing", "priced", "approve"):
+        assert action in by_action, f"в журнале нет действия {action}"
     assert by_action["create"]["username"] == employee.full_name
+    assert by_action["sourcing"]["username"] == manager.full_name
+    assert by_action["priced"]["username"] == procurement.full_name
     assert by_action["approve"]["username"] == manager.full_name
     assert by_action["approve"]["entity_id"] == number
 

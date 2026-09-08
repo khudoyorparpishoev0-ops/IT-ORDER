@@ -23,10 +23,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.log_level)
     log.info(
-        "%s запускается: пояс %s, порог автоодобрения %s",
-        settings.app_name,
-        settings.app_timezone,
-        settings.auto_approve_threshold,
+        "%s запускается: пояс %s", settings.app_name, settings.app_timezone
     )
 
     # Свежую систему некому настроить: войти нельзя, а завести пользователя

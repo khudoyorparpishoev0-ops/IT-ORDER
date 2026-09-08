@@ -11,7 +11,14 @@ from openpyxl import load_workbook
 
 from app.core.text import count_with_word, days, plural
 from app.db.models import PaymentMethod
-from app.schemas.request import DecisionIn, ExpenseLineIn, PaymentIn, RequestCreate
+from app.schemas.request import (
+    DecisionIn,
+    ExpenseLineIn,
+    PaymentIn,
+    RequestCreate,
+    SourcingIn,
+    SourcingLineIn,
+)
 from app.services import requests as svc
 from app.services.export_pdf import register_fonts
 
@@ -20,19 +27,28 @@ PDF_MAGIC = b"%PDF"
 
 
 def make_paid(session, employee, manager, project, amount: str, document: str):
+    """Оплаченная заявка: путь целиком, от потребности до выплаты."""
     request = svc.create_request(
         session,
         RequestCreate(
             employee_id=employee.id,
             project_id=project.id,
-            lines=[ExpenseLineIn(title="Расход", quantity=1, price=amount)],
+            lines=[ExpenseLineIn(title="Расход", quantity=1)],
             submit=True,
         ),
     )
-    if request.status.value == "pending":
-        svc.decide_request(
-            session, request.id, DecisionIn(approve=True, actor=manager.full_name)
-        )
+    svc.decide_request(
+        session, request.id, DecisionIn(approve=True, actor=manager.full_name)
+    )
+    svc.apply_sourcing(
+        session,
+        request.id,
+        SourcingIn(lines=[SourcingLineIn(id=request.lines[0].id, price=amount)]),
+        actor="Ольга Кузнецова",
+    )
+    svc.decide_request(
+        session, request.id, DecisionIn(approve=True, actor=manager.full_name)
+    )
     svc.pay_request(
         session,
         request.id,
@@ -138,24 +154,36 @@ def test_empty_register_still_exports(client, login, finance) -> None:
 # --------------------------------------------------------------------------
 # Заявки
 # --------------------------------------------------------------------------
-def test_requests_xlsx(as_manager, manager, project) -> None:
-    as_manager.post(
+def test_requests_xlsx(
+    client, login, employee, manager, procurement, project, pipeline
+) -> None:
+    login(employee)
+    created = client.post(
         "/api/requests",
         json={
-            "employee_id": manager.id,
+            "employee_id": employee.id,
             "project_id": project.id,
-            "lines": [{"title": "Материалы", "quantity": 2, "price": "700.00"}],
+            "lines": [{"title": "Материалы", "quantity": 2, "unit": "мешок"}],
         },
+    ).json()
+    pipeline(
+        created["id"],
+        manager=manager,
+        buyer=procurement,
+        prices={"Материалы": "700.00"},
+        to="priced",
     )
-    response = as_manager.get("/api/exports/requests.xlsx")
+
+    login(manager)
+    response = client.get("/api/exports/requests.xlsx")
     assert response.status_code == 200
 
     ws = load_workbook(BytesIO(response.content)).active
     assert ws.title == "Заявки"
     row = [cell.value for cell in ws[5]]
-    assert row[2] == manager.full_name
+    assert row[2] == employee.full_name
     assert Decimal(str(row[5])) == Decimal("1400.00")
-    assert row[6] == "На утверждении"
+    assert row[6] == "Согласование суммы"
 
 
 def test_employee_exports_only_own_requests(
@@ -168,7 +196,7 @@ def test_employee_exports_only_own_requests(
         json={
             "employee_id": manager.id,
             "project_id": project.id,
-            "lines": [{"title": "Чужая", "quantity": 1, "price": "900.00"}],
+            "lines": [{"title": "Чужая", "quantity": 1}],
         },
     )
     login(employee)
@@ -177,7 +205,7 @@ def test_employee_exports_only_own_requests(
         json={
             "employee_id": employee.id,
             "project_id": project.id,
-            "lines": [{"title": "Своя", "quantity": 1, "price": "800.00"}],
+            "lines": [{"title": "Своя", "quantity": 1}],
         },
     )
 
@@ -192,7 +220,7 @@ def test_request_pdf(as_manager, manager, project) -> None:
         json={
             "employee_id": manager.id,
             "project_id": project.id,
-            "lines": [{"title": "Такси до объекта", "quantity": 2, "price": "535.00"}],
+            "lines": [{"title": "Такси до объекта", "quantity": 2}],
         },
     ).json()
 
@@ -209,7 +237,7 @@ def test_foreign_request_pdf_is_404(client, login, employee, manager, project) -
         json={
             "employee_id": manager.id,
             "project_id": project.id,
-            "lines": [{"title": "Чужая", "quantity": 1, "price": "900.00"}],
+            "lines": [{"title": "Чужая", "quantity": 1}],
         },
     ).json()
     login(employee)
