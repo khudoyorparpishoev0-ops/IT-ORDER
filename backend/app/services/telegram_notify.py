@@ -83,7 +83,10 @@ def notify_request_state(session: Session, request_id: int) -> None:
 
     author = request.employee
     what = AUTHOR_TEXT.get(request.status)
+    to_author = False
+    invited = 0
     if author is not None and author.telegram_chat_id and what:
+        to_author = True
         text = (
             f"Ваша заявка {_headline(request)}\n"
             f"{escape(what.capitalize())}."
@@ -101,6 +104,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
     stage = awaiting_stage(request)
     invite = ACTOR_TEXT.get(stage)
     if not invite:
+        _log_result(request, stage, to_author=to_author, invited=invited)
         return
 
     permission = {
@@ -132,3 +136,22 @@ def notify_request_state(session: Session, request_id: int) -> None:
                 button=("Открыть", panel_url(STAGE_PATH[stage])),
             )
         )
+        invited += 1
+
+    _log_result(request, stage, to_author=to_author, invited=invited)
+
+
+def _log_result(request, stage: str, *, to_author: bool, invited: int) -> None:
+    """Строка в лог о каждой попытке уведомить.
+
+    Успешную отправку раньше не писали вовсе, и на вопрос «почему не
+    пришло» ответить было нечем: непонятно, промолчал бот или система
+    решила, что писать некому.
+    """
+    log.info(
+        "Telegram по заявке %s (%s): автору — %s, участникам — %s",
+        request.number,
+        stage,
+        "отправлено" if to_author else "чат не привязан",
+        invited,
+    )
