@@ -25,6 +25,20 @@ async def lifespan(app: FastAPI):
     log.info(
         "%s запускается: пояс %s", settings.app_name, settings.app_timezone
     )
+    # Состояние каналов — в лог при старте. Иначе «почему не приходит?»
+    # разбирается вслепую: по логам не видно даже, дошёл ли токен до
+    # контейнера, а переменные окружения в логи писать нельзя.
+    log.info(
+        "Почта: %s. Telegram: %s",
+        "настроена" if settings.mail_enabled else "не настроена (SMTP_*)",
+        (
+            f"бот @{settings.telegram_bot_username}"
+            if settings.telegram_enabled and settings.telegram_bot_username
+            else "токен есть, но не задано TELEGRAM_BOT_USERNAME"
+            if settings.telegram_enabled
+            else "не настроен (TELEGRAM_BOT_TOKEN)"
+        ),
+    )
 
     # Свежую систему некому настроить: войти нельзя, а завести пользователя
     # может только вошедший. Стартовый администратор разрывает этот круг.
