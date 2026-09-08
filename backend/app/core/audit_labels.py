@@ -12,6 +12,7 @@ ENTITY_LABEL: dict[str, str] = {
     "employee": "Сотрудник",
     "project": "Объект",
     "request": "Заявка",
+    "job": "Фоновая задача",
 }
 
 ACTION_LABEL: dict[str, str] = {
@@ -42,6 +43,8 @@ ACTION_LABEL: dict[str, str] = {
     "reject": "Отклонена",
     "auto_approve": "Одобрена автоматически",
     "pay": "Выплата проведена",
+    # Фоновые задачи
+    "job_run": "Задача запущена вручную",
 }
 
 

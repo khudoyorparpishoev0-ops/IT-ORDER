@@ -69,6 +69,24 @@ export type Material = {
   uses: number;
 };
 
+/** Запуск фоновой задачи — строка в списке «Фоновые задачи». */
+export type JobRun = {
+  id: number;
+  job: string;
+  label: string;
+  /** RUNNING | DONE | FAILED | SKIPPED */
+  status: string;
+  started_at: string;
+  finished_at: string | null;
+  details: string | null;
+};
+
+export type JobRunResult = {
+  job: string;
+  label: string;
+  details: string;
+};
+
 /** Состояние привязки Telegram у текущего сотрудника. */
 export type TelegramStatus = {
   /** Бот настроен администратором сервера: есть токен и имя бота. */

@@ -7,6 +7,7 @@
 export const ENTITY_LABEL: Record<string, string> = {
   employee: 'Сотрудник',
   project: 'Объект',
+  job: 'Фоновая задача',
   request: 'Заявка',
 };
 
@@ -35,6 +36,7 @@ export const ACTION_LABEL: Record<string, string> = {
   reject: 'Отклонена',
   auto_approve: 'Одобрена автоматически',
   pay: 'Выплата проведена',
+  job_run: 'Задача запущена вручную',
 };
 
 /** Что показывать в фильтре «Раздел». */
@@ -43,6 +45,7 @@ export const ENTITY_FILTER = [
   { value: 'employee', label: 'Сотрудники' },
   { value: 'request', label: 'Заявки' },
   { value: 'project', label: 'Объекты' },
+  { value: 'job', label: 'Фоновые задачи' },
 ];
 
 /** Действия в фильтре сгруппированы: доступ отдельно, работа отдельно. */

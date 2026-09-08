@@ -7,6 +7,7 @@ from app.api.routes import (
     auth,
     exports,
     health,
+    jobs,
     reference,
     reports,
     requests,
@@ -21,4 +22,5 @@ api_router.include_router(requests.router)
 api_router.include_router(reports.router)
 api_router.include_router(exports.router)
 api_router.include_router(audit.router)
+api_router.include_router(jobs.router)
 api_router.include_router(telegram.router)

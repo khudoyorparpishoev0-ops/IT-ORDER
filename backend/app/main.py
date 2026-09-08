@@ -39,7 +39,23 @@ async def lifespan(app: FastAPI):
         # и отвечать на /health, а не падать в цикл перезапусков.
         log.warning("Стартовый администратор не создан: %s", type(exc).__name__)
 
+    # Напоминания и недельная сводка. Отдельный контейнер ради двух задач
+    # в сутки не нужен: повторов не будет и при нескольких процессах —
+    # день занимается уникальным ключом в базе.
+    task = None
+    if settings.scheduler_enabled:
+        import asyncio
+
+        from app.scheduler import scheduler_loop
+
+        task = asyncio.create_task(scheduler_loop())
+    else:
+        log.info("Планировщик выключен (SCHEDULER_ENABLED=false)")
+
     yield
+
+    if task is not None:
+        task.cancel()
     log.info("%s остановлен", settings.app_name)
 
 

@@ -141,6 +141,37 @@ class Settings(BaseSettings):
     )
     telegram_timeout_seconds: int = Field(default=10, ge=1)
 
+    # --- Планировщик ---
+    scheduler_enabled: bool = Field(
+        default=True,
+        description=(
+            "Фоновые задачи: напоминания о залежавшихся заявках и недельная "
+            "сводка. Выключается на время диагностики."
+        ),
+    )
+    stale_request_days: int = Field(
+        default=3,
+        ge=1,
+        description="Со скольких суток на одном шаге заявка считается залежавшейся.",
+    )
+    reminder_hour: int = Field(
+        default=9,
+        ge=0,
+        le=23,
+        description="Час по местному времени, когда уходят напоминания и сводка.",
+    )
+    scheduler_catch_up_hours: int = Field(
+        default=6,
+        ge=1,
+        le=23,
+        description=(
+            "Сколько часов после назначенного времени задачу ещё имеет смысл "
+            "выполнить. Сервер лежал до вечера — напоминание в полночь никому "
+            "не нужно, день помечается пропущенным."
+        ),
+    )
+    scheduler_tick_seconds: int = Field(default=60, ge=5, le=3600)
+
     public_base_url: str = Field(
         default="",
         description=(

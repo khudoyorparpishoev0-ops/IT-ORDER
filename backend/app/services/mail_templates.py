@@ -166,6 +166,96 @@ def request_for_procurement(
     return Letter(to="", subject=f"Заявка {number} ждёт оценки закупа", text=text, html=html)
 
 
+def stale_requests(*, full_name: str, lines: list[str], url: str) -> Letter:
+    """Напоминание тому, у кого заявки стоят без движения.
+
+    Одно письмо со списком, а не письмо на заявку: пять писем подряд
+    читают по диагонали, а список — целиком.
+    """
+    listing = "\n".join(f"— {line}" for line in lines)
+    text = (
+        f"{full_name}, здравствуйте.\n\n"
+        "Эти заявки ждут вас:\n"
+        f"{listing}\n\n"
+        f"Открыть: {url}\n\n"
+        "Уведомления можно отключить в разделе «Параметры».\n\n"
+        f"{FOOTER_TEXT}"
+    )
+    rows = "".join(
+        f'<tr><td style="padding:6px 0;border-bottom:1px solid {LINE};'
+        f'font-size:14px">{line}</td></tr>'
+        for line in lines
+    )
+    html = _wrap(
+        "Заявки ждут вас",
+        f'<p style="margin:0 0 12px">{full_name}, здравствуйте.</p>'
+        f'<p style="margin:0 0 12px">Эти заявки стоят без движения:</p>'
+        f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        f'width="100%">{rows}</table>'
+        f'<p style="margin:12px 0 0;color:{SLATE};font-size:13px">'
+        "Уведомления можно отключить в разделе «Параметры».</p>",
+        action=("Открыть заявки", url),
+    )
+    subject = (
+        f"Заявки ждут вас: {len(lines)}"
+        if len(lines) > 1
+        else "Заявка ждёт вас"
+    )
+    return Letter(to="", subject=subject, text=text, html=html)
+
+
+def weekly_budget(*, full_name: str, summary, url: str) -> Letter:
+    """Сводка за прошедшую неделю: что подано, что оплачено, где бюджет."""
+    from app.core.text import count_with_word
+
+    period = f"{summary.start.strftime('%d.%m')}—{summary.end.strftime('%d.%m')}"
+    rows = [
+        ("Подано заявок", str(summary.submitted)),
+        (
+            "Выплачено",
+            f"{summary.paid_count} на {money(summary.paid_amount)} сомони",
+        ),
+    ]
+    if summary.budget_limit is not None:
+        used = f"{money(summary.budget_used)} из {money(summary.budget_limit)} сомони"
+        if summary.budget_pct is not None:
+            used += f" ({summary.budget_pct}%)"
+        rows.append(("Бюджет месяца", used))
+    if summary.stale_count:
+        rows.append(
+            (
+                "Стоит без движения",
+                count_with_word(summary.stale_count, "заявка", "заявки", "заявок"),
+            )
+        )
+
+    text = (
+        f"{full_name}, здравствуйте.\n\n"
+        f"Итоги недели {period}:\n"
+        + "\n".join(f"{label}: {value}" for label, value in rows)
+        + f"\n\nОтчёты: {url}\n\n"
+        "Сводку можно отключить в разделе «Параметры».\n\n"
+        f"{FOOTER_TEXT}"
+    )
+    html_rows = "".join(
+        f'<tr><td style="padding:6px 0;border-bottom:1px solid {LINE};'
+        f'font-size:14px;color:{SLATE}">{label}</td>'
+        f'<td align="right" style="padding:6px 0;border-bottom:1px solid {LINE};'
+        f'font-family:\'Courier New\',monospace;font-weight:bold">{value}</td></tr>'
+        for label, value in rows
+    )
+    html = _wrap(
+        f"Итоги недели {period}",
+        f'<p style="margin:0 0 12px">{full_name}, здравствуйте.</p>'
+        f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        f'width="100%">{html_rows}</table>'
+        f'<p style="margin:12px 0 0;color:{SLATE};font-size:13px">'
+        "Сводку можно отключить в разделе «Параметры».</p>",
+        action=("Открыть отчёты", url),
+    )
+    return Letter(to="", subject=f"Итоги недели {period}", text=text, html=html)
+
+
 def test_letter(*, to: str) -> Letter:
     """Проверочное письмо: подтверждает, что SMTP настроен верно."""
     text = (

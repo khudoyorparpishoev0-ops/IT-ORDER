@@ -28,6 +28,10 @@ os.environ.setdefault("PUBLIC_BASE_URL", "https://order.it-hona.tj")
 # cookiejar по http не сохраняет — вход в тестах разваливался бы на втором
 # шаге. Значение задаётся здесь, чтобы прогон не зависел от .env на машине.
 os.environ.setdefault("COOKIE_SECURE", "false")
+# Планировщик в тестах выключен: TestClient поднимает lifespan, и фоновый
+# цикл ходил бы в базу параллельно тесту. Сами задачи проверяются прямыми
+# вызовами в tests/test_scheduler.py.
+os.environ.setdefault("SCHEDULER_ENABLED", "false")
 
 from app.api.deps import get_db  # noqa: E402
 from app.config import get_settings  # noqa: E402

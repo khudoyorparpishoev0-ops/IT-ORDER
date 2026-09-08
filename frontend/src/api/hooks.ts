@@ -16,6 +16,8 @@ import type {
   EmployeeAccess,
   EmployeeInput,
   Health,
+  JobRun,
+  JobRunResult,
   Material,
   MonthFact,
   Page,
@@ -40,6 +42,7 @@ export const keys = {
   projects: ['projects'] as const,
   materials: ['materials'] as const,
   telegram: ['telegram'] as const,
+  jobs: ['jobs'] as const,
   employees: ['employees'] as const,
   employeeAccess: ['employees', 'access'] as const,
   team: ['team'] as const,
@@ -220,6 +223,25 @@ export function useTelegramUnlink() {
 export function useTelegramSetup() {
   return useMutation({
     mutationFn: () => api<TelegramSetup>('/api/telegram/setup', { method: 'POST' }),
+  });
+}
+
+/** Фоновые задачи: что и когда отработало. Только для администратора. */
+export function useJobRuns(enabled = true) {
+  return useQuery({
+    queryKey: keys.jobs,
+    queryFn: () => api<JobRun[]>('/api/jobs'),
+    enabled,
+  });
+}
+
+/** Ручной запуск задачи — проверка настройки почты и бота без ожидания утра. */
+export function useRunJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (job: string) =>
+      api<JobRunResult>(`/api/jobs/${job}/run`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.jobs }),
   });
 }
 

@@ -419,6 +419,33 @@ class AuditLog(Base):
     )
 
 
+class JobRun(Base):
+    """Запуск фоновой задачи: напоминания, недельная сводка.
+
+    Ключ запуска (`run_key` вида «stale_requests:2026-09-08») уникален —
+    он и есть защита от повторов: два процесса или перезапуск контейнера
+    не разошлют одно и то же дважды. Строка пишется ДО работы, поэтому
+    упавшая задача остаётся видимой со статусом FAILED, а не исчезает.
+    """
+
+    __tablename__ = "job_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job: Mapped[ShortStr] = mapped_column(nullable=False)
+    #: Задача + местная дата, на которую она была назначена.
+    run_key: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    #: RUNNING → DONE / FAILED / SKIPPED. SKIPPED — окно наверстывания
+    #: прошло: напоминание в полночь никому не нужно, но повторно
+    #: запускать задачу за этот день уже не нужно тоже.
+    status: Mapped[ShortStr] = mapped_column(nullable=False, default="RUNNING")
+    started_at: Mapped[CreatedAt]
+    finished_at: Mapped[Timestamp | None]
+    #: Что сделано: «5 напоминаний» или текст ошибки.
+    details: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (Index("ix_job_runs_job", "job", "started_at"),)
+
+
 __all__ = [
     "AuditLog",
     "Base",
@@ -427,6 +454,7 @@ __all__ = [
     "EventKind",
     "ExpenseLine",
     "ExpenseRequest",
+    "JobRun",
     "MonthlyBudget",
     "Payment",
     "PaymentMethod",

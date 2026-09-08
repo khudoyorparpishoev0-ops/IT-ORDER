@@ -3,12 +3,15 @@ import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import {
   useHealth,
+  useJobRuns,
+  useRunJob,
   useTelegramLink,
   useTelegramSetup,
   useTelegramStatus,
   useTelegramUnlink,
 } from '@/api/hooks';
 import { useAuth } from '@/api/auth';
+import { formatDateTime } from '@/data/format';
 import { api } from '@/api/client';
 import { ROLE_LABEL } from '@/shell/config';
 import { RecoveryCodes } from '@/components/RecoveryCodes';
@@ -117,6 +120,7 @@ export function Settings() {
 
         <NotificationsCard onFlash={flash} />
         <TelegramCard onFlash={flash} />
+        <JobsCard onFlash={flash} />
         <section className="card">
           <div className="label">О СИСТЕМЕ</div>
           <dl style={{ display: 'grid', gap: 12, marginTop: 16, margin: '16px 0 0' }}>
@@ -538,8 +542,9 @@ function NotificationsCard({
       </div>
 
       <p className="caption" style={{ margin: '16px 0 0' }}>
-        Напоминания о залежавшихся заявках и еженедельная сводка появятся, когда
-        будет включён планировщик.
+        Напоминание уходит тому, у кого заявка стоит, одним списком в день.
+        Сводка — по понедельникам тем, кто видит отчёты. Те же сообщения
+        приходят в Telegram, если он подключён.
       </p>
 
       {can('manage_reference') && <MailCheck onFlash={onFlash} />}
@@ -674,6 +679,110 @@ function TelegramCard({
       )}
 
       {can('manage_reference') && <WebhookSetup onFlash={onFlash} />}
+    </section>
+  );
+}
+
+/**
+ * Фоновые задачи. Администратору важно видеть, что рассылка вообще
+ * происходит, и уметь запустить её сейчас: ждать девяти утра, чтобы
+ * проверить настройку почты и бота, неразумно.
+ */
+function JobsCard({
+  onFlash,
+}: {
+  onFlash: (text: string, color: string) => void;
+}) {
+  const { can } = useAuth();
+  const allowed = can('manage_reference');
+  const runs = useJobRuns(allowed);
+  const run = useRunJob();
+  const health = useHealth();
+
+  if (!allowed) return null;
+
+  const start = async (job: string) => {
+    try {
+      const result = await run.mutateAsync(job);
+      onFlash(`${result.label}: ${result.details}`, 'var(--dot-ok)');
+    } catch (err) {
+      onFlash(
+        err instanceof Error ? err.message : 'Задача не выполнена',
+        'var(--dot-err)',
+      );
+    }
+  };
+
+  const TONE: Record<string, string> = {
+    DONE: 'var(--dot-ok)',
+    RUNNING: 'var(--dot-warn)',
+    FAILED: 'var(--dot-err)',
+    SKIPPED: 'var(--dot-off)',
+  };
+
+  return (
+    <section className="card">
+      <div className="label">ФОНОВЫЕ ЗАДАЧИ</div>
+
+      <p className="caption" style={{ margin: '16px 0 0' }}>
+        Напоминания и недельная сводка уходят сами. Кнопки ниже запускают
+        задачу сейчас — так проверяют, что почта и бот настроены.
+      </p>
+
+      <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={run.isPending}
+          onClick={() => start('stale_requests')}
+        >
+          Разослать напоминания сейчас
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={run.isPending}
+          onClick={() => start('weekly_budget')}
+        >
+          Отправить недельную сводку сейчас
+        </button>
+      </div>
+
+      {runs.data && runs.data.length > 0 && (
+        <table style={{ marginTop: 16, width: '100%' }}>
+          <tbody>
+            {runs.data.slice(0, 6).map((item) => (
+              <tr key={item.id}>
+                <td style={{ padding: '6px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 8,
+                        height: 8,
+                        flex: 'none',
+                        background: TONE[item.status] ?? 'var(--dot-off)',
+                      }}
+                    />
+                    <span>{item.label}</span>
+                  </div>
+                  <div className="caption" style={{ paddingLeft: 16 }}>
+                    {formatDateTime(item.started_at, health.data?.timezone)}
+                    {item.details ? ` · ${item.details}` : ''}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {runs.data && runs.data.length === 0 && (
+        <p className="caption" style={{ margin: '16px 0 0' }}>
+          Задачи ещё не запускались: первая рассылка уйдёт в ближайшие
+          назначенные часы.
+        </p>
+      )}
     </section>
   );
 }
