@@ -73,3 +73,21 @@ def test_mail_sender_falls_back_to_user() -> None:
         postgres_password="x", smtp_user="order@ithona.tj", smtp_password="y", mail_from=""
     )
     assert settings.mail_sender == "order@ithona.tj"
+
+
+def test_windows_line_endings_do_not_leak_into_values() -> None:
+    """`.env` переносят через Windows, и значения приезжают с «\\r».
+
+    Невидимый символ ломал ровно то, что труднее всего диагностировать:
+    токен бота становился на символ длиннее и Telegram отвечал «malformed
+    URL», а SMTP отказывал в логине при верном пароле.
+    """
+    settings = build(
+        postgres_password="x",
+        telegram_bot_token="123456:AAHtest\r",
+        smtp_password="пароль-приложения\r",
+        public_base_url=" https://order.ithona.tj \r",
+    )
+    assert settings.telegram_bot_token == "123456:AAHtest"
+    assert settings.smtp_password == "пароль-приложения"
+    assert settings.public_base_url == "https://order.ithona.tj"

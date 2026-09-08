@@ -34,6 +34,21 @@ OPTIONAL=(SMTP_HOST SMTP_USER SMTP_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USER
 
 problems=0
 
+# Файл переносят на сервер через Windows, и он приезжает с CRLF. Невидимый
+# «\r» попадает в конец каждого значения: токен бота становится на символ
+# длиннее и Telegram отвечает «malformed URL», пароль SMTP не подходит, а
+# по симптомам это не разберёшь. Чиним сразу, а не рассказываем как.
+echo "=== Переводы строк ==="
+if grep -q $'\r' "$ENV_FILE"; then
+  echo "  CRLF    в файле виндовые переводы строк — лишний символ попадёт"
+  echo "          в каждое значение (токен, пароль SMTP)."
+  echo "          Исправить: sed -i 's/\r$//' $ENV_FILE"
+  problems=1
+else
+  echo "  ok      обычные переводы строк"
+fi
+
+echo
 echo "=== Повторяющиеся ключи ==="
 DUPES=$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE" | tr -d '=' | sort | uniq -d)
 if [ -n "$DUPES" ]; then
@@ -69,7 +84,7 @@ for key in "${REQUIRED[@]}"; do
 done
 
 echo
-echo "=== Почта (без неё писем не будет) ==="
+echo "=== Почта и Telegram (без них уведомлений не будет) ==="
 for key in "${OPTIONAL[@]}"; do
   val=$(value_of "$key")
   [ -z "$val" ] && echo "  пусто   $key" || echo "  ok      $key"

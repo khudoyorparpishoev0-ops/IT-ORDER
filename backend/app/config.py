@@ -9,7 +9,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        # Пробелы и переводы строк по краям значений срезаются. Проект
+        # переносят на сервер через Windows, и .env приезжает с CRLF:
+        # невидимый «\r» попадал в токен бота и в пароль SMTP, после чего
+        # Telegram отвечал «malformed URL», а почта — отказом в логине.
+        # Ловить это по симптомам дорого, срезать — одна строка.
+        str_strip_whitespace=True,
     )
 
     # --- Приложение ---
