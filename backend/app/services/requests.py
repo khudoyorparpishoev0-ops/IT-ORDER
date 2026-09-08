@@ -319,6 +319,7 @@ def start_sourcing(
 ) -> None:
     """Потребность одобрена — заявка уходит в отдел закупа."""
     request.status = RequestStatus.SOURCING
+    request.sourcing_started_at = utcnow()
     _add_event(
         request,
         EventKind.SOURCING,
@@ -563,6 +564,92 @@ def display_date(request: ExpenseRequest) -> str:
 def event_meta(event: RequestEvent) -> str:
     """«ИВАН ПЕТРОВ · 04.09.2026, 18:12»."""
     return f"{event.actor} · {format_local_datetime(event.created_at)}"
+
+
+#: У кого лежит заявка на каждом шаге: (кто, что он с ней делает).
+#: Ключ используется и на фронтенде, поэтому строкой, а не enum-ом.
+AWAITING: dict[RequestStatus, tuple[str, str]] = {
+    RequestStatus.DRAFT: ("author", "Черновик у автора"),
+    RequestStatus.PENDING: ("manager", "У руководителя: согласовать покупку"),
+    RequestStatus.SOURCING: ("procurement", "У отдела закупа: склад и цены"),
+    RequestStatus.PRICED: ("manager", "У руководителя: утвердить сумму"),
+    RequestStatus.APPROVED: ("finance", "В бухгалтерии: ждёт выплаты"),
+    RequestStatus.PAID: ("closed", "Выплачена"),
+    RequestStatus.FULFILLED: ("closed", "Закрыта складом"),
+    RequestStatus.REJECTED: ("closed", "Отклонена"),
+}
+
+
+def awaiting_stage(request: ExpenseRequest) -> str:
+    """Кто сейчас держит заявку: author / manager / procurement / finance /
+    closed."""
+    return AWAITING[request.status][0]
+
+
+def awaiting_label(request: ExpenseRequest) -> str:
+    return AWAITING[request.status][1]
+
+
+def awaiting_since(request: ExpenseRequest) -> datetime | None:
+    """С какого момента заявка ждёт именно текущего шага.
+
+    Не с подачи: иначе «лежит 5 дней» относилось бы к пути целиком, и
+    было бы непонятно, кто именно задерживает.
+    """
+    if request.status is RequestStatus.DRAFT:
+        return request.created_at
+    if request.status is RequestStatus.PENDING:
+        return request.submitted_at
+    if request.status is RequestStatus.SOURCING:
+        return request.sourcing_started_at
+    if request.status is RequestStatus.PRICED:
+        return request.sourced_at
+    if request.status is RequestStatus.APPROVED:
+        return request.decided_at
+    return None
+
+
+def awaiting_days(request: ExpenseRequest, *, now: datetime | None = None) -> int | None:
+    """Сколько полных суток заявка лежит на текущем шаге."""
+    since = awaiting_since(request)
+    if since is None:
+        return None
+    reference = now or utcnow()
+    return max(0, (to_local(reference).date() - to_local(since).date()).days)
+
+
+def awaiting_people(session: Session, request: ExpenseRequest) -> list[str]:
+    """Кто может сделать следующий шаг именно сейчас.
+
+    Персональных назначений в системе нет: заявку берёт любой, у кого есть
+    право. Показываем поимённо — иначе «у руководителя» ничего не говорит
+    о том, кого торопить.
+    """
+    from app.core.permissions import Permission, has_permission
+
+    stage = awaiting_stage(request)
+    if stage == "closed":
+        return []
+    if stage == "author":
+        return [request.employee.full_name] if request.employee else []
+
+    permission = {
+        "manager": Permission.DECIDE_REQUEST,
+        "procurement": Permission.SOURCE_REQUEST,
+        "finance": Permission.PAY_REQUEST,
+    }[stage]
+
+    people = session.scalars(
+        select(Employee).where(Employee.active.is_(True)).order_by(Employee.full_name)
+    )
+    return [
+        person.full_name
+        for person in people
+        if has_permission(person.role, permission)
+        # Свою заявку человек не согласует, не оценивает и не оплачивает —
+        # значит, и ждать её он не может.
+        and person.id != request.employee_id
+    ]
 
 
 def pending_age_days(request: ExpenseRequest, *, now: datetime | None = None) -> int:

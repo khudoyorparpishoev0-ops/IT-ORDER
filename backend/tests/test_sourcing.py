@@ -169,3 +169,79 @@ def test_sourcing_comment_reaches_the_card(
     response = client.post(f"/api/requests/{created['id']}/sourcing", json=body)
     assert response.status_code == 200, response.text
     assert "поставщика" in response.json()["sourcing_comment"]
+
+
+# --------------------------------------------------------------------------
+# У кого заявка сейчас
+# --------------------------------------------------------------------------
+def test_card_shows_who_holds_the_request(
+    client, login, employee, manager, procurement, finance, project, pipeline
+) -> None:
+    """На каждом шаге видно, у кого заявка и кто может её двинуть."""
+    login(employee)
+    created = need(client, employee, project)
+
+    card = client.get(f"/api/requests/{created['id']}").json()
+    assert card["awaiting_stage"] == "manager"
+    assert "руководителя" in card["awaiting_label"]
+    assert manager.full_name in card["awaiting_people"]
+    assert card["awaiting_days"] == 0
+
+    pipeline(created["id"], manager=manager, buyer=procurement, to="sourcing")
+    login(employee)
+    card = client.get(f"/api/requests/{created['id']}").json()
+    assert card["awaiting_stage"] == "procurement"
+    assert card["awaiting_people"] == [procurement.full_name]
+
+
+def test_awaiting_finance_after_approval(
+    client, login, employee, manager, procurement, finance, project, pipeline
+) -> None:
+    login(employee)
+    created = need(client, employee, project)
+    pipeline(created["id"], manager=manager, buyer=procurement)
+
+    login(employee)
+    card = client.get(f"/api/requests/{created['id']}").json()
+    assert card["awaiting_stage"] == "finance"
+    assert card["awaiting_people"] == [finance.full_name]
+
+
+def test_closed_request_waits_for_nobody(
+    client, login, employee, manager, procurement, project, pipeline
+) -> None:
+    login(employee)
+    created = need(client, employee, project)
+    pipeline(
+        created["id"], manager=manager, buyer=procurement, prices={}, to="fulfilled"
+    )
+
+    login(employee)
+    card = client.get(f"/api/requests/{created['id']}").json()
+    assert card["awaiting_stage"] == "closed"
+    assert card["awaiting_people"] == []
+    assert card["awaiting_days"] is None
+
+
+def test_author_is_not_listed_as_approver(
+    client, login, manager, procurement, admin, project, pipeline
+) -> None:
+    """Свою заявку руководитель не согласует — и в ожидающих не значится."""
+    login(manager)
+    created = need(client, manager, project)
+
+    card = client.get(f"/api/requests/{created['id']}").json()
+    assert manager.full_name not in card["awaiting_people"]
+    assert admin.full_name in card["awaiting_people"]
+
+
+def test_list_shows_holder_without_extra_queries(
+    client, login, employee, manager, project
+) -> None:
+    """Строка списка тоже отвечает, у кого заявка: без открытия карточки."""
+    login(employee)
+    need(client, employee, project)
+    listing = client.get("/api/requests", params={"all_periods": True}).json()
+    row = listing["items"][0]
+    assert row["awaiting_stage"] == "manager"
+    assert "руководителя" in row["awaiting_label"]

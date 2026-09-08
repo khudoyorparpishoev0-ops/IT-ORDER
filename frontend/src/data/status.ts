@@ -73,3 +73,12 @@ export const PAYMENT_METHOD: Record<'card' | 'cash', string> = {
   card: 'На карту',
   cash: 'Наличными',
 };
+
+/** Кто держит заявку — коротко, для строки списка. */
+export const HOLDER: Record<string, string> = {
+  author: 'у автора',
+  manager: 'у руководителя',
+  procurement: 'у закупа',
+  finance: 'в бухгалтерии',
+  closed: '',
+};

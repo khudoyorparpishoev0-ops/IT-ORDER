@@ -207,6 +207,12 @@ export type RequestListItem = {
   /** false — заявку ещё не оценил закуп, сумма пока ничего не значит. */
   priced: boolean;
   status: RequestStatus;
+  /** У кого заявка сейчас лежит. */
+  awaiting_stage: 'author' | 'manager' | 'procurement' | 'finance' | 'closed';
+  /** То же словами: «У отдела закупа: склад и цены». */
+  awaiting_label: string;
+  /** Сколько полных суток она лежит на текущем шаге. null — закрыта. */
+  awaiting_days: number | null;
   /** Дата уже в поясе компании, строкой 04.09.2026. */
   date: string;
 };
@@ -225,6 +231,8 @@ export type RequestDetail = RequestListItem & {
   sourced_by: string | null;
   /** Пояснение закупа: почему такие цены, что нашлось на складе. */
   sourcing_comment: string | null;
+  /** Кто именно может сделать следующий шаг. */
+  awaiting_people: string[];
 };
 
 export type Page<T> = {

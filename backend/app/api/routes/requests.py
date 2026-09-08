@@ -88,6 +88,9 @@ def to_list_item(request: ExpenseRequest) -> RequestListItem:
         amount=request.amount,
         priced=svc.is_priced(request),
         status=request.status,
+        awaiting_stage=svc.awaiting_stage(request),
+        awaiting_label=svc.awaiting_label(request),
+        awaiting_days=svc.awaiting_days(request),
         date=svc.display_date(request),
     )
 
@@ -119,6 +122,7 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
         decided_by=request.decided_by,
         sourced_by=request.sourced_by,
         sourcing_comment=request.sourcing_comment,
+        awaiting_people=svc.awaiting_people(session, request),
     )
 
 

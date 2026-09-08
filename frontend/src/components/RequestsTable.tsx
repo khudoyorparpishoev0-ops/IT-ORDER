@@ -1,7 +1,8 @@
 import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
+import { HOLDER } from '@/data/status';
 import { useAuth } from '@/api/auth';
-import { money } from '@/data/format';
+import { days, money } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 
 export type SortKey = 'name' | 'amount' | null;
@@ -105,6 +106,14 @@ export function RequestsTable({
                     {r.status === 'pending' && canDecide ? 'Рассмотреть →' : 'Открыть →'}
                   </span>
                 </div>
+                {/* У кого заявка сейчас: по статусу это понятно не всем,
+                    а вопрос «где она застряла» задают чаще прочих. */}
+                {HOLDER[r.awaiting_stage] && (
+                  <div className="caption">
+                    {HOLDER[r.awaiting_stage]}
+                    {r.awaiting_days ? ` · ${days(r.awaiting_days)}` : ''}
+                  </div>
+                )}
               </td>
             </tr>
           ))}

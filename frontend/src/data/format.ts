@@ -103,3 +103,8 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
   return many;
 }
+
+/** «3 дня», «1 день», «5 дней» — для подписи «лежит N». */
+export function days(n: number): string {
+  return `${n} ${plural(n, 'день', 'дня', 'дней')}`;
+}

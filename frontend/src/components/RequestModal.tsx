@@ -7,7 +7,7 @@ import { usePayRequest, useRequest } from '@/api/hooks';
 import { useShell } from '@/shell/ShellContext';
 import type { PaymentMethod } from '@/api/types';
 import { useDownload } from '@/hooks/useDownload';
-import { money } from '@/data/format';
+import { days, money } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 
 type Props = {
@@ -169,6 +169,31 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
           </div>
         )}
 
+        {/* Кто держит заявку сейчас. Персональных назначений нет: её
+            берёт любой, у кого есть право, — поэтому перечисляем всех. */}
+        {request.awaiting_stage !== 'closed' && (
+          <div
+            style={{
+              marginTop: 24,
+              padding: 12,
+              background: 'var(--mist)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-field)',
+            }}
+          >
+            <div className="label">СЕЙЧАС ЖДЁТ</div>
+            <div style={{ marginTop: 6, fontWeight: 600 }}>
+              {request.awaiting_label}
+              {request.awaiting_days ? ` · ${days(request.awaiting_days)}` : ''}
+            </div>
+            {detail && detail.awaiting_people.length > 0 && (
+              <div className="caption" style={{ marginTop: 4 }}>
+                {detail.awaiting_people.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+
         {detail?.sourcing_comment && (
           <p
             style={{
@@ -208,11 +233,14 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
-          {request.status === 'pending' && (
-            <button type="button" className="btn btn-primary" onClick={onOpenApprovals}>
-              Открыть в согласовании
-            </button>
-          )}
+          {/* Кнопка ведёт в раздел, закрытый правом: сотруднику её
+              показывать нельзя — она отправила бы его на пустую страницу. */}
+          {(request.status === 'pending' || request.status === 'priced') &&
+            can('decide_request') && (
+              <button type="button" className="btn btn-primary" onClick={onOpenApprovals}>
+                Открыть в согласовании
+              </button>
+            )}
           <button
             type="button"
             className="btn btn-secondary"

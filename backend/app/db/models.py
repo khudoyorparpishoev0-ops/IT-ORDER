@@ -227,6 +227,9 @@ class ExpenseRequest(Base):
 
     created_at: Mapped[CreatedAt]
     submitted_at: Mapped[Timestamp | None]
+    #: Когда заявку передали в закуп. Нужно, чтобы честно показывать,
+    #: сколько она у них лежит.
+    sourcing_started_at: Mapped[Timestamp | None]
     #: Когда закуп вернул заявку с ценами или закрыл её складом.
     sourced_at: Mapped[Timestamp | None]
     #: Итоговое решение по сумме.

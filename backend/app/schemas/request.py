@@ -92,6 +92,12 @@ class RequestListItem(BaseModel):
     #: false — заявку ещё не оценил закуп, сумма пока ничего не значит.
     priced: bool
     status: RequestStatus
+    #: У кого заявка сейчас: author / manager / procurement / finance / closed.
+    awaiting_stage: str
+    #: Та же мысль словами: «У отдела закупа: склад и цены».
+    awaiting_label: str
+    #: Сколько полных суток она лежит на текущем шаге. None — закрыта.
+    awaiting_days: int | None
     #: Дата подачи в формате 04.09.2026. Для черновика — дата создания.
     date: str
 
@@ -108,6 +114,9 @@ class RequestDetail(RequestListItem):
     decided_by: str | None
     sourced_by: str | None
     sourcing_comment: str | None
+    #: Кто именно может сделать следующий шаг. Персональных назначений нет:
+    #: заявку берёт любой, у кого есть право.
+    awaiting_people: list[str]
 
 
 class RequestCreate(BaseModel):
