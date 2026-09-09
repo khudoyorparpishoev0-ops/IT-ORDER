@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <!-- Знак ORDER (логотип приложения). На тёмном фоне — белая версия. -->
   <rect width="32" height="32" fill="#0E3B21"/>
-  <g transform="translate(4 4.2) scale(0.1395) rotate(-2.5 86 84)">
-    <path fill="#FFFFFF" fill-rule="evenodd" d="M56 2h60a52 52 0 0 1 52 52v60a52 52 0 0 1-52 52H56A52 52 0 0 1 4 114V54A52 52 0 0 1 56 2zM56 42a14 14 0 0 0-14 14v56a14 14 0 0 0 14 14h60a14 14 0 0 0 14-14V56a14 14 0 0 0-14-14z"/>
+  <g transform="translate(4 4) scale(0.1429)">
+    <path fill="#FFFFFF" fill-rule="evenodd" d="M54 2h60a52 52 0 0 1 52 52v60a52 52 0 0 1-52 52H54a52 52 0 0 1-52-52V54a52 52 0 0 1 52-52zM56 44a12 12 0 0 0-12 12v56a12 12 0 0 0 12 12h56a12 12 0 0 0 12-12V56a12 12 0 0 0-12-12z"/>
   </g>
 </svg>
