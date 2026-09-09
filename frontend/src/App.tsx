@@ -12,6 +12,7 @@ import { Journal } from '@/pages/Journal';
 import { Login } from '@/pages/Login';
 import { NotFound } from '@/pages/NotFound';
 import { Projects } from '@/pages/Projects';
+import { Intelligence } from '@/pages/Intelligence';
 import { Reports } from '@/pages/Reports';
 import { Requests } from '@/pages/Requests';
 import { RequestForm } from '@/pages/RequestForm';
@@ -88,6 +89,14 @@ export function App() {
           element={
             <Guarded need="source_request">
               <Sourcing />
+            </Guarded>
+          }
+        />
+        <Route
+          path="intelligence"
+          element={
+            <Guarded need="view_reports">
+              <Intelligence />
             </Guarded>
           }
         />

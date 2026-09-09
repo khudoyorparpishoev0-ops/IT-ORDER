@@ -14,6 +14,7 @@ ENTITY_LABEL: dict[str, str] = {
     "request": "Заявка",
     "job": "Фоновая задача",
     "budget": "Бюджет месяца",
+    "analytics": "AI-аналитика",
 }
 
 ACTION_LABEL: dict[str, str] = {
@@ -36,6 +37,8 @@ ACTION_LABEL: dict[str, str] = {
     "push_subscribed": "Уведомления на телефон включены",
     "push_unsubscribed": "Уведомления на телефон отключены",
     "bootstrap_admin": "Создан стартовый администратор",
+    # AI
+    "ai_question": "Вопрос AI-аналитику",
     # Справочники
     "create": "Создание",
     "update": "Изменение",

@@ -198,6 +198,28 @@ class Settings(BaseSettings):
             "выглядела как «помощник недоступен»."
         ),
     )
+    analytics_prompt_file: str = Field(
+        default="",
+        description=(
+            "Файл с правилами AI-аналитика для руководителя. Пусто — "
+            "встроенный текст. Позволяет менять правила без пересборки."
+        ),
+    )
+
+    # --- Нормативы времени на этапах (часы). Аналитика сравнивает с ними ---
+    sla_pending_hours: int = Field(
+        default=8, ge=1, le=720, description="Согласование покупки руководителем."
+    )
+    sla_sourcing_hours: int = Field(
+        default=24, ge=1, le=720, description="Проверка склада и цены отделом закупа."
+    )
+    sla_priced_hours: int = Field(
+        default=8, ge=1, le=720, description="Утверждение суммы руководителем."
+    )
+    sla_approved_hours: int = Field(
+        default=24, ge=1, le=720, description="Выплата бухгалтерией."
+    )
+
     assistant_prompt_file: str = Field(
         default="",
         description=(

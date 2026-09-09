@@ -501,3 +501,145 @@ export type DecisionInput = {
   comment?: string | null;
   actor?: string | null;
 };
+
+// --- Аналитика для руководителя -------------------------------------------
+
+/** Насколько заявка требует внимания. */
+export type AttentionLevel = 'critical' | 'attention' | 'normal';
+
+export type AttentionItem = {
+  id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  /** Кто держит заявку сейчас: «Отдел закупа». */
+  holder: string;
+  stage: string;
+  stage_label: string;
+  hours: number;
+  norm_hours: number | null;
+  level: AttentionLevel;
+  /** Причины пометки: «стоит 31 ч при норме 8 ч». */
+  reasons: string[];
+  amount: Money;
+  priced: boolean;
+};
+
+export type RequestBrief = {
+  id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  holder: string;
+  hours: number;
+  amount: Money;
+  priced: boolean;
+};
+
+export type StageStat = {
+  key: string;
+  label: string;
+  count: number;
+  avg_hours: number | null;
+  over_norm: number;
+  norm_hours: number | null;
+  done_avg_hours: number | null;
+  done_prev_avg_hours: number | null;
+};
+
+export type AnalyticsProject = {
+  id: number;
+  name: string;
+  active_count: number;
+  month_count: number;
+  month_amount: Money;
+  over_norm: number;
+  top_materials: string[];
+};
+
+export type AnalyticsPerson = {
+  id: number;
+  name: string;
+  role: string;
+  holding: number;
+  over_norm: number;
+  created_month: number;
+};
+
+export type DuplicatePair = {
+  first_id: number;
+  first_number: string;
+  second_id: number;
+  second_number: string;
+  project: string;
+  materials: string[];
+  hours_apart: number;
+};
+
+export type AnalyticsTrend = {
+  label: string;
+  current: number;
+  previous: number;
+  change_pct: number | null;
+  unit: string;
+};
+
+export type AnalyticsTotals = {
+  active: number;
+  drafts: number;
+  created_today: number;
+  created_week: number;
+  created_month: number;
+  done_today: number;
+  done_month: number;
+  rejected_month: number;
+  critical: number;
+  attention: number;
+  over_norm: number;
+  to_pay_amount: Money;
+  to_pay_count: number;
+  paid_month_amount: Money;
+  paid_month_count: number;
+  budget_amount: Money | null;
+  budget_used_pct: number | null;
+  avg_cycle_days: number | null;
+};
+
+/** Слова модели поверх готовых цифр. */
+export type AiText = {
+  enabled: boolean;
+  available: boolean;
+  headline: string | null;
+  summary: string[];
+  recommendations: string[];
+};
+
+export type Digest = {
+  generated_at: string;
+  ai: AiText;
+  totals: AnalyticsTotals;
+  attention: AttentionItem[];
+  in_work: RequestBrief[];
+  stages: StageStat[];
+  projects: AnalyticsProject[];
+  people: AnalyticsPerson[];
+  duplicates: DuplicatePair[];
+  trends: AnalyticsTrend[];
+  /** Чего система не знает: накладных, отделов, приоритетов. */
+  blind_spots: string[];
+};
+
+export type AnalyticsTurn = { role: 'user' | 'assistant'; text: string };
+
+export type AnalyticsRequestRef = { id: number; number: string; why: string };
+
+export type AnalyticsReply = {
+  enabled: boolean;
+  available: boolean;
+  answer: string;
+  bullets: string[];
+  requests: AnalyticsRequestRef[];
+  recommendations: string[];
+};
