@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import {
@@ -26,6 +26,7 @@ const NOTIFICATIONS = [
 import { VARIANTS } from '@/shell/config';
 import type { ShellVariant, Theme } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
+import { getInstallState, promptInstall, subscribeInstall } from '@/pwa';
 
 export function Settings() {
   const { theme, setTheme, variant, setVariant, flash } = useShell();
@@ -120,6 +121,7 @@ export function Settings() {
 
         <NotificationsCard onFlash={flash} />
         <TelegramCard onFlash={flash} />
+        <InstallCard onFlash={flash} />
         <JobsCard onFlash={flash} />
         <section className="card">
           <div className="label">О СИСТЕМЕ</div>
@@ -867,5 +869,75 @@ function MailCheck({
     >
       {busy ? 'Отправляем…' : 'Отправить проверочное письмо'}
     </button>
+  );
+}
+
+/**
+ * Установка панели на экран телефона. Три ситуации:
+ *  - уже открыто как приложение — сказать об этом;
+ *  - браузер умеет ставить сам (Chrome на Android, Edge) — кнопка;
+ *  - iPhone — только через «Поделиться → На экран «Домой»», кнопки у
+ *    Safari нет, поэтому объясняем словами.
+ */
+function InstallCard({ onFlash }: { onFlash: (text: string, color: string) => void }) {
+  const state = useSyncExternalStore(subscribeInstall, getInstallState, getInstallState);
+  const [busy, setBusy] = useState(false);
+
+  const install = async () => {
+    setBusy(true);
+    try {
+      const accepted = await promptInstall();
+      if (accepted) onFlash('Панель добавлена на экран', 'var(--dot-ok)');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card">
+      <div className="label">ПРИЛОЖЕНИЕ НА ТЕЛЕФОНЕ</div>
+      {state.standalone ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, background: 'var(--dot-ok)' }} />
+            <b>Открыто как приложение</b>
+          </div>
+          <p className="caption" style={{ margin: '12px 0 0' }}>
+            Панель стоит на экране телефона и обновляется сама вместе с сервером. При обрыве
+            связи она покажет заглушку, а не ошибку браузера.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="caption" style={{ margin: '12px 0 0' }}>
+            Панель можно поставить на экран телефона как обычное приложение: своя иконка, без
+            адресной строки, открывается одним нажатием. Ярлык «Новая заявка» ведёт сразу в форму.
+          </p>
+          {state.canPrompt ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ marginTop: 16 }}
+              onClick={install}
+              disabled={busy}
+            >
+              {busy ? 'Ждём ответа…' : 'Установить на экран'}
+            </button>
+          ) : state.ios ? (
+            <ol className="caption" style={{ margin: '12px 0 0', paddingLeft: 20 }}>
+              <li>Откройте панель в Safari.</li>
+              <li>Нажмите «Поделиться» — квадрат со стрелкой вверх.</li>
+              <li>Выберите «На экран «Домой»» и подтвердите.</li>
+            </ol>
+          ) : (
+            <p className="caption" style={{ margin: '12px 0 0' }}>
+              В Chrome и Edge на компьютере команда «Установить HONA ORDER» есть в меню браузера
+              и в адресной строке. На телефоне откройте этот раздел в Chrome (Android) или Safari
+              (iPhone).
+            </p>
+          )}
+        </>
+      )}
+    </section>
   );
 }

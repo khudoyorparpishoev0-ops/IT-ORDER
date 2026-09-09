@@ -29,7 +29,18 @@ export function Requests() {
   const [page, setPage] = useState(0);
   const [allPeriods, setAllPeriods] = useState(false);
   const [modal, setModal] = useState<RequestListItem | null>(null);
-  const [creating, setCreating] = useState(false);
+  // Ярлык приложения на телефоне ведёт на /requests?new=1 — форма
+  // открывается сразу, а параметр из адреса убирается, чтобы обновление
+  // страницы не открывало её повторно.
+  const [creating, setCreating] = useState(() => params.get('new') === '1');
+  const closeCreating = () => {
+    setCreating(false);
+    if (params.has('new')) {
+      const next = new URLSearchParams(params);
+      next.delete('new');
+      setParams(next, { replace: true });
+    }
+  };
   const { download, busy } = useDownload();
 
   const list = useRequests({
@@ -198,7 +209,7 @@ export function Requests() {
         </div>
       </QueryState>
 
-      {creating && <NewRequestModal onClose={() => setCreating(false)} />}
+      {creating && <NewRequestModal onClose={closeCreating} />}
 
       <RequestModal
         request={modal}

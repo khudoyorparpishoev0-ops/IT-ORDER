@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Нет связи — HONA ORDER</title>
+<style>
+  :root { --paper:#fff; --mist:#f5f7f5; --line:#e3e7e3; --ink:#101613; --slate:#5a655d; --green:#22a74e; --forest:#0e3b21; }
+  @media (prefers-color-scheme: dark) { :root { --paper:#0b120e; --mist:#151e18; --line:#26332b; --ink:#edf2ee; --slate:#8e9a91; --green:#33c561; } }
+  html, body { margin:0; min-height:100%; background:var(--mist); color:var(--ink); font:16px/1.56 Manrope, 'Noto Sans', Arial, sans-serif; }
+  main { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box; }
+  .card { background:var(--paper); border:1px solid var(--line); border-radius:4px; padding:32px 24px; max-width:420px; width:100%; }
+  .rule { width:48px; height:3px; background:var(--green); margin-bottom:16px; }
+  h1 { font-size:22px; line-height:1.2; margin:0 0 8px; }
+  p { margin:0 0 20px; color:var(--slate); font-size:15px; }
+  button { height:48px; width:100%; border:0; border-radius:4px; background:var(--green); color:#fff; font:600 16px Manrope, Arial, sans-serif; cursor:pointer; }
+  button:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+  svg { display:block; height:32px; width:auto; margin-bottom:20px; color:var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <svg viewBox="5.08 0 119.21 98" aria-hidden="true"><polygon fill="currentColor" points="64.97,0 124.29,97.94 35.24,97.91 43.21,85.19 101.2,85.1 64.79,25.27 20.17,98 5.08,97.87"/></svg>
+    <div class="rule"></div>
+    <h1>Нет связи с сервером</h1>
+    <p>Панель откроется, как только появится интернет. Введённое до обрыва связи не сохранилось — заявку нужно будет заполнить заново.</p>
+    <button type="button" onclick="location.reload()">Повторить</button>
+  </div>
+</main>
+</body>
+</html>
