@@ -67,3 +67,6 @@ class AssistantReplyOut(BaseModel):
     lines: list[AssistantLineOut] = []
     warnings: list[str] = []
     recommendations: list[str] = []
+    #: Номер записи в журнале обращений: по нему панель отмечает, что
+    #: позиции перенесли в заявку кнопкой «Применить».
+    interaction_id: int | None = None

@@ -4,9 +4,11 @@ import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
+import { AiButton } from '@/components/AiButton';
 import { RequestAssistant } from '@/components/RequestAssistant';
 import { useAuth } from '@/api/auth';
 import {
+  useAiApplied,
   useAssistantStatus,
   useCreateRequest,
   useEmployees,
@@ -63,6 +65,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const materials = useMaterials();
   const assistant = useAssistantStatus();
   const advise = useMaterialAdvice();
+  const applied = useAiApplied();
   const create = useCreateRequest();
   const update = useUpdateRequest();
   const send = useSubmitRequest();
@@ -130,6 +133,8 @@ function Form({ edit }: { edit?: RequestDetail }) {
     const line = lines[index];
     const advice = line?.advice;
     if (!advice || advice === 'loading' || !advice.suggested) return;
+    // Отметка служебная: её сбой не должен мешать применить написание.
+    if (advice.interaction_id !== null) applied.mutate(advice.interaction_id, { onError: () => {} });
     setLines((rows) =>
       rows.map((row, i) =>
         i === index
@@ -265,9 +270,15 @@ function Form({ edit }: { edit?: RequestDetail }) {
             </div>
             {assistant.data?.enabled && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setHelper('open')}>
-                  {lines.some((l) => l.title.trim()) ? 'Проверить заявку' : 'Помощь AI'}
-                </button>
+                {/* Зелёной кнопка становится, когда в форме уже что-то есть:
+                    тогда помощнику есть с чем работать. На пустой форме он
+                    тоже поможет, но звать его нечем — кнопка спокойная. */}
+                <AiButton
+                  small
+                  active={lines.some((l) => l.title.trim())}
+                  label={lines.some((l) => l.title.trim()) ? 'Проверить заявку' : 'Помощь AI'}
+                  onClick={() => setHelper('open')}
+                />
               </div>
             )}
           </div>

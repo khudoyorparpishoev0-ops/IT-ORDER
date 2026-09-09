@@ -1402,3 +1402,19 @@ select.filter {
   display: grid;
   gap: 16px;
 }
+
+/* Три исхода предложения помощника: перенести, поправить, отказаться.
+   В строку на компьютере, в столбик на телефоне — кнопки 48 px рядом
+   не помещаются, и последняя уезжала за край карточки. */
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 720px) {
+  .chat-actions {
+    display: grid;
+  }
+}

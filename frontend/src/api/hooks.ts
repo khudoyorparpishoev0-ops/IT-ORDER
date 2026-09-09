@@ -6,6 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, query } from './client';
 import type {
+  AiSettings,
   ApprovalQueueInfo,
   AuditActor,
   AuditEntry,
@@ -53,6 +54,7 @@ export const keys = {
   projects: ['projects'] as const,
   materials: ['materials'] as const,
   assistant: ['materials', 'assistant'] as const,
+  aiSettings: ['ai', 'settings'] as const,
   digest: ['analytics', 'digest'] as const,
   telegram: ['telegram'] as const,
   push: ['push'] as const,
@@ -245,6 +247,29 @@ export function useAssistantChat() {
       history: AssistantTurn[];
       context: { project_name: string | null; lines: AssistantContextLine[] };
     }) => api<AssistantReply>('/api/assistant/request', { method: 'POST', body: JSON.stringify(data) }),
+  });
+}
+
+/**
+ * Отметка «ответом воспользовались»: человек нажал «Применить».
+ *
+ * Единственный способ узнать, помогает помощник или мешает: ответ, который
+ * никто не применяет, помощником не является. Ошибку глотаем — отметка
+ * служебная, и её сбой не должен мешать человеку заполнять заявку.
+ */
+export function useAiApplied() {
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/ai/applied/${id}`, { method: 'POST' }),
+  });
+}
+
+/** Состояние помощника для администратора: модель, маска ключа, расход. */
+export function useAiSettings(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.aiSettings,
+    queryFn: () => api<AiSettings>('/api/ai/settings'),
+    enabled,
+    refetchOnMount: 'always',
   });
 }
 

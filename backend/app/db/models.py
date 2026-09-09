@@ -455,6 +455,75 @@ class AuditLog(Base):
     )
 
 
+class AiKind(str, enum.Enum):
+    """Какой помощник отвечал. По этому полю считается польза каждого."""
+
+    #: Проверка написания одного материала в строке заявки.
+    MATERIAL = "MATERIAL"
+    #: Диалог по заявке: разобрать потребность и собрать позиции.
+    REQUEST = "REQUEST"
+    #: Вопрос руководителя аналитику.
+    ANALYTICS = "ANALYTICS"
+
+
+class AiSource(str, enum.Enum):
+    """Откуда пришло обращение."""
+
+    WEB = "WEB"
+    TELEGRAM = "TELEGRAM"
+
+
+class AiInteraction(Base):
+    """Обращение к AI: кто спросил, что ответили, пригодилось ли.
+
+    Это журнал, а не память. Модели эта таблица не показывается никогда:
+    память помощника — сами заявки (`expense_requests`, `expense_lines`),
+    а здесь мы храним, помогает помощник или мешает. Без такой записи
+    вопрос «стоит ли он своих денег» отвечается только на глаз.
+
+    Чего здесь нет и не будет: ключа Anthropic и любых секретов. В
+    `question` и `answer` попадает то, что человек и так видел на экране,
+    обрезанное по длине — платить за хранение целых диалогов незачем.
+    """
+
+    __tablename__ = "ai_interactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[AiKind] = mapped_column(
+        Enum(AiKind, name="ai_kind", native_enum=False, length=16), nullable=False
+    )
+    source: Mapped[AiSource] = mapped_column(
+        Enum(AiSource, name="ai_source", native_enum=False, length=16),
+        default=AiSource.WEB,
+        nullable=False,
+    )
+    #: Кто спрашивал. Запись сотрудника удалили — ссылка обнуляется,
+    #: имя остаётся: журнал должен читаться и после увольнения.
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    username: Mapped[str | None] = mapped_column(String(200))
+
+    question: Mapped[str | None] = mapped_column(Text)
+    answer: Mapped[str | None] = mapped_column(Text)
+    #: Модель ответила. False — ключа нет, таймаут, отказ Anthropic.
+    ok: Mapped[bool] = mapped_column(default=True, nullable=False)
+    #: Причина отказа целиком, как её назвал Anthropic. Ключа тут нет.
+    error: Mapped[str | None] = mapped_column(Text)
+    #: Сколько ждали ответа. По нему видно, растёт ли задержка.
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    #: Человек воспользовался ответом: нажал «Применить». NULL — ответ
+    #: такой кнопки не предполагал (вопрос аналитику).
+    applied: Mapped[bool | None] = mapped_column()
+    created_at: Mapped[CreatedAt]
+
+    __table_args__ = (
+        Index("ix_ai_created_at", "created_at"),
+        Index("ix_ai_employee", "employee_id"),
+        Index("ix_ai_kind_created", "kind", "created_at"),
+    )
+
+
 class JobRun(Base):
     """Запуск фоновой задачи: напоминания, недельная сводка.
 

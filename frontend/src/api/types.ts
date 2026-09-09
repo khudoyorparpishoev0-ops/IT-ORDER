@@ -96,6 +96,8 @@ export type AssistantReply = {
   lines: AssistantLine[];
   warnings: string[];
   recommendations: string[];
+  /** Номер записи в журнале обращений: по нему отмечается «Применить». */
+  interaction_id: number | null;
 };
 
 /** Настроен ли помощник по материалам (ключ Claude API на сервере). */
@@ -116,6 +118,44 @@ export type MaterialAdvice = {
   /** Так это уже заказывали: предложено написание из каталога. */
   matches_existing: boolean;
   notes: string[];
+  interaction_id: number | null;
+};
+
+/** Сколько помощником пользовались за период. Раздел администратора. */
+export type AiUsage = {
+  days: number;
+  total: number;
+  failed: number;
+  applied: number;
+  avg_seconds: number | null;
+  by_kind: Record<string, number>;
+};
+
+/** Строка журнала обращений к AI. */
+export type AiEntry = {
+  id: number;
+  kind: string;
+  source: string;
+  username: string | null;
+  question: string | null;
+  answer: string | null;
+  ok: boolean;
+  error: string | null;
+  applied: boolean | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+/** Состояние помощника для администратора. Ключ — только маска. */
+export type AiSettings = {
+  enabled: boolean;
+  model: string;
+  key_mask: string | null;
+  timeout_seconds: number;
+  prompt_overridden: boolean;
+  analytics_prompt_overridden: boolean;
+  usage: AiUsage;
+  recent: AiEntry[];
 };
 
 /** Запуск фоновой задачи — строка в списке «Фоновые задачи». */
