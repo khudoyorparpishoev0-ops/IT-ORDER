@@ -269,3 +269,23 @@ def test_everyone_reads_reference(client, login, employee, project) -> None:
     login(employee)
     assert client.get("/api/projects").status_code == 200
     assert client.get("/api/employees").status_code == 200
+
+
+def test_overview_for_employee_has_no_queue(client, login, employee, manager, project) -> None:
+    """Дашборд открыт всем вошедшим, но очередь решений — только тем, кто решает,
+    а цифры сотрудника — только по его заявкам."""
+    login(manager)
+    submit(client, manager, project)
+    login(employee)
+    submit(client, employee, project)
+
+    body = client.get("/api/requests/overview").json()
+    assert body["decisions"] == 0 and body["queue"] == []
+    assert body["in_work"] == 1
+
+    login(manager)
+    body = client.get("/api/requests/overview").json()
+    assert body["in_work"] == 2
+    # Своя заявка в очередь руководителя не попадает.
+    assert body["decisions"] == 1
+    assert body["queue"][0]["employee_name"] == employee.full_name

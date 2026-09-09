@@ -1165,3 +1165,114 @@ select.filter {
     display: flex;
   }
 }
+
+/* ---------- Дашборд ---------- */
+/* Две колонки на широком экране, одна на узком. */
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--gap);
+}
+@media (max-width: 420px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Строка очереди «Требует решения»: маркер, текст, сумма, кнопка. */
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.queue-mark {
+  flex: none;
+  width: 2px;
+  height: 44px;
+  background: var(--line);
+}
+.queue-mark.delayed {
+  background: var(--yellow);
+}
+/* Минимум обязателен: иначе название сжимается и наезжает на сумму. */
+.queue-text {
+  flex: 1 1 200px;
+  min-width: 200px;
+  display: grid;
+  gap: 4px;
+}
+.queue-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.queue-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.queue-title a:hover {
+  color: var(--green-d);
+}
+.queue-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--slate);
+}
+.panel-foot-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green-d);
+  text-decoration: none;
+  transition: background var(--motion);
+}
+.panel-foot-link:hover {
+  background: var(--zebra);
+}
+/* Полоса метрик: справочные цифры мельче KPI-карточек. */
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.metric {
+  flex: 1;
+  min-width: 150px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.metric + .metric {
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+}
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .metric + .metric {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .queue-row {
+    padding: 16px;
+  }
+}

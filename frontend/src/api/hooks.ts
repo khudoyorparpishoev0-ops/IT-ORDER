@@ -10,7 +10,6 @@ import type {
   AuditActor,
   AuditEntry,
   BudgetInfo,
-  DashboardStats,
   DecisionInput,
   Employee,
   EmployeeAccess,
@@ -20,6 +19,7 @@ import type {
   JobRunResult,
   Material,
   MonthFact,
+  Overview,
   Page,
   PaymentInput,
   PaymentsRegister,
@@ -52,7 +52,8 @@ export const keys = {
   team: ['team'] as const,
   requests: ['requests'] as const,
   request: (id: number) => ['requests', id] as const,
-  dashboard: ['reports', 'dashboard'] as const,
+  // Под префиксом заявок: любое решение сбрасывает и дашборд.
+  overview: ['requests', 'overview'] as const,
   queue: ['reports', 'queue'] as const,
   byProject: ['reports', 'by-project'] as const,
   monthly: ['reports', 'monthly'] as const,
@@ -107,7 +108,7 @@ function useEmployeeMutation<TArgs, TResult>(fn: (args: TArgs) => Promise<TResul
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
-      for (const key of [keys.employees, keys.employeeAccess, keys.team, keys.dashboard]) {
+      for (const key of [keys.employees, keys.employeeAccess, keys.team, keys.overview]) {
         qc.invalidateQueries({ queryKey: key });
       }
     },
@@ -330,13 +331,12 @@ export function useRequest(id: number | null) {
   });
 }
 
-/** `enabled` выключает запрос, когда у роли нет права на отчёты:
- *  иначе панель стучалась бы в закрытый эндпоинт и получала 403. */
-export function useDashboard(enabled = true) {
+/** Дашборд. Открыт всем вошедшим: сервер сам сужает цифры до своих заявок. */
+export function useOverview() {
   return useQuery({
-    queryKey: keys.dashboard,
-    queryFn: () => api<DashboardStats>('/api/reports/dashboard'),
-    enabled,
+    queryKey: keys.overview,
+    queryFn: () => api<Overview>('/api/requests/overview'),
+    staleTime: 10_000,
   });
 }
 
@@ -389,7 +389,7 @@ export function useSetBudget() {
       }),
     onSuccess: (data) => {
       qc.setQueryData(keys.budget, data);
-      qc.invalidateQueries({ queryKey: keys.dashboard });
+      qc.invalidateQueries({ queryKey: keys.overview });
     },
   });
 }
@@ -399,7 +399,6 @@ export function useSetBudget() {
 function invalidateRequests(qc: ReturnType<typeof useQueryClient>) {
   for (const key of [
     keys.requests,
-    keys.dashboard,
     keys.queue,
     keys.byProject,
     keys.monthly,

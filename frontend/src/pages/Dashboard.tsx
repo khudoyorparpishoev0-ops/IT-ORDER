@@ -1,38 +1,105 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { DecisionModal } from '@/components/DecisionModal';
 import { Icon } from '@/components/Icon';
-import { Kpi } from '@/components/Kpi';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useAuth } from '@/api/auth';
-import { useDashboard, useProjectShares, useQueueInfo, useRequests } from '@/api/hooks';
-import { days, money, monthAfterZa, periodRange, plural, today } from '@/data/format';
+import { useOverview, useRequests } from '@/api/hooks';
+import { ROLE_LABEL } from '@/shell/config';
+import { DELAY_DAYS, STATUS } from '@/data/status';
+import { days, money, monthAfterZa, plural, today } from '@/data/format';
+import type { Overview, RequestListItem } from '@/api/types';
 
-const CHART = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
+/** Зелёная шкала по этапам: черновик светлый, оплата — forest. */
+const CHART = ['var(--chart-5)', 'var(--chart-4)', 'var(--chart-3)', 'var(--chart-2)', 'var(--chart-1)'];
+
+/** Числительные словами для заголовка: «три решения», а не «3 решения». */
+const NEUTER = ['', 'одно', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять'];
+const FEMININE = ['', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять'];
+
+function inWords(n: number, table: string[]): string {
+  return n > 0 && n < table.length ? table[n] : String(n);
+}
+
+/** Этап в предложном падеже для подвала «Дольше всего заявки стоят …». */
+const STAGE_WHERE: Record<string, string> = {
+  Черновик: 'в черновиках',
+  'Согласование покупки': 'на согласовании покупки',
+  'У закупа': 'у закупа',
+  'Согласование суммы': 'на согласовании суммы',
+  'К оплате': 'в бухгалтерии',
+};
+
+/** Что именно ждёт решения: подпись под строкой очереди. */
+const DECISION_STAGE: Record<string, string> = {
+  pending: 'согласование покупки',
+  priced: 'согласование суммы',
+};
+
+/** «3,4 дня» — дробные сутки, «3 дня» — целые. */
+function daysDecimal(value: number): string {
+  if (value < 1) return 'меньше дня';
+  if (Number.isInteger(value)) return days(value);
+  return `${value.toFixed(1).replace('.', ',')} дня`;
+}
 
 /**
- * Дашборд. Руководитель видит очередь на решение и показатели месяца,
- * сотрудник — свои последние заявки: показателей у него нет, а таблица
- * та же самая.
+ * Заголовок-вывод: собирается из числа решений в очереди и числа
+ * задержавшихся заявок — цифры живые, а не подпись «Дашборд».
+ */
+function headline(data: Overview | undefined, canDecide: boolean): string {
+  if (!data) return 'Дашборд';
+  const delayed =
+    data.delayed_total > 0
+      ? `${inWords(data.delayed_total, FEMININE)} ${plural(data.delayed_total, 'заявка', 'заявки', 'заявок')} ${
+          data.delayed_total === 1 ? 'задержалась' : 'задержались'
+        }`
+      : '';
+  let head: string;
+  if (canDecide) {
+    head =
+      data.decisions > 0
+        ? `На вас ${inWords(data.decisions, NEUTER)} ${plural(data.decisions, 'решение', 'решения', 'решений')}`
+        : 'Решений на вас нет';
+  } else {
+    head =
+      data.in_work > 0
+        ? `В работе ${inWords(data.in_work, FEMININE)} ${plural(data.in_work, 'заявка', 'заявки', 'заявок')}`
+        : 'Заявок в работе нет';
+  }
+  if (delayed) return `${head}, ${delayed}`;
+  if (data.in_work > 0) return `${head}, всё идёт в срок`;
+  return head;
+}
+
+/**
+ * Дашборд — рабочая очередь, а не витрина цифр. Отвечает на два вопроса:
+ * что требует моего решения и где сейчас стоят заявки. Сотрудник видит
+ * то же по своим заявкам, очереди решений у него нет.
  */
 export function Dashboard() {
   const navigate = useNavigate();
   const { user, can } = useAuth();
-  const reports = can('view_reports');
-  const stats = useDashboard(reports);
-  const queue = useQueueInfo(can('decide_request'));
-  const shares = useProjectShares(reports);
+  const canDecide = can('decide_request');
+  const overview = useOverview();
   const list = useRequests({ limit: 5 });
+  const [decision, setDecision] = useState<RequestListItem | null>(null);
 
-  const q = queue.data;
-  const waiting = (q?.count ?? 0) + (q?.priced_count ?? 0);
-  const s = stats.data;
+  const d = overview.data;
+  const scope = can('view_all_requests') ? 'все объекты' : 'мои заявки';
+  const role = user ? (ROLE_LABEL[user.role] ?? user.role) : '';
+  const maxStage = d ? Math.max(1, ...d.stages.map((s) => s.count)) : 1;
 
   return (
     <>
       <PageHeader
-        title="Дашборд"
-        lead={periodRange()}
+        accent
+        title={headline(d, canDecide)}
+        lead={[today(), role, scope, d ? `${d.in_work} ${plural(d.in_work, 'заявка', 'заявки', 'заявок')} в работе` : null]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           <button type="button" className="btn btn-primary" onClick={() => navigate('/requests/new')}>
             <Icon name="ti-plus" size={18} />
@@ -41,99 +108,134 @@ export function Dashboard() {
         }
       />
 
-      {q && waiting > 0 && (
-        <section className="card card-accent" style={{ ['--accent' as string]: 'var(--yellow)' }}>
-          <div className="row-between" style={{ alignItems: 'center' }}>
-            <div style={{ display: 'grid', gap: 4 }}>
-              <div className="label">Требует вашего решения</div>
-              <h2 className="h3">
-                {waiting} {plural(waiting, 'заявка ждёт', 'заявки ждут', 'заявок ждут')} вашего решения
-              </h2>
-              <div className="small" style={{ color: 'var(--slate)' }}>
-                {q.oldest_employee
-                  ? `Самая давняя ожидает ${q.oldest_days ? days(q.oldest_days) : 'меньше дня'} — ${q.oldest_employee}`
-                  : 'Все заявки поступили сегодня'}
-                {q.priced_count > 0 && ` · ${q.priced_count} ${plural(q.priced_count, 'заявка', 'заявки', 'заявок')} с ценами от закупа`}
-              </div>
-            </div>
-            <Link to="/approvals" className="btn btn-secondary">
-              Открыть очередь
-            </Link>
-          </div>
-        </section>
-      )}
+      <QueryState isLoading={overview.isLoading} error={overview.error} onRetry={() => overview.refetch()}>
+        {d && (
+          <>
+            <div className="dash-grid">
+              {canDecide && d.decisions > 0 && (
+                <section className="panel">
+                  <div className="panel-head">
+                    <h2 className="h3">Требует решения</h2>
+                    <span className="num">{d.decisions}</span>
+                  </div>
+                  {d.queue.map((r) => {
+                    const wait = r.awaiting_days ?? 0;
+                    const delayed = wait >= DELAY_DAYS;
+                    return (
+                      <div key={r.id} className="queue-row">
+                        <span className={delayed ? 'queue-mark delayed' : 'queue-mark'} aria-hidden="true" />
+                        <div className="queue-text">
+                          <div>
+                            <span className="meta">{r.number}</span>
+                          </div>
+                          <div className="queue-title">
+                            <Link to={`/requests/${r.id}`}>{r.title}</Link>
+                          </div>
+                          <div className="queue-meta">
+                            <span className="dot" style={{ ['--dot' as string]: STATUS[r.status].color }} aria-hidden="true" />
+                            <span>
+                              {r.project_name} · {DECISION_STAGE[r.status] ?? r.awaiting_label} ·{' '}
+                              {wait > 0 ? `ждёт ${days(wait)}` : 'подана сегодня'}
+                            </span>
+                          </div>
+                        </div>
+                        {r.priced ? <span className="num-lg">{money(r.amount)}</span> : <span className="unpriced">не оценена</span>}
+                        <button type="button" className="btn btn-primary" onClick={() => setDecision(r)}>
+                          Согласовать
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <Link to="/approvals" className="panel-foot-link">
+                    Вся очередь согласования
+                    <Icon name="ti-chevron-right" size={18} />
+                  </Link>
+                </section>
+              )}
 
-      {reports && (
-        <div className="kpi-grid">
-          <Kpi label="Всего заявок" value={s ? s.total_requests : '—'} note={`за ${monthAfterZa()}, ${s?.employees_count ?? 0} ${plural(s?.employees_count ?? 0, 'сотрудник', 'сотрудника', 'сотрудников')}`} />
-          <Kpi label="Ждут решения" value={s ? s.pending_count : '—'} dot={s && s.pending_count > 0 ? 'var(--yellow)' : undefined} note="на согласовании" />
-          <Kpi label="К оплате" value={s ? money(s.approved_amount) : '—'} note={`сомони, ${s?.approved_count ?? 0} ${plural(s?.approved_count ?? 0, 'заявка', 'заявки', 'заявок')}`} />
-          <Kpi
-            label="Бюджет месяца"
-            value={s?.budget_amount ? money(s.budget_amount) : '—'}
-            note={s?.budget_amount ? `сомони, использовано ${s.budget_used_pct ?? 0}%` : 'бюджет не задан'}
-          />
-        </div>
-      )}
-
-      <div className={reports ? 'grid-2-1' : 'stack'}>
-        <section className="panel">
-          <div className="panel-head">
-            <h2 className="h3">{reports ? 'Последние заявки' : 'Мои заявки'}</h2>
-            <Link to="/requests" className="small">
-              Все заявки
-            </Link>
-          </div>
-          <QueryState
-            isLoading={list.isLoading}
-            error={list.error}
-            isEmpty={!list.isLoading && (list.data?.items.length ?? 0) === 0}
-            emptyTitle="Заявок за период пока нет"
-            emptyNote={reports ? 'Как только сотрудники подадут заявки, они появятся здесь.' : 'Нажмите «Создать заявку» — объект и позиции, цены назовёт закуп.'}
-            onRetry={() => list.refetch()}
-          >
-            <RequestsTable rows={list.data?.items ?? []} compact />
-          </QueryState>
-        </section>
-
-        {reports && (
-          <section className="card" style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-            {shares.data && shares.data.length > 0 ? (
-              <>
-                <h2 className="h3">
-                  {shares.data[0].name} — крупнейший объект по расходам за {monthAfterZa()}
-                </h2>
+              <section className="card" style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+                <div>
+                  <div className="rubric" style={{ marginBottom: 8 }}>
+                    {d.in_work > 0
+                      ? `Где стоят ${d.in_work} ${plural(d.in_work, 'заявка', 'заявки', 'заявок')}`
+                      : 'Где стоят заявки'}
+                  </div>
+                  <div className="caption">Количество заявок на каждом этапе</div>
+                </div>
                 <div style={{ display: 'grid', gap: 12 }}>
-                  {shares.data.map((row, i) => (
-                    <div key={row.project_id} className="hbar-row">
+                  {d.stages.map((s, i) => (
+                    <div key={s.key} className="hbar-row">
                       <div className="hbar-line">
-                        <span>{row.name}</span>
-                        <span className="num">{money(row.amount)}</span>
+                        <span>{s.label}</span>
+                        <span className="num" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          {s.delayed && <span className="dot" style={{ ['--dot' as string]: 'var(--yellow)' }} aria-label="есть задержки" />}
+                          {s.count}
+                        </span>
                       </div>
                       <div className="hbar">
-                        <span style={{ width: `${row.pct}%`, background: CHART[Math.min(i, CHART.length - 1)] }} />
+                        <span style={{ width: `${(s.count / maxStage) * 100}%`, background: CHART[i] }} />
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="caption">Источник: ORDER · данные на {today()}</div>
-              </>
-            ) : (
-              <>
-                <div className="label">Расходы по объектам</div>
-                <p className="caption" style={{ margin: 0 }}>
-                  Расходов за {monthAfterZa()} пока нет: доли появятся после первой оценённой заявки.
-                </p>
-              </>
-            )}
-          </section>
+                <div className="caption" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+                  {d.slowest_stage && d.slowest_days !== null
+                    ? `Дольше всего заявки стоят ${STAGE_WHERE[d.slowest_stage] ?? d.slowest_stage} — ${daysDecimal(d.slowest_days)}.`
+                    : 'В работе ничего нет: очередь пуста.'}
+                </div>
+              </section>
+            </div>
+
+            <section className="card metrics">
+              <div className="metric">
+                <div className="rubric">К оплате</div>
+                <div className="metric-value">{money(d.to_pay_amount)}</div>
+                <div className="caption">{d.to_pay_count} {plural(d.to_pay_count, 'заявка', 'заявки', 'заявок')}</div>
+              </div>
+              <div className="metric">
+                <div className="rubric">Оплачено за {monthAfterZa()}</div>
+                <div className="metric-value">{money(d.paid_amount)}</div>
+                <div className="caption">{d.paid_count} {plural(d.paid_count, 'заявка', 'заявки', 'заявок')}</div>
+              </div>
+              <div className="metric">
+                <div className="rubric">Средний цикл</div>
+                <div className="metric-value">{d.avg_cycle_days === null ? '—' : d.avg_cycle_days.toFixed(1).replace('.', ',')}</div>
+                <div className="caption">{d.avg_cycle_days === null ? 'выплат за месяц не было' : 'дня от подачи до оплаты'}</div>
+              </div>
+              <div className="metric">
+                <div className="rubric">Отклонено</div>
+                <div className="metric-value">{d.rejected_count}</div>
+                <div className="caption">за {monthAfterZa()}</div>
+              </div>
+            </section>
+          </>
         )}
-      </div>
-      {user && !reports && (
-        <p className="caption" style={{ margin: 0 }}>
-          {user.full_name} · {user.position}
-        </p>
-      )}
+      </QueryState>
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2 className="h3">{can('view_all_requests') ? 'Последние заявки' : 'Мои заявки'}</h2>
+          <Link to="/requests" className="small">
+            Все заявки
+          </Link>
+        </div>
+        <QueryState
+          isLoading={list.isLoading}
+          error={list.error}
+          isEmpty={!list.isLoading && (list.data?.items.length ?? 0) === 0}
+          emptyTitle="Заявок за период пока нет"
+          emptyNote={
+            can('view_all_requests')
+              ? 'Как только сотрудники подадут заявки, они появятся здесь.'
+              : 'Нажмите «Создать заявку» — объект и позиции, цены назовёт закуп.'
+          }
+          onRetry={() => list.refetch()}
+        >
+          <RequestsTable rows={list.data?.items ?? []} compact />
+        </QueryState>
+      </section>
+
+      {decision && <DecisionModal request={decision} approve onClose={() => setDecision(null)} />}
     </>
   );
 }

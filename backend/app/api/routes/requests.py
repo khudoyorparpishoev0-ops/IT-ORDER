@@ -27,6 +27,7 @@ from app.api.deps import (
 from app.core.permissions import Permission, has_permission
 from app.db.models import Employee, ExpenseRequest, RequestStatus
 from app.schemas.common import Page
+from app.schemas.report import Overview
 from app.schemas.request import (
     DecisionIn,
     ExpenseLineOut,
@@ -39,6 +40,7 @@ from app.schemas.request import (
     RequestUpdate,
     SourcingIn,
 )
+from app.services import reports as reports_svc
 from app.services import requests as svc
 from app.services.notifications import notify_new_request
 
@@ -148,6 +150,24 @@ def list_requests(
     return Page[RequestListItem](
         items=[to_list_item(r) for r in items], total=total, limit=limit, offset=offset
     )
+
+
+@router.get("/overview", response_model=Overview)
+def overview(session: DbSession, user: CurrentUser, period: PeriodDep):
+    """Дашборд. Объявлен раньше `/{request_id}`, иначе слово «overview»
+    разобралось бы как номер заявки."""
+    data = reports_svc.overview(
+        session,
+        year=period.year,
+        month=period.month,
+        employee_id=_visible_employee_id(user, None),
+    )
+    if has_permission(user.role, Permission.DECIDE_REQUEST):
+        queue, total, delayed = reports_svc.decision_queue(session, decider_id=user.id)
+        data.queue = [to_list_item(r) for r in queue]
+        data.decisions = total
+        data.delayed_decisions = delayed
+    return data
 
 
 @router.get("/{request_id}", response_model=RequestDetail)

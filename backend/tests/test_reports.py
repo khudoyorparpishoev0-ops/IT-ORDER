@@ -203,3 +203,79 @@ def test_monthly_facts_axis_starts_at_zero(session, employee, project) -> None:
     assert facts[-1].value == 97
     # Месяцы без данных дают ноль, а не пропуск: ось идёт от нуля
     assert facts[0].value == 0
+
+
+def test_overview_counts_stages_and_metrics(session, employee, project) -> None:
+    """Дашборд: заявки раскладываются по этапам, выплаты месяца и
+    отклонения считаются, очередь без права — пустая."""
+    svc.create_request(
+        session,
+        RequestCreate(
+            employee_id=employee.id,
+            project_id=project.id,
+            lines=[ExpenseLineIn(title="Черновик", quantity=1)],
+            submit=False,
+        ),
+    )
+    add_request(session, employee, project, "1000.00")  # PRICED
+    add_request(session, employee, project, "2500.00", approve=True)  # APPROVED
+    add_request(session, employee, project, "700.00", pay=True)  # PAID
+    rejected = add_request(session, employee, project, "300.00")
+    svc.decide_request(
+        session,
+        rejected.id,
+        DecisionIn(approve=False, comment="Не нужно", actor="Руководитель"),
+    )
+    session.flush()
+
+    year, month = rep.current_period()
+    data = rep.overview(session, year=year, month=month)
+
+    counts = {s.key: s.count for s in data.stages}
+    assert counts == {"draft": 1, "pending": 0, "sourcing": 0, "priced": 1, "approved": 1}
+    assert data.in_work == 3
+    assert data.to_pay_amount == Decimal("2500.00")
+    assert data.to_pay_count == 1
+    assert data.paid_amount == Decimal("700.00")
+    assert data.paid_count == 1
+    assert data.avg_cycle_days == 0.0
+    assert data.rejected_count == 1
+    assert data.queue == [] and data.decisions == 0
+    assert data.slowest_stage in {"Черновик", "Согласование суммы", "К оплате"}
+
+
+def test_overview_scoped_to_employee(session, employee, second_employee, project) -> None:
+    """Сотрудник видит на дашборде только свои заявки."""
+    add_request(session, employee, project, "1000.00", approve=True)
+    add_request(session, second_employee, project, "9000.00", approve=True)
+    session.flush()
+
+    year, month = rep.current_period()
+    mine = rep.overview(session, year=year, month=month, employee_id=employee.id)
+    everyone = rep.overview(session, year=year, month=month)
+    assert mine.to_pay_amount == Decimal("1000.00")
+    assert everyone.to_pay_amount == Decimal("10000.00")
+    assert mine.in_work == 1 and everyone.in_work == 2
+
+
+def test_decision_queue_skips_own_and_orders_by_wait(
+    session, employee, second_employee, project
+) -> None:
+    """Очередь дашборда: чужие PENDING и PRICED, свои не считаются."""
+    for who in (employee, second_employee):
+        svc.create_request(
+            session,
+            RequestCreate(
+                employee_id=who.id,
+                project_id=project.id,
+                lines=[ExpenseLineIn(title="Расход", quantity=1)],
+                submit=True,
+            ),
+        )
+    add_request(session, second_employee, project, "500.00")  # PRICED
+    session.flush()
+
+    rows, total, delayed = rep.decision_queue(session, decider_id=employee.id)
+    assert total == 2
+    assert delayed == 0
+    assert {r.employee_id for r in rows} == {second_employee.id}
