@@ -21,6 +21,9 @@ from app.core.mail import MailError, send
 from app.core.permissions import Permission
 from app.schemas.auth import PasswordSetIn
 from app.schemas.reference import (
+    AssistantStatus,
+    MaterialAdviceIn,
+    MaterialAdviceOut,
     EmployeeAccessOut,
     EmployeeCreate,
     EmployeeOut,
@@ -33,6 +36,7 @@ from app.schemas.reference import (
 )
 from app.services import auth as auth_svc
 from app.services import mail_templates as templates
+from app.services import material_assistant
 from app.services import reference as svc
 from app.services.reports import team_overview
 
@@ -89,6 +93,24 @@ def update_project(session: DbSession, project_id: int, data: ProjectUpdate):
         requests_count=count,
         spent=spent,
     )
+
+
+@router.get("/materials/assistant", response_model=AssistantStatus)
+def assistant_status(_: CurrentUser):
+    """Настроен ли помощник по материалам. Объявлен раньше `/materials`
+    с параметрами — иначе слово «assistant» уйдёт в поиск по каталогу."""
+    settings = get_settings()
+    return AssistantStatus(
+        enabled=settings.assistant_enabled,
+        model=settings.assistant_model if settings.assistant_enabled else None,
+    )
+
+
+@router.post("/materials/advice", response_model=MaterialAdviceOut)
+def material_advice(session: DbSession, _: CurrentUser, data: MaterialAdviceIn):
+    """Совет по написанию материала. Открыт любому вошедшему: подсказка
+    нужна тому, кто заполняет заявку. Сбой модели — не ошибка запроса."""
+    return material_assistant.advise(session, title=data.title, unit=data.unit)
 
 
 @router.get("/materials", response_model=list[MaterialOut])

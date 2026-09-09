@@ -6,19 +6,29 @@ import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { useAuth } from '@/api/auth';
 import {
+  useAssistantStatus,
   useCreateRequest,
   useEmployees,
+  useMaterialAdvice,
   useMaterials,
   useProjects,
   useRequest,
   useSubmitRequest,
   useUpdateRequest,
 } from '@/api/hooks';
-import type { ExpenseLineInput, RequestDetail } from '@/api/types';
+import type { ExpenseLineInput, MaterialAdvice, RequestDetail } from '@/api/types';
 import { plural } from '@/data/format';
 import { useShell } from '@/shell/ShellContext';
 
-type Line = { title: string; quantity: string; unit: string };
+type Line = {
+  title: string;
+  quantity: string;
+  unit: string;
+  /** Совет помощника по этому названию; 'loading' — ждём ответ. */
+  advice?: MaterialAdvice | 'loading';
+  /** Для какого написания получен совет: повторно не спрашиваем. */
+  checked?: string;
+};
 const EMPTY: Line = { title: '', quantity: '1', unit: '' };
 
 function fromDetail(edit: RequestDetail): Line[] {
@@ -50,6 +60,8 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const projects = useProjects();
   const employees = useEmployees();
   const materials = useMaterials();
+  const assistant = useAssistantStatus();
+  const advise = useMaterialAdvice();
   const create = useCreateRequest();
   const update = useUpdateRequest();
   const send = useSubmitRequest();
@@ -80,7 +92,54 @@ function Form({ edit }: { edit?: RequestDetail }) {
 
   const setTitle = (index: number, title: string) => {
     const known = (materials.data ?? []).find((m) => m.title.toLowerCase() === title.trim().toLowerCase());
-    setLines((rows) => rows.map((row, i) => (i === index ? { ...row, title, unit: row.unit || known?.unit || '' } : row)));
+    setLines((rows) =>
+      rows.map((row, i) =>
+        i === index
+          ? { ...row, title, unit: row.unit || known?.unit || '', advice: row.checked === title.trim() ? row.advice : undefined }
+          : row,
+      ),
+    );
+  };
+
+  // Помощник проверяет написание, когда человек закончил печатать
+  // (поле потеряло фокус): спрашивать модель на каждую букву — дорого и
+  // бессмысленно. Совет показывается рядом, применяется кнопкой.
+  const checkTitle = async (index: number) => {
+    const line = lines[index];
+    const title = line?.title.trim() ?? '';
+    if (!assistant.data?.enabled || title.length < 3 || line.checked === title) return;
+    setLine(index, { advice: 'loading', checked: title });
+    try {
+      const advice = await advise.mutateAsync({ title, unit: line.unit.trim() || null });
+      setLines((rows) =>
+        rows.map((row, i) =>
+          i === index && row.title.trim() === title
+            ? { ...row, advice, unit: row.unit || (advice.available && !advice.changed ? advice.unit ?? '' : '') }
+            : row,
+        ),
+      );
+    } catch {
+      setLines((rows) => rows.map((row, i) => (i === index ? { ...row, advice: undefined } : row)));
+    }
+  };
+
+  const applyAdvice = (index: number) => {
+    const line = lines[index];
+    const advice = line?.advice;
+    if (!advice || advice === 'loading' || !advice.suggested) return;
+    setLines((rows) =>
+      rows.map((row, i) =>
+        i === index
+          ? {
+              ...row,
+              title: advice.suggested ?? row.title,
+              unit: row.unit || advice.unit || '',
+              checked: advice.suggested ?? row.checked,
+              advice: { ...advice, title: advice.suggested ?? advice.title, changed: false },
+            }
+          : row,
+      ),
+    );
   };
 
   const filled = lines.filter((l) => l.title.trim());
@@ -198,7 +257,8 @@ function Form({ edit }: { edit?: RequestDetail }) {
           </datalist>
           <div style={{ display: 'grid', gap: 8 }}>
             {lines.map((line, index) => (
-              <div key={index} className="line-row">
+              <div key={index} className="line-block">
+              <div className="line-row">
                 <input
                   className="field line-title"
                   aria-label={`Описание строки ${index + 1}`}
@@ -207,6 +267,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
                   autoComplete="off"
                   value={line.title}
                   onChange={(e) => setTitle(index, e.target.value)}
+                  onBlur={() => void checkTitle(index)}
                 />
                 <input
                   className="field mono line-qty"
@@ -232,16 +293,25 @@ function Form({ edit }: { edit?: RequestDetail }) {
                   <Icon name="ti-x" size={18} />
                 </button>
               </div>
+              <AdviceHint advice={line.advice} onApply={() => applyAdvice(index)} />
+              </div>
             ))}
           </div>
           <button type="button" className="btn btn-dashed" onClick={() => setLines((rows) => [...rows, { ...EMPTY }])}>
             <Icon name="ti-plus" size={18} />
             Добавить позицию
           </button>
-          {(materials.data ?? []).length > 0 && (
+          {assistant.data?.enabled ? (
             <p className="caption" style={{ margin: 0 }}>
-              Начните печатать — панель подскажет, как это называли раньше, и подставит единицу измерения.
+              Начните печатать — панель подскажет, как это называли раньше. Когда закончите строку, помощник
+              проверит написание и предложит поправку; применить её или оставить своё — решаете вы.
             </p>
+          ) : (
+            (materials.data ?? []).length > 0 && (
+              <p className="caption" style={{ margin: 0 }}>
+                Начните печатать — панель подскажет, как это называли раньше, и подставит единицу измерения.
+              </p>
+            )
           )}
         </section>
 
@@ -264,5 +334,50 @@ function Form({ edit }: { edit?: RequestDetail }) {
         </p>
       </form>
     </>
+  );
+}
+
+/**
+ * Совет помощника под строкой. Молчит, когда модель недоступна: сбой
+ * подсказки не должен выглядеть как проблема формы.
+ */
+function AdviceHint({ advice, onApply }: { advice?: MaterialAdvice | 'loading'; onApply: () => void }) {
+  if (!advice) return null;
+  if (advice === 'loading') {
+    return (
+      <div className="line-hint muted" aria-live="polite">
+        Помощник проверяет написание…
+      </div>
+    );
+  }
+  if (!advice.available) return null;
+  const hasNotes = advice.notes.length > 0;
+  if (!advice.changed && !hasNotes) {
+    return (
+      <div className="line-hint muted" aria-live="polite">
+        Написание верное
+      </div>
+    );
+  }
+  return (
+    <div className="line-hint" aria-live="polite">
+      {advice.changed && advice.suggested && (
+        <div className="line-hint-row">
+          <span>
+            {advice.matches_existing ? 'Так это уже заказывали: ' : 'Возможно, правильнее: '}
+            <b>{advice.suggested}</b>
+            {advice.unit ? ` · ${advice.unit}` : ''}
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onApply}>
+            Применить
+          </button>
+        </div>
+      )}
+      {advice.notes.map((note) => (
+        <div key={note} className="caption" style={{ margin: 0 }}>
+          {note}
+        </div>
+      ))}
+    </div>
   );
 }
