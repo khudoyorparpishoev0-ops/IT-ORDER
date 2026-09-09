@@ -101,6 +101,20 @@ export type TelegramLink = {
   expires_in_minutes: number;
 };
 
+/** Push-уведомления на телефон: настроено ли на сервере и сколько устройств у меня. */
+export type PushConfig = {
+  enabled: boolean;
+  /** Открытый ключ VAPID для подписки браузера. */
+  public_key: string | null;
+  devices: number;
+};
+
+export type PushSubscribeInput = {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  user_agent?: string | null;
+};
+
 export type TelegramSetup = {
   webhook_url: string;
   bot_username: string | null;

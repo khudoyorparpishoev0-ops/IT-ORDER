@@ -110,3 +110,77 @@ export function setupPwa(): void {
     });
   }
 }
+
+/* --- Push-уведомления --------------------------------------------------- */
+
+export type PushSupport = 'ok' | 'unsupported' | 'ios-needs-install';
+
+/**
+ * Может ли этот браузер подписаться. На iPhone push работает только у
+ * панели, поставленной на экран (iOS 16.4+): в Safari во вкладке
+ * PushManager есть, но подписка не сработает — объясняем заранее.
+ */
+export function pushSupport(): PushSupport {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  if (isIos() && !isStandalone()) return 'ios-needs-install';
+  return 'ok';
+}
+
+export function pushPermission(): NotificationPermission | 'unsupported' {
+  return 'Notification' in window ? Notification.permission : 'unsupported';
+}
+
+function toKey(base64url: string): Uint8Array {
+  const padded = base64url + '='.repeat((4 - (base64url.length % 4)) % 4);
+  const raw = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+/** Текущая подписка этого браузера, если есть. */
+export async function currentPushSubscription(): Promise<PushSubscription | null> {
+  if (pushSupport() === 'unsupported') return null;
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
+/**
+ * Подписывает браузер. Спрашивает разрешение, если ещё не спрашивали;
+ * возвращает null, если человек отказал.
+ */
+export async function subscribePush(publicKey: string): Promise<PushSubscription | null> {
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return null;
+  const registration = await navigator.serviceWorker.ready;
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) return existing;
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: toKey(publicKey),
+  });
+}
+
+export async function unsubscribePush(): Promise<string | null> {
+  const existing = await currentPushSubscription();
+  if (!existing) return null;
+  const endpoint = existing.endpoint;
+  await existing.unsubscribe();
+  return endpoint;
+}
+
+/** Подписка в виде, который принимает сервер. */
+export function subscriptionPayload(sub: PushSubscription): {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  user_agent: string;
+} {
+  const json = sub.toJSON();
+  return {
+    endpoint: sub.endpoint,
+    keys: { p256dh: json.keys?.p256dh ?? '', auth: json.keys?.auth ?? '' },
+    user_agent: navigator.userAgent.slice(0, 200),
+  };
+}

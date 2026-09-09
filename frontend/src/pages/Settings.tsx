@@ -4,6 +4,10 @@ import { PageHeader } from '@/components/PageHeader';
 import {
   useHealth,
   useJobRuns,
+  usePushConfig,
+  usePushSubscribe,
+  usePushTest,
+  usePushUnsubscribe,
   useRunJob,
   useTelegramLink,
   useTelegramSetup,
@@ -26,7 +30,17 @@ const NOTIFICATIONS = [
 import { VARIANTS } from '@/shell/config';
 import type { ShellVariant, Theme } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
-import { getInstallState, promptInstall, subscribeInstall } from '@/pwa';
+import {
+  currentPushSubscription,
+  getInstallState,
+  promptInstall,
+  pushPermission,
+  pushSupport,
+  subscribeInstall,
+  subscribePush,
+  subscriptionPayload,
+  unsubscribePush,
+} from '@/pwa';
 
 export function Settings() {
   const { theme, setTheme, variant, setVariant, flash } = useShell();
@@ -122,6 +136,7 @@ export function Settings() {
         <NotificationsCard onFlash={flash} />
         <TelegramCard onFlash={flash} />
         <InstallCard onFlash={flash} />
+        <PushCard onFlash={flash} />
         <JobsCard onFlash={flash} />
         <section className="card">
           <div className="label">О СИСТЕМЕ</div>
@@ -938,6 +953,175 @@ function InstallCard({ onFlash }: { onFlash: (text: string, color: string) => vo
           )}
         </>
       )}
+    </section>
+  );
+}
+
+/**
+ * Уведомления на телефон (Web Push). Подписка живёт в браузере, сервер
+ * лишь запоминает её, поэтому состояние «включено» проверяется у
+ * браузера, а не по данным сервера: с сервера видно только число
+ * устройств. На iPhone работает только у панели, поставленной на экран.
+ */
+function PushCard({ onFlash }: { onFlash: (text: string, color: string) => void }) {
+  const config = usePushConfig();
+  const subscribe = usePushSubscribe();
+  const unsubscribe = usePushUnsubscribe();
+  const test = usePushTest();
+  const support = pushSupport();
+  const [onDevice, setOnDevice] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Есть ли подписка именно у этого браузера — узнаём у service worker.
+  useEffect(() => {
+    let cancelled = false;
+    if (support !== 'ok') {
+      setOnDevice(false);
+      return;
+    }
+    currentPushSubscription()
+      .then((sub) => {
+        if (!cancelled) setOnDevice(sub !== null);
+      })
+      .catch(() => {
+        if (!cancelled) setOnDevice(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [support]);
+
+  const enable = async () => {
+    const key = config.data?.public_key;
+    if (!key) return;
+    setBusy(true);
+    try {
+      const sub = await subscribePush(key);
+      if (!sub) {
+        onFlash('Браузер не дал разрешения на уведомления', 'var(--dot-warn)');
+        return;
+      }
+      await subscribe.mutateAsync(subscriptionPayload(sub));
+      setOnDevice(true);
+      onFlash('Уведомления на этом устройстве включены', 'var(--dot-ok)');
+    } catch (err) {
+      onFlash(err instanceof Error ? err.message : 'Не удалось включить', 'var(--dot-err)');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    try {
+      const endpoint = await unsubscribePush();
+      if (endpoint) await unsubscribe.mutateAsync(endpoint);
+      setOnDevice(false);
+      onFlash('Уведомления на этом устройстве отключены', 'var(--dot-off)');
+    } catch (err) {
+      onFlash(err instanceof Error ? err.message : 'Не удалось отключить', 'var(--dot-err)');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const check = async () => {
+    try {
+      await test.mutateAsync();
+      onFlash('Проверочное уведомление отправлено', 'var(--dot-ok)');
+    } catch (err) {
+      onFlash(err instanceof Error ? err.message : 'Не удалось отправить', 'var(--dot-err)');
+    }
+  };
+
+  const devices = config.data?.devices ?? 0;
+  const denied = pushPermission() === 'denied';
+
+  let body: JSX.Element;
+  if (config.data && !config.data.enabled) {
+    body = (
+      <p className="caption" style={{ margin: '16px 0 0', color: 'var(--dot-warn)' }}>
+        Push не настроен — уведомления на телефон не отправляются. Ключ
+        (VAPID_PRIVATE_KEY) задаёт администратор сервера.
+      </p>
+    );
+  } else if (support === 'unsupported') {
+    body = (
+      <p className="caption" style={{ margin: '16px 0 0' }}>
+        Этот браузер уведомления не поддерживает. Откройте панель в Chrome
+        (Android) или поставьте её на экран iPhone.
+      </p>
+    );
+  } else if (support === 'ios-needs-install') {
+    body = (
+      <p className="caption" style={{ margin: '16px 0 0' }}>
+        На iPhone уведомления приходят только в панель, поставленную на экран:
+        сначала «Поделиться → На экран «Домой»» (карточка выше), затем
+        включите их здесь уже из установленного приложения.
+      </p>
+    );
+  } else if (onDevice) {
+    body = (
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 8 }}>
+          <span aria-hidden="true" style={{ width: 8, height: 8, background: 'var(--dot-ok)' }} />
+          <span style={{ fontWeight: 600 }}>
+            Включены на этом устройстве
+            {devices > 1 ? ` · всего устройств: ${devices}` : ''}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={test.isPending}
+            onClick={check}
+          >
+            {test.isPending ? 'Отправляем…' : 'Проверить'}
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={disable}>
+            {busy ? 'Отключаем…' : 'Отключить'}
+          </button>
+        </div>
+      </>
+    );
+  } else if (denied) {
+    body = (
+      <p className="caption" style={{ margin: '16px 0 0', color: 'var(--dot-warn)' }}>
+        Уведомления для панели запрещены в настройках браузера. Разрешите их
+        в настройках сайта и вернитесь сюда.
+      </p>
+    );
+  } else {
+    body = (
+      <>
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ marginTop: 16 }}
+          disabled={busy || onDevice === null || !config.data}
+          onClick={enable}
+        >
+          {busy ? 'Включаем…' : 'Включить уведомления'}
+        </button>
+        {devices > 0 && (
+          <p className="caption" style={{ margin: '12px 0 0' }}>
+            Уже включены на других устройствах: {devices}.
+          </p>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <section className="card">
+      <div className="label">УВЕДОМЛЕНИЯ НА ТЕЛЕФОНЕ</div>
+      <p className="caption" style={{ margin: '16px 0 0' }}>
+        Те же сообщения, что в Telegram и на почту, — прямо на экран
+        телефона: судьба ваших заявок, заявки, которые ждут вас, напоминания
+        и недельная сводка.
+      </p>
+      {body}
     </section>
   );
 }

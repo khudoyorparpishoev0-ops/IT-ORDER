@@ -14,3 +14,4 @@ reportlab==4.2.5
 pyotp==2.9.0
 qrcode==8.0
 cryptography==44.0.0
+pywebpush==2.2.0

@@ -28,6 +28,8 @@ export const ACTION_LABEL: Record<string, string> = {
   recovery_codes_reissued: 'Коды восстановления перевыпущены',
   telegram_linked: 'Telegram подключён',
   telegram_unlinked: 'Telegram отключён',
+  push_subscribed: 'Уведомления на телефон включены',
+  push_unsubscribed: 'Уведомления на телефон отключены',
   bootstrap_admin: 'Создан стартовый администратор',
   create: 'Создание',
   update: 'Изменение',
@@ -70,6 +72,8 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
       'recovery_codes_reissued',
       'telegram_linked',
       'telegram_unlinked',
+      'push_subscribed',
+      'push_unsubscribed',
     ],
   },
   {

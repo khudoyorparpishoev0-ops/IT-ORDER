@@ -168,6 +168,9 @@ class Employee(Base):
     recovery_codes: Mapped[list[RecoveryCode]] = relationship(
         back_populates="employee", cascade="all, delete-orphan"
     )
+    push_subscriptions: Mapped[list[PushSubscription]] = relationship(
+        back_populates="employee", cascade="all, delete-orphan"
+    )
 
     @property
     def can_sign_in(self) -> bool:
@@ -183,6 +186,45 @@ class Employee(Base):
         # сходились бы в одну переписку.
         UniqueConstraint("telegram_chat_id", name="uq_employees_telegram_chat"),
         Index("ix_employees_telegram_code", "telegram_link_code"),
+    )
+
+
+class PushSubscription(Base):
+    """Подписка браузера на push-уведомления: один телефон (или один
+    браузер на компьютере) — одна строка.
+
+    Подписку выдаёт push-служба браузера, у неё нет ни имени, ни срока.
+    Умирает она без предупреждения (снятое с экрана приложение,
+    переустановка), поэтому сервер удаляет строку, как только служба
+    ответит 404/410. Ключи p256dh и auth — шифрование до телефона:
+    push-служба видит только факт уведомления, не текст.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(128), nullable=False)
+    auth: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Чем подписались — чтобы в журнале было видно «iPhone» или «Chrome».
+    user_agent: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[CreatedAt]
+    last_used_at: Mapped[Timestamp | None]
+
+    employee: Mapped[Employee] = relationship(back_populates="push_subscriptions")
+
+    def info(self) -> dict:
+        """В том виде, какой принимает pywebpush."""
+        return {"endpoint": self.endpoint, "keys": {"p256dh": self.p256dh, "auth": self.auth}}
+
+    __table_args__ = (
+        # Один endpoint — один человек: переустановка того же браузера
+        # под другой учётной записью переводит подписку, а не дублирует.
+        UniqueConstraint("endpoint", name="uq_push_subscriptions_endpoint"),
+        Index("ix_push_subscriptions_employee", "employee_id"),
     )
 
 
