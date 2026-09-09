@@ -132,7 +132,6 @@ export type Employee = {
   email: string | null;
   phone: string | null;
   role: EmployeeRole;
-  monthly_limit: Money | null;
   active: boolean;
 };
 
@@ -157,7 +156,6 @@ export type EmployeeInput = {
   email: string | null;
   phone: string | null;
   role: EmployeeRole;
-  monthly_limit: Money | null;
   active: boolean;
   /** Только при заведении: пароль уходит вместе с карточкой одним запросом. */
   password?: string | null;
@@ -185,10 +183,7 @@ export type TeamMember = {
   id: number;
   full_name: string;
   position: string;
-  limit: Money | null;
   spent: Money;
-  /** Доля израсходованного, 0..100. null — лимит не задан. */
-  pct: number | null;
   requests_count: number;
 };
 
@@ -287,8 +282,6 @@ export type RequestListItem = {
 export type RequestDetail = RequestListItem & {
   employee_email: string | null;
   employee_phone: string | null;
-  employee_limit: Money | null;
-  employee_spent: Money;
   lines: ExpenseLine[];
   events: RequestEvent[];
   payment: PaymentInfo | null;

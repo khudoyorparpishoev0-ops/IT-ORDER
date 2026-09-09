@@ -122,8 +122,6 @@ class Employee(Base):
         default=EmployeeRole.EMPLOYEE,
         nullable=False,
     )
-    #: Месячный лимит расходов в сомони. NULL — лимит не задан.
-    monthly_limit: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
     #: Хэш пароля (Argon2id). NULL — сотрудник заведён, но входить не может:
@@ -178,10 +176,6 @@ class Employee(Base):
         return bool(self.active and self.email and self.password_hash)
 
     __table_args__ = (
-        CheckConstraint(
-            "monthly_limit IS NULL OR monthly_limit >= 0",
-            name="ck_employees_limit_non_negative",
-        ),
         # Один чат — один сотрудник: иначе уведомления двух человек
         # сходились бы в одну переписку.
         UniqueConstraint("telegram_chat_id", name="uq_employees_telegram_chat"),

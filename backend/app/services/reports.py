@@ -304,18 +304,12 @@ def team_overview(session: Session, *, year: int, month: int) -> list[TeamMember
 
     result: list[TeamMemberOut] = []
     for employee, spent, cnt in rows:
-        spent_dec = to_decimal(spent or 0)
-        pct = None
-        if employee.monthly_limit and employee.monthly_limit > 0:
-            pct = int((spent_dec / employee.monthly_limit * 100).to_integral_value())
         result.append(
             TeamMemberOut(
                 id=employee.id,
                 full_name=employee.full_name,
                 position=employee.position,
-                limit=employee.monthly_limit,
-                spent=spent_dec,
-                pct=pct,
+                spent=to_decimal(spent or 0),
                 requests_count=cnt,
             )
         )

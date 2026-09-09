@@ -277,12 +277,6 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
                 <Row k="Документ" v={<span className="num">{detail.payment.document}</span>} />
               </>
             )}
-            {can('view_reports') && (
-              <>
-                <Row k="Лимит автора" v={detail.employee_limit ? <span className="num">{money(detail.employee_limit)}</span> : <span className="muted">не задан</span>} />
-                <Row k="Расход за месяц" v={<span className="num">{money(detail.employee_spent)}</span>} />
-              </>
-            )}
           </section>
 
           <section className="card" style={{ display: 'grid', gap: 12 }}>

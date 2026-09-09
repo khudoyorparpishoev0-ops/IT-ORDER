@@ -255,7 +255,6 @@ def employee(session) -> Employee:
         position="Мастер-отделочник",
         email="i.petrov@it-hona.tj",
         role=EmployeeRole.EMPLOYEE,
-        monthly_limit=Decimal("5000.00"),
     )
 
 

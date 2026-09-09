@@ -25,7 +25,6 @@ from app.api.deps import (
     bind_audit_actor,
 )
 from app.core.permissions import Permission, has_permission
-from app.core.time import local_date, utcnow
 from app.db.models import Employee, ExpenseRequest, RequestStatus
 from app.schemas.common import Page
 from app.schemas.request import (
@@ -98,16 +97,10 @@ def to_list_item(request: ExpenseRequest) -> RequestListItem:
 
 
 def to_detail(session, request: ExpenseRequest) -> RequestDetail:
-    today = local_date(utcnow())
-    spent = svc.spent_by_employee(
-        session, request.employee_id, year=today.year, month=today.month
-    )
     return RequestDetail(
         **to_list_item(request).model_dump(),
         employee_email=request.employee.email,
         employee_phone=request.employee.phone,
-        employee_limit=request.employee.monthly_limit,
-        employee_spent=spent,
         lines=[ExpenseLineOut.model_validate(line) for line in request.lines],
         events=[
             RequestEventOut(

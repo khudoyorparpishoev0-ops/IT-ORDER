@@ -16,7 +16,7 @@ import {
   useUpdateEmployee,
 } from '@/api/hooks';
 import type { Employee, EmployeeAccess, EmployeeInput, EmployeeRole } from '@/api/types';
-import { formatDateTime, money, plural } from '@/data/format';
+import { formatDateTime, plural } from '@/data/format';
 import { ROLE_LABEL } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
 
@@ -142,9 +142,6 @@ export function Employees() {
                   <th style={{ width: '26%' }}>Сотрудник</th>
                   <th style={{ width: '20%' }}>Почта</th>
                   <th style={{ width: '14%' }}>Роль</th>
-                  <th className="right" style={{ width: '12%' }}>
-                    Лимит, TJS
-                  </th>
                   <th style={{ width: '16%' }}>Доступ</th>
                   <th style={{ width: '12%' }}>Второй фактор</th>
                 </tr>
@@ -175,9 +172,6 @@ export function Employees() {
                       <td className="slate">
                         {ROLE_LABEL[e.role] ?? e.role}
                         {user?.id === e.id && <div className="caption">это вы</div>}
-                      </td>
-                      <td className="right">
-                        {e.monthly_limit ? <span className="num">{money(e.monthly_limit)}</span> : <span className="muted">—</span>}
                       </td>
                       <td>
                         <AccessMark employee={e} access={a} />
@@ -275,7 +269,6 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
   const [email, setEmail] = useState(employee?.email ?? '');
   const [phone, setPhone] = useState(employee?.phone ?? '');
   const [role, setRole] = useState<EmployeeRole>(employee?.role ?? 'employee');
-  const [limit, setLimit] = useState(employee?.monthly_limit ?? '');
   const [active, setActive] = useState(employee?.active ?? true);
   const [password, setPasswordValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -287,8 +280,6 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
     email: email.trim() ? email.trim() : null,
     phone: phone.trim() ? phone.trim() : null,
     role,
-    // Запятую из русской раскладки сервер не поймёт — переводим в точку.
-    monthly_limit: limit.trim() ? limit.trim().replace(',', '.') : null,
     active,
   });
 
@@ -327,7 +318,6 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
     email !== (employee?.email ?? '') ||
     phone !== (employee?.phone ?? '') ||
     role !== (employee?.role ?? 'employee') ||
-    limit !== (employee?.monthly_limit ?? '') ||
     active !== (employee?.active ?? true) ||
     password !== '';
 
@@ -415,18 +405,6 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
                 </option>
               ))}
             </select>
-          )}
-        </Field>
-
-        <Field label="Месячный лимит, TJS" note="Пусто — лимит не задан, расход не ограничен.">
-          {(id) => (
-            <input
-              id={id}
-              className="field mono"
-              inputMode="decimal"
-              value={limit ?? ''}
-              onChange={(e) => setLimit(e.target.value)}
-            />
           )}
         </Field>
 

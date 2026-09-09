@@ -59,18 +59,18 @@ def demo_domain() -> str:
 
 
 #: (ФИО, должность, локальная часть почты, роль, лимит)
-EMPLOYEES: list[tuple[str, str, str, EmployeeRole, str | None]] = [
-    ("Иван Петров", "Мастер-отделочник", "i.petrov", EmployeeRole.EMPLOYEE, "5000.00"),
-    ("Мария Сидорова", "Дизайнер", "m.sidorova", EmployeeRole.EMPLOYEE, "4000.00"),
-    ("Сергей Никитин", "Прораб", "s.nikitin", EmployeeRole.EMPLOYEE, "8000.00"),
-    ("Екатерина Волкова", "Менеджер проекта", "e.volkova", EmployeeRole.EMPLOYEE, "6000.00"),
-    ("Алексей Морозов", "Электрик", "a.morozov", EmployeeRole.EMPLOYEE, "3000.00"),
-    ("Ольга Кузнецова", "Снабженец", "o.kuznetsova", EmployeeRole.PROCUREMENT, "10000.00"),
-    ("Дмитрий Соколов", "Инженер", "d.sokolov", EmployeeRole.EMPLOYEE, "4000.00"),
-    ("Анна Лебедева", "Архитектор", "a.lebedeva", EmployeeRole.EMPLOYEE, "5000.00"),
-    ("Артём Ковалёв", "Руководитель отдела", "a.kovalev", EmployeeRole.MANAGER, None),
-    ("Нигина Рахимова", "Бухгалтер", "n.rahimova", EmployeeRole.FINANCE, None),
-    ("Администратор", "Администратор системы", "admin", EmployeeRole.ADMIN, None),
+EMPLOYEES: list[tuple[str, str, str, EmployeeRole]] = [
+    ("Иван Петров", "Мастер-отделочник", "i.petrov", EmployeeRole.EMPLOYEE),
+    ("Мария Сидорова", "Дизайнер", "m.sidorova", EmployeeRole.EMPLOYEE),
+    ("Сергей Никитин", "Прораб", "s.nikitin", EmployeeRole.EMPLOYEE),
+    ("Екатерина Волкова", "Менеджер проекта", "e.volkova", EmployeeRole.EMPLOYEE),
+    ("Алексей Морозов", "Электрик", "a.morozov", EmployeeRole.EMPLOYEE),
+    ("Ольга Кузнецова", "Снабженец", "o.kuznetsova", EmployeeRole.PROCUREMENT),
+    ("Дмитрий Соколов", "Инженер", "d.sokolov", EmployeeRole.EMPLOYEE),
+    ("Анна Лебедева", "Архитектор", "a.lebedeva", EmployeeRole.EMPLOYEE),
+    ("Артём Ковалёв", "Руководитель отдела", "a.kovalev", EmployeeRole.MANAGER),
+    ("Нигина Рахимова", "Бухгалтер", "n.rahimova", EmployeeRole.FINANCE),
+    ("Администратор", "Администратор системы", "admin", EmployeeRole.ADMIN),
 ]
 
 #: Демо-сценарий по нынешнему пути заявки.
@@ -147,7 +147,7 @@ def seed() -> None:
 
         domain = demo_domain()
         employees: dict[str, Employee] = {}
-        for full_name, position, mailbox, role, limit in EMPLOYEES:
+        for full_name, position, mailbox, role in EMPLOYEES:
             email = f"{mailbox}@{domain}"
             person = session.scalar(select(Employee).where(Employee.email == email))
             if person is None:
@@ -156,7 +156,6 @@ def seed() -> None:
                     position=position,
                     email=email,
                     role=role,
-                    monthly_limit=Decimal(limit) if limit else None,
                     password_hash=hash_password(DEMO_PASSWORD),
                 )
                 session.add(person)

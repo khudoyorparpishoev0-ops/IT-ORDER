@@ -63,9 +63,7 @@ def second_project(session) -> Project:
 
 @pytest.fixture
 def second_employee(session) -> Employee:
-    e = Employee(
-        full_name="Мария Сидорова", position="Дизайнер", monthly_limit=Decimal("4000.00")
-    )
+    e = Employee(full_name="Мария Сидорова", position="Дизайнер")
     session.add(e)
     session.flush()
     return e
@@ -139,36 +137,18 @@ def test_queue_empty(session) -> None:
     assert queue.oldest_employee is None
 
 
-def test_team_overview_computes_share_of_limit(
+def test_team_overview_counts_spent_per_employee(
     session, employee, project, second_employee
 ) -> None:
     add_request(session, employee, project, "3150.00", approve=True)
 
     year, month = rep.current_period()
     team = {m.full_name: m for m in rep.team_overview(session, year=year, month=month)}
-    # 3150 из 5000 — 63%
-    assert team["Иван Петров"].pct == 63
     assert team["Иван Петров"].spent == Decimal("3150.00")
     assert team["Иван Петров"].requests_count == 1
     # Сотрудник без заявок попадает в таблицу с нулём, а не пропадает
     assert team["Мария Сидорова"].spent == Decimal("0.00")
-    assert team["Мария Сидорова"].pct == 0
-
-
-def test_team_member_without_limit_has_no_pct(session, project) -> None:
-    person = Employee(full_name="Без лимита", position="Стажёр")
-    session.add(person)
-    session.flush()
-    add_request(session, person, project, "700.00", approve=True)
-
-    year, month = rep.current_period()
-    row = next(
-        m
-        for m in rep.team_overview(session, year=year, month=month)
-        if m.full_name == "Без лимита"
-    )
-    assert row.limit is None
-    assert row.pct is None
+    assert team["Мария Сидорова"].requests_count == 0
 
 
 def test_payments_register_totals(session, employee, project) -> None:
