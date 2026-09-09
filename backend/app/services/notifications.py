@@ -26,6 +26,13 @@ def panel_url(path: str = "/") -> str:
     return f"{base}{path}" if base else path
 
 
+def request_url(request: ExpenseRequest) -> str:
+    """Ссылка на карточку заявки. Уведомление ведёт к самой заявке, а не
+    в раздел: со списка человеку ещё искать нужную строку, а на телефоне
+    после входа он должен оказаться там, куда его позвали."""
+    return panel_url(f"/requests/{request.id}")
+
+
 def _load(session: Session, request_id: int) -> ExpenseRequest | None:
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -57,7 +64,7 @@ def notify_sourcing(session: Session, request_id: int) -> None:
             employee_name=expense.employee.full_name,
             number=expense.number,
             project=expense.project.name,
-            url=panel_url("/sourcing"),
+            url=request_url(expense),
         )
         letter.to = person.email or ""
         letter.headers["X-Entity-Ref"] = expense.number
@@ -83,7 +90,7 @@ def notify_priced(session: Session, request_id: int) -> None:
             number=expense.number,
             project=expense.project.name,
             amount=expense.amount,
-            url=panel_url("/approvals"),
+            url=request_url(expense),
             stage="Закуп оценил заявку, нужна ваша подпись под суммой",
         )
         letter.to = person.email or ""
@@ -130,7 +137,7 @@ def notify_new_request(session: Session, request_id: int) -> None:
             project=expense.project.name,
             # Суммы на этом шаге нет: согласуется сама покупка.
             amount=None,
-            url=panel_url("/approvals"),
+            url=request_url(expense),
             stage="Новая заявка на согласование покупки",
         )
         letter.to = person.email or ""
