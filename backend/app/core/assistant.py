@@ -24,15 +24,35 @@ class AssistantError(RuntimeError):
     """Модель не ответила. Текст — для лога, не для человека."""
 
 
+#: Реплика диалога: («user» | «assistant», текст).
+Turn = tuple[str, str]
+
+
 class Transport(Protocol):
-    def ask(self, *, system: str, prompt: str, schema: type[T]) -> T: ...
+    def ask(
+        self,
+        *,
+        system: str,
+        prompt: str,
+        schema: type[T],
+        history: list[Turn] | None = None,
+        effort: str = "low",
+    ) -> T: ...
 
 
 class ClaudeTransport:
     """Настоящий вызов через официальный SDK. Ответ приходит уже разобранным
     по pydantic-схеме — свободный текст модели парсить не нужно."""
 
-    def ask(self, *, system: str, prompt: str, schema: type[T]) -> T:
+    def ask(
+        self,
+        *,
+        system: str,
+        prompt: str,
+        schema: type[T],
+        history: list[Turn] | None = None,
+        effort: str = "low",
+    ) -> T:
         import anthropic
 
         settings = get_settings()
@@ -46,11 +66,14 @@ class ClaudeTransport:
                 model=settings.assistant_model,
                 max_tokens=2048,
                 system=system,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    *({"role": role, "content": text} for role, text in history or []),
+                    {"role": "user", "content": prompt},
+                ],
                 output_format=schema,
-                # Простая задача: короткий ответ по образцу, глубоко думать
-                # не над чем.
-                output_config={"effort": "low"},
+                # Проверка написания — задача простая; разбор потребности в
+                # диалоге требует больше рассуждения, его зовут с medium.
+                output_config={"effort": effort},
             )
         except anthropic.AuthenticationError as exc:
             raise AssistantError("ключ Claude API не принят") from exc
@@ -68,7 +91,15 @@ class ClaudeTransport:
 class NullTransport:
     """Помощник выключен: ключа нет."""
 
-    def ask(self, *, system: str, prompt: str, schema: type[T]) -> T:
+    def ask(
+        self,
+        *,
+        system: str,
+        prompt: str,
+        schema: type[T],
+        history: list[Turn] | None = None,
+        effort: str = "low",
+    ) -> T:
         raise AssistantError("помощник выключен: не задан ANTHROPIC_API_KEY")
 
 
@@ -87,6 +118,19 @@ def _current() -> Transport:
     return ClaudeTransport() if get_settings().assistant_enabled else NullTransport()
 
 
-def ask(*, system: str, prompt: str, schema: type[T]) -> T:
-    """Спросить модель и получить ответ по схеме. Бросает AssistantError."""
-    return _current().ask(system=system, prompt=prompt, schema=schema)
+def ask(
+    *,
+    system: str,
+    prompt: str,
+    schema: type[T],
+    history: list[Turn] | None = None,
+    effort: str = "low",
+) -> T:
+    """Спросить модель и получить ответ по схеме. Бросает AssistantError.
+
+    `history` — предыдущие реплики диалога: помощник задаёт уточняющий
+    вопрос и должен помнить, что сотрудник уже ответил.
+    """
+    return _current().ask(
+        system=system, prompt=prompt, schema=schema, history=history, effort=effort
+    )
