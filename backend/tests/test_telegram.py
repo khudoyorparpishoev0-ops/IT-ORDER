@@ -316,7 +316,11 @@ def test_webhook_setup_is_for_admins(client, login, employee, admin, telegram_bo
     assert response.status_code == 200, response.text
     url = response.json()["webhook_url"]
     assert url.startswith("https://order.it-hona.tj/api/telegram/webhook/")
-    assert calls == [("setWebhook", {"url": url, "allowed_updates": ["message"]})]
+    # Нажатия кнопок — отдельный тип обновления: без него карточка
+    # подтверждения заявки была бы нажимаемой, но немой.
+    assert calls == [
+        ("setWebhook", {"url": url, "allowed_updates": ["message", "callback_query"]})
+    ]
 
 
 def test_webhook_setup_needs_a_bot(client, login, admin):

@@ -498,10 +498,15 @@ function TelegramCard({ onFlash }: { onFlash: (text: string, color: string) => v
   };
 
   return (
-    <Card title="Уведомления в Telegram">
+    <Card title="Заявки и уведомления в Telegram">
       <p className="caption" style={{ margin: 0 }}>
         Бот пишет автору заявки на каждом шаге: согласование покупки, оценка закупа, решение по
         сумме, выплата. Тем, к кому заявка пришла, — что она у них.
+      </p>
+      <p className="caption" style={{ margin: 0 }}>
+        Заявку можно подать прямо из бота: команда <span className="num">/new</span>. Бот спросит
+        объект и что нужно, покажет карточку и подаст заявку только после подтверждения. Цены
+        указывать не надо — их поставит закуп.
       </p>
 
       {!status.data?.configured ? (

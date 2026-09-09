@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, CreatedAt, Money, Name, ShortStr, Timestamp
@@ -486,6 +487,35 @@ class AuditLog(Base):
         Index("ix_audit_created_at", "created_at"),
         Index("ix_audit_employee", "employee_id"),
     )
+
+
+class TelegramSession(Base):
+    """Незаконченный разговор с ботом: на каком шаге и что уже набрали.
+
+    Единственное место, где у нас есть состояние диалога. В панели его
+    нет намеренно — историю реплик присылает браузер, и сервер ничего не
+    помнит. У Telegram браузера нет: между двумя сообщениями разговор
+    держать больше негде, поэтому он живёт здесь.
+
+    Один сотрудник — один разговор: `/new` начинает заново и затирает
+    прежний. Незаконченные протухают через сутки: заявка, которую начали
+    вчера и бросили, сегодня уже про другое.
+    """
+
+    __tablename__ = "telegram_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    #: Шаг разговора: PROJECT → NEED → CLARIFY → CONFIRM.
+    step: Mapped[ShortStr] = mapped_column(nullable=False)
+    #: Что набрали: объект, позиции, реплики. Форма шага своя, поэтому
+    #: столбцами это не разложить — да и не нужно: читает эти данные
+    #: только сам разговор.
+    data: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    created_at: Mapped[CreatedAt]
+    updated_at: Mapped[Timestamp | None]
 
 
 class AiKind(str, enum.Enum):

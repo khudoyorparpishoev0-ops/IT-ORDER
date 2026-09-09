@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import assistant
-from app.db.models import AiKind
+from app.db.models import AiKind, AiSource
 from app.schemas.assistant import (
     AssistantContext,
     AssistantLineOut,
@@ -148,6 +148,7 @@ def converse(
     text: str,
     history: list[AssistantTurn],
     context: AssistantContext,
+    source: AiSource = AiSource.WEB,
 ) -> AssistantReplyOut:
     """Одна реплика диалога. Никогда не бросает: сбой модели отдаётся
     признаком `available=false`, и форма работает как раньше."""
@@ -198,6 +199,7 @@ def converse(
             ok=False,
             error=str(exc),
             duration_ms=int((time.monotonic() - started) * 1000),
+            source=source,
         )
         return AssistantReplyOut(available=False, status="need_clarification", message="")
 
@@ -208,6 +210,7 @@ def converse(
         question=asked,
         answer=_answer_text(out),
         duration_ms=int((time.monotonic() - started) * 1000),
+        source=source,
     )
     return out.model_copy(update={"interaction_id": entry_id})
 
