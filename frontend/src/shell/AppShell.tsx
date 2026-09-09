@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon, IconSprite } from '@/components/Icon';
-import { IthonaLogo } from '@/components/Logo';
+import { OrderLogo } from '@/components/Logo';
 import { Toast } from '@/components/Toast';
 import { Sidebar } from './Sidebar';
 import { TabBar } from './TabBar';
@@ -75,7 +75,7 @@ export function AppShell() {
               <Icon name="ti-menu-2" />
             </button>
             <div className="topbar-logo">
-              <IthonaLogo height={22} />
+              <OrderLogo height={24} />
             </div>
             <form className="topbar-search" role="search" onSubmit={search}>
               <Icon name="ti-search" size={18} className="icon" />

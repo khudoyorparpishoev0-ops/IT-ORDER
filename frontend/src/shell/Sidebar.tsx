@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
-import { IthonaLogo } from '@/components/Logo';
+import { OrderLogo } from '@/components/Logo';
 import { APP_VERSION, NAV, ROLE_LABEL } from './config';
 import { useAuth } from '@/api/auth';
 import { useQueueInfo } from '@/api/hooks';
@@ -20,7 +20,7 @@ export function Sidebar({ onNavigate }: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <IthonaLogo height={28} />
+        <OrderLogo height={28} />
       </div>
 
       <nav className="sidebar-nav" aria-label="Разделы">
