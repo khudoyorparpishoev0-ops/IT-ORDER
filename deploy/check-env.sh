@@ -30,7 +30,7 @@ REQUIRED=(
 )
 
 # Без этих не будет писем и уведомлений в Telegram, но система работает.
-OPTIONAL=(SMTP_HOST SMTP_USER SMTP_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USERNAME VAPID_PRIVATE_KEY VAPID_SUBJECT)
+OPTIONAL=(SMTP_HOST SMTP_USER SMTP_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USERNAME VAPID_PRIVATE_KEY VAPID_SUBJECT ANTHROPIC_API_KEY)
 
 problems=0
 
@@ -84,7 +84,7 @@ for key in "${REQUIRED[@]}"; do
 done
 
 echo
-echo "=== Почта и Telegram (без них уведомлений не будет) ==="
+echo "=== Почта, Telegram, push, помощник (без них соответствующая часть молчит) ==="
 for key in "${OPTIONAL[@]}"; do
   val=$(value_of "$key")
   [ -z "$val" ] && echo "  пусто   $key" || echo "  ok      $key"
