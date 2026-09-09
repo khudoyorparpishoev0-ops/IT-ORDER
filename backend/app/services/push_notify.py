@@ -41,12 +41,6 @@ ACTOR_TEXT: dict[str, str] = {
     "finance": "утверждена и ждёт выплаты",
 }
 
-STAGE_PATH: dict[str, str] = {
-    "manager": "/approvals",
-    "procurement": "/sourcing",
-    "finance": "/requests?status=approved",
-}
-
 
 # --- Подписки ----------------------------------------------------------------
 
@@ -191,7 +185,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
     запроса уже закрыта.
     """
     from app.core.permissions import Permission, has_permission
-    from app.services.notifications import panel_url
+    from app.services.notifications import request_url
     from app.services.requests import awaiting_stage
 
     request = _load(session, request_id)
@@ -210,7 +204,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
             author,
             title="Ваша заявка",
             body=body,
-            url=panel_url("/requests"),
+            url=request_url(request),
             tag=f"request-{request.id}",
         )
 
@@ -239,7 +233,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
                 person,
                 title=f"Заявка {request.number}",
                 body=f"{request.employee.full_name} — {invite}.\n{_headline(request)}",
-                url=panel_url(STAGE_PATH[stage]),
+                url=request_url(request),
                 tag=f"request-{request.id}",
             )
 

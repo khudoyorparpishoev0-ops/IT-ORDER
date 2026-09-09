@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.money import money
 from app.core.telegram import Message, send_quietly
 from app.db.models import Employee, ExpenseRequest, RequestStatus
-from app.services.notifications import panel_url
+from app.services.notifications import request_url
 
 log = logging.getLogger(__name__)
 
@@ -37,14 +37,6 @@ ACTOR_TEXT: dict[str, str] = {
     "procurement": "ждёт оценки: проверьте склад и проставьте цены",
     "finance": "утверждена и ждёт выплаты",
 }
-
-#: Куда ведёт кнопка под сообщением.
-STAGE_PATH: dict[str, str] = {
-    "manager": "/approvals",
-    "procurement": "/sourcing",
-    "finance": "/requests?status=approved",
-}
-
 
 def _load(session: Session, request_id: int) -> ExpenseRequest | None:
     return session.scalar(
@@ -97,7 +89,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
             Message(
                 chat_id=author.telegram_chat_id,
                 text=text,
-                button=("Открыть заявку", panel_url("/requests")),
+                button=("Открыть заявку", request_url(request)),
             )
         )
 
@@ -133,7 +125,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
                     f"Заявка {_headline(request)}\n"
                     f"{escape(request.employee.full_name)} — {escape(invite)}."
                 ),
-                button=("Открыть", panel_url(STAGE_PATH[stage])),
+                button=("Открыть заявку", request_url(request)),
             )
         )
         invited += 1

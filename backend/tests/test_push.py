@@ -131,7 +131,7 @@ def test_request_state_goes_to_author_and_manager(
     boss = by_endpoint["https://push.example/manager"]
     assert boss.title == f"Заявка {request.number}"
     assert employee.full_name in boss.body
-    assert boss.url.endswith("/approvals")
+    assert boss.url.endswith(f"/requests/{request.id}")
     # Суммы ещё нет — и в уведомлении её нет.
     assert "сомони" not in boss.body
 
