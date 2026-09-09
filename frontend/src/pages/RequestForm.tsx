@@ -5,10 +5,12 @@ import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { AiButton } from '@/components/AiButton';
+import { FrequentMaterials } from '@/components/FrequentMaterials';
 import { RequestAssistant } from '@/components/RequestAssistant';
 import { useAuth } from '@/api/auth';
 import {
   useAiApplied,
+  useDuplicateCheck,
   useAssistantStatus,
   useCreateRequest,
   useEmployees,
@@ -19,8 +21,16 @@ import {
   useSubmitRequest,
   useUpdateRequest,
 } from '@/api/hooks';
-import type { AssistantLine, ExpenseLineInput, MaterialAdvice, RequestDetail } from '@/api/types';
-import { plural } from '@/data/format';
+import type {
+  AssistantLine,
+  ExpenseLineInput,
+  MaterialAdvice,
+  MemoryItem,
+  RequestDetail,
+  SimilarRequest,
+} from '@/api/types';
+import { days, plural } from '@/data/format';
+import { STATUS } from '@/data/status';
 import { useShell } from '@/shell/ShellContext';
 
 type Line = {
@@ -66,6 +76,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const assistant = useAssistantStatus();
   const advise = useMaterialAdvice();
   const applied = useAiApplied();
+  const duplicates = useDuplicateCheck();
   const create = useCreateRequest();
   const update = useUpdateRequest();
   const send = useSubmitRequest();
@@ -78,6 +89,9 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const [saving, setSaving] = useState<'send' | 'draft' | null>(null);
   //  null — панель закрыта; строка — с чего начать разговор.
   const [helper, setHelper] = useState<string | null>(null);
+  // Похожие заявки за неделю. Спрашиваем до подачи: два одинаковых
+  // счёта замечают обычно тогда, когда оба уже оплачены.
+  const [repeats, setRepeats] = useState<SimilarRequest[]>([]);
 
   const activeProjects = (projects.data ?? []).filter((p) => p.active);
   const projectsNote = projects.isLoading
@@ -127,6 +141,40 @@ function Form({ edit }: { edit?: RequestDetail }) {
     } catch {
       setLines((rows) => rows.map((row, i) => (i === index ? { ...row, advice: undefined } : row)));
     }
+  };
+
+  // Спрашиваем по событию (человек закончил строку или сменил объект), а
+  // не на каждую букву: это запрос к базе, но всё равно запрос.
+  const checkRepeats = async (rows: Line[] = lines, project = projectId) => {
+    const titles = rows.map((l) => l.title.trim()).filter(Boolean);
+    if (!titles.length) {
+      setRepeats([]);
+      return;
+    }
+    try {
+      // Сама правящаяся заявка сюда попасть не может: в повторы идут
+      // только поданные, а правят у нас только черновик.
+      const found = await duplicates.mutateAsync({ titles, project_id: project });
+      setRepeats(found.requests);
+    } catch {
+      // Подсказка о повторе — не повод мешать подаче заявки.
+      setRepeats([]);
+    }
+  };
+
+  const pickFromHistory = (item: MemoryItem) => {
+    setLines((rows) => {
+      const empty = rows.findIndex((r) => !r.title.trim());
+      const filled = {
+        title: item.title,
+        quantity: '1',
+        unit: item.unit ?? '',
+        checked: item.title,
+      };
+      const next = empty >= 0 ? rows.map((r, i) => (i === empty ? filled : r)) : [...rows, filled];
+      void checkRepeats(next);
+      return next;
+    });
   };
 
   const applyAdvice = (index: number) => {
@@ -250,7 +298,16 @@ function Form({ edit }: { edit?: RequestDetail }) {
 
           <Field label="Объект" required note={projectsNote}>
             {(id) => (
-              <select id={id} className="field" value={projectId ?? ''} onChange={(e) => setProjectId(Number(e.target.value) || null)}>
+              <select
+                id={id}
+                className="field"
+                value={projectId ?? ''}
+                onChange={(e) => {
+                  const next = Number(e.target.value) || null;
+                  setProjectId(next);
+                  void checkRepeats(lines, next);
+                }}
+              >
                 <option value="">Выберите объект</option>
                 {activeProjects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -307,7 +364,10 @@ function Form({ edit }: { edit?: RequestDetail }) {
                   autoComplete="off"
                   value={line.title}
                   onChange={(e) => setTitle(index, e.target.value)}
-                  onBlur={() => void checkTitle(index)}
+                  onBlur={() => {
+                    void checkTitle(index);
+                    void checkRepeats();
+                  }}
                 />
                 <input
                   className="field mono line-qty"
@@ -341,6 +401,31 @@ function Form({ edit }: { edit?: RequestDetail }) {
             <Icon name="ti-plus" size={18} />
             Добавить позицию
           </button>
+
+          <FrequentMaterials
+            projectId={projectId}
+            projectName={activeProjects.find((p) => p.id === projectId)?.name ?? null}
+            onPick={pickFromHistory}
+          />
+
+          {repeats.length > 0 && (
+            <div className="dup-warning" role="status">
+              <div style={{ fontWeight: 600 }}>
+                {repeats.length === 1 ? 'Похожую заявку уже подавали' : 'Похожие заявки уже подавали'}
+              </div>
+              {repeats.map((r) => (
+                <div key={r.id} className="caption" style={{ margin: 0 }}>
+                  <Link to={`/requests/${r.id}`}>{r.number}</Link> · {r.project} ·{' '}
+                  {r.days_ago === 0 ? 'сегодня' : `${days(r.days_ago)} назад`} · {r.employee} ·{' '}
+                  {STATUS[r.status].label}
+                  {r.materials.length > 0 ? ` · ${r.materials.join(', ')}` : ''}
+                </div>
+              ))}
+              <div className="caption" style={{ margin: 0 }}>
+                Проверьте, не то же ли это самое. Если нужно ещё — подавайте, это только подсказка.
+              </div>
+            </div>
+          )}
           {assistant.data?.enabled ? (
             <p className="caption" style={{ margin: 0 }}>
               Начните печатать — панель подскажет, как это называли раньше. Когда закончите строку, помощник

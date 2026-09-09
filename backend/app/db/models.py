@@ -328,6 +328,10 @@ class ExpenseLine(Base):
         ForeignKey("expense_requests.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[Name]
+    #: Приведённое написание (`services/material_norm.py`): по нему идёт
+    #: поиск, подсказки и поиск дублей. Показываем всегда `title` — то,
+    #: как написал человек.
+    normalized_text: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Единица измерения словами: «шт.», «мешок», «м²». Сотрудник пишет
     #: как привык — справочника единиц у нас нет.
@@ -349,7 +353,36 @@ class ExpenseLine(Base):
         CheckConstraint("price IS NULL OR price >= 0", name="ck_lines_price_non_negative"),
         CheckConstraint("total IS NULL OR total >= 0", name="ck_lines_total_non_negative"),
         Index("ix_lines_request", "request_id"),
+        Index("ix_lines_normalized", "normalized_text"),
     )
+
+
+class MaterialAlias(Base):
+    """Как сотрудник написал — и как это называют в компании.
+
+    Справочника материалов в ORDER нет намеренно: вести его никто не
+    станет, он устареет за месяц. Эта таблица — не справочник: её никто
+    не заполняет руками. Строка появляется сама, когда человек нажал
+    «Применить» на совете помощника: значит, поправка признана верной
+    именно людьми, а не моделью.
+
+    Польза двойная. Следующему сотруднику подсказка приходит мгновенно и
+    бесплатно, без похода к модели; а написание в заявках сходится, и
+    один материал перестаёт расползаться на пять вариантов в отчётах.
+    """
+
+    __tablename__ = "material_aliases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: Приведённое написание, которое ввёл человек. Ключ поиска.
+    alias: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    #: Написание, которое показываем: как это называют в компании.
+    canonical: Mapped[Name]
+    unit: Mapped[str | None] = mapped_column(String(32))
+    #: Сколько раз поправку принимали. Чем больше, тем она вернее.
+    uses: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_at: Mapped[CreatedAt]
+    updated_at: Mapped[Timestamp | None]
 
 
 class RequestEvent(Base):

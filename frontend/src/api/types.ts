@@ -683,3 +683,38 @@ export type AnalyticsReply = {
   requests: AnalyticsRequestRef[];
   recommendations: string[];
 };
+
+
+/** Подсказка из истории заявок. Считает база, модель не участвует. */
+export type MemoryItem = {
+  title: string;
+  unit: string | null;
+  times: number;
+  last_number: string | null;
+  last_date: string | null;
+};
+
+/** Что ORDER помнит о заявках: частое, своё и по объекту. */
+export type Memory = {
+  frequent: MemoryItem[];
+  mine: MemoryItem[];
+  project: MemoryItem[];
+};
+
+/** Недавняя заявка с теми же позициями. */
+export type SimilarRequest = {
+  id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  status: RequestStatus;
+  days_ago: number;
+  materials: string[];
+};
+
+/** Ответ проверки на повтор. */
+export type DuplicateCheck = {
+  requests: SimilarRequest[];
+  days: number;
+};

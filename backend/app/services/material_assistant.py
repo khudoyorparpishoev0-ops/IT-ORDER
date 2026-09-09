@@ -23,7 +23,7 @@ from app.config import get_settings
 from app.core import assistant
 from app.db.models import AiKind
 from app.schemas.reference import MaterialAdviceOut
-from app.services import ai_log
+from app.services import ai_log, ai_memory
 from app.services.reference import materials_catalog
 
 log = logging.getLogger(__name__)
@@ -93,6 +93,26 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
         return MaterialAdviceOut(enabled=False, available=False, title=clean)
     if len(clean) < 3:
         return MaterialAdviceOut(enabled=True, available=True, title=clean)
+
+    # Такую поправку уже принимали люди — спрашивать модель не за что.
+    # Ответ мгновенный, бесплатный и тот же самый, что получил коллега.
+    known = ai_memory.alias_for(session, clean)
+    if known is not None:
+        return _logged(
+            session,
+            MaterialAdviceOut(
+                enabled=True,
+                available=True,
+                title=clean,
+                suggested=known.canonical,
+                changed=known.canonical != clean,
+                unit=(unit or "").strip() or known.unit,
+                matches_existing=True,
+                notes=[],
+            ),
+            question=clean,
+            duration_ms=None,
+        )
 
     key = (clean.lower(), (unit or "").strip().lower())
     cached = _cache.get(key)

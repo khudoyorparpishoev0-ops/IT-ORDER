@@ -28,7 +28,7 @@ from app.schemas.assistant import (
     AssistantReplyOut,
     AssistantTurn,
 )
-from app.services import ai_log
+from app.services import ai_log, ai_memory
 from app.services.assistant_prompt import request_assistant_prompt
 from app.services.reference import materials_catalog
 
@@ -90,6 +90,26 @@ def _context_block(session: Session, context: AssistantContext) -> str:
             title + (f" ({unit})" if unit else "") for title, unit, _ in known
         )
         lines.append(f"Что уже заказывали раньше: {catalog}")
+
+    # Память ORDER: чем чаще позицию берут на этом объекте, тем вероятнее
+    # она нужна и сейчас. Считает базу сервер — модель ничего не выбирает
+    # сама и не может назвать материал, которого в компании не заказывали.
+    if context.project_id is not None:
+        on_site = ai_memory.by_project(session, context.project_id, limit=10)
+        if on_site:
+            lines.append(
+                "Что чаще берут на этом объекте: "
+                + ", ".join(
+                    f"{x.title} ({x.times})" for x in on_site
+                )
+            )
+    if context.employee_id is not None:
+        own = ai_memory.mine(session, context.employee_id, limit=10)
+        if own:
+            lines.append(
+                "Что обычно заказывает этот сотрудник: "
+                + ", ".join(x.title for x in own)
+            )
     return "\n".join(part for part in lines if part)
 
 

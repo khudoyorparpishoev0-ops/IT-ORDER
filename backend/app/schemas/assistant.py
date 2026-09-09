@@ -19,7 +19,10 @@ class AssistantContext(BaseModel):
     """Что видно на экране у сотрудника прямо сейчас."""
 
     employee_name: str | None = Field(default=None, max_length=200)
+    project_id: int | None = None
     project_name: str | None = Field(default=None, max_length=200)
+    #: Кто заполняет форму. Ставит сервер из сессии, не клиент.
+    employee_id: int | None = None
     lines: list[AssistantFormLine] = Field(default_factory=list, max_length=30)
 
 
@@ -70,3 +73,60 @@ class AssistantReplyOut(BaseModel):
     #: Номер записи в журнале обращений: по нему панель отмечает, что
     #: позиции перенесли в заявку кнопкой «Применить».
     interaction_id: int | None = None
+
+
+# --- Память заявок: работает без модели --------------------------------------
+
+
+class MemoryItem(BaseModel):
+    """Подсказка из истории заявок: как это называли и сколько раз брали."""
+
+    title: str
+    unit: str | None = None
+    times: int
+    #: Номер и дата последней заявки с этой позицией: подсказка должна
+    #: быть проверяемой, а не появляться ниоткуда.
+    last_number: str | None = None
+    last_date: str | None = None
+
+
+class SimilarRequestOut(BaseModel):
+    """Недавняя заявка с теми же позициями. Решение — за человеком."""
+
+    id: int
+    number: str
+    title: str
+    project: str
+    employee: str
+    status: str
+    days_ago: int
+    materials: list[str] = []
+
+
+class MemoryOut(BaseModel):
+    """Что ORDER помнит о заявках — до всякой модели.
+
+    Все три списка считаются запросами к базе, поэтому подсказки живут и
+    при выключенном помощнике: кончился баланс — автодополнение осталось.
+    """
+
+    #: Что просят чаще всего (по объекту, если он выбран).
+    frequent: list[MemoryItem] = []
+    #: Что заказывал сам сотрудник.
+    mine: list[MemoryItem] = []
+    #: Что заказывали на выбранном объекте.
+    project: list[MemoryItem] = []
+
+
+class DuplicateCheckIn(BaseModel):
+    """Проверка на повтор: позиции из формы и объект."""
+
+    titles: list[str] = Field(default_factory=list, max_length=30)
+    project_id: int | None = None
+
+
+class DuplicateCheckOut(BaseModel):
+    """Похожие заявки за последнюю неделю."""
+
+    requests: list[SimilarRequestOut] = []
+    days: int

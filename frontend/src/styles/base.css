@@ -1418,3 +1418,28 @@ select.filter {
     display: grid;
   }
 }
+
+/* Лента подсказок из истории: подпись и кнопки в одну строку с переносом.
+   На телефоне переносится сама — фиксированной ширины здесь нет. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.chip-row-label {
+  margin: 0;
+}
+.chip-row .btn .caption {
+  margin: 0;
+  color: var(--slate);
+}
+
+/* Предупреждение о повторе: жёлтая полоса слева, ссылка на заявку. */
+.dup-warning {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-left: 2px solid var(--yellow);
+  background: var(--mist);
+}

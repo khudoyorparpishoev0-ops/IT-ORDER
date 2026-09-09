@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.email_policy import EmailPolicyError, ensure_corporate
@@ -26,6 +26,7 @@ from app.schemas.reference import (
     ProjectUpdate,
 )
 from app.services.audit import write_audit
+from app.services.material_norm import normalize
 
 #: Статусы, в которых заявка уже считается расходом. Держим ссылкой на
 #: единственное определение — в сервисе заявок.
@@ -51,18 +52,27 @@ def materials_catalog(
     станет — он устареет через месяц. Подсказки берём из самих заявок:
     так они появляются сами и всегда отражают то, чем реально пользуются.
 
-    Варианты написания одного и того же («Хомут» и «хомут») схлопываются
-    по нижнему регистру, а показывается написание из самой свежей заявки —
-    иначе подсказка тянула бы за собой старую опечатку.
+    Варианты написания одного и того же схлопываются по приведённому
+    написанию (`material_norm.normalize`), а не по нижнему регистру:
+    «гофра16», «Гофра 16мм» и «ГОФРА 16 ММ.» — один материал, а не три.
+    Показывается написание из самой свежей заявки — иначе подсказка
+    тянула бы за собой старую опечатку.
     """
-    key = func.lower(ExpenseLine.title)
+    key = ExpenseLine.normalized_text
     grouped = select(
         key.label("key"),
         func.max(ExpenseLine.id).label("last_id"),
         func.count().label("uses"),
-    ).group_by(key)
+    ).where(key != "").group_by(key)
     if search and search.strip():
-        grouped = grouped.where(ExpenseLine.title.ilike(f"%{search.strip()}%"))
+        # Ищем и по написанию человека, и по приведённому: «гофра16»
+        # должно находить «Гофра 16 мм», хотя строк с таким текстом нет.
+        term = search.strip()
+        norm = normalize(term)
+        conditions = [ExpenseLine.title.ilike(f"%{term}%")]
+        if norm:
+            conditions.append(key.ilike(f"%{norm}%"))
+        grouped = grouped.where(or_(*conditions))
     grouped = grouped.subquery()
 
     rows = session.execute(

@@ -13,8 +13,9 @@ from app.config import get_settings
 from app.core.errors import NotFoundError
 from app.core.permissions import Permission
 from app.core.time import to_local
+from app.db.models import AiKind
 from app.schemas.ai import AiEntry, AiSettingsOut, AiUsage
-from app.services import ai_log
+from app.services import ai_log, ai_memory
 
 router = APIRouter(prefix="/api/ai", tags=["ai"], dependencies=[Depends(bind_audit_actor)])
 
@@ -31,8 +32,18 @@ def mark_applied(session: DbSession, user: CurrentUser, interaction_id: int) -> 
     чужое не находится вовсе — как чужая заявка, чтобы перебором номеров
     нельзя было выяснить, сколько раз спрашивали коллеги.
     """
-    if not ai_log.mark_applied(session, interaction_id, employee_id=user.id):
+    entry = ai_log.mark_applied(session, interaction_id, employee_id=user.id)
+    if entry is None:
         raise NotFoundError("Обращение не найдено")
+
+    # Принятая поправка написания становится общим знанием: следующему
+    # сотруднику она придёт мгновенно и без обращения к модели. Заполняет
+    # эту таблицу только согласие человека — руками её никто не ведёт.
+    if entry.kind is AiKind.MATERIAL and entry.question and entry.answer:
+        ai_memory.remember_alias(
+            session, wrote=entry.question, canonical=entry.answer, unit=None
+        )
+        session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

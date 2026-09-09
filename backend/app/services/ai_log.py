@@ -79,18 +79,20 @@ def record(
         return None
 
 
-def mark_applied(session: Session, interaction_id: int, *, employee_id: int) -> bool:
-    """Отмечает, что человек воспользовался ответом.
+def mark_applied(
+    session: Session, interaction_id: int, *, employee_id: int
+) -> AiInteraction | None:
+    """Отмечает, что человек воспользовался ответом, и отдаёт запись.
 
     Чужую запись не находим вовсе (как чужую заявку): иначе перебором
     номеров можно было бы узнать, сколько раз спрашивали коллеги.
     """
     entry = session.get(AiInteraction, interaction_id)
     if entry is None or entry.employee_id != employee_id:
-        return False
+        return None
     entry.applied = True
     session.commit()
-    return True
+    return entry
 
 
 def stats(session: Session, *, days: int = 30) -> dict[str, object]:
