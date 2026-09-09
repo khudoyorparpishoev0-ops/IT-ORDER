@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
@@ -21,7 +22,17 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class AssistantError(RuntimeError):
-    """Модель не ответила. Текст — для лога, не для человека."""
+    """Модель не ответила. Текст — для лога и диагностики, не для человека."""
+
+
+def _reason(exc) -> str:
+    """Человеческая причина отказа из ответа Anthropic."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])
+    return str(getattr(exc, "message", "") or exc)
 
 
 #: Реплика диалога: («user» | «assistant», текст).
@@ -56,6 +67,7 @@ class ClaudeTransport:
         import anthropic
 
         settings = get_settings()
+        started = time.monotonic()
         client = anthropic.Anthropic(
             api_key=settings.anthropic_api_key,
             timeout=settings.assistant_timeout_seconds,
@@ -76,15 +88,36 @@ class ClaudeTransport:
                 output_config={"effort": effort},
             )
         except anthropic.AuthenticationError as exc:
-            raise AssistantError("ключ Claude API не принят") from exc
+            raise AssistantError(
+                "ключ Claude API не принят: проверьте ANTHROPIC_API_KEY"
+            ) from exc
         except anthropic.RateLimitError as exc:
             raise AssistantError("исчерпан лимит запросов к Claude API") from exc
         except anthropic.APIStatusError as exc:
-            raise AssistantError(f"Claude API ответил {exc.status_code}") from exc
+            # Текст ошибки от Anthropic говорит по делу: кончились кредиты,
+            # неизвестная модель, слишком длинный запрос. Прячем его — и
+            # разбор превращается в гадание.
+            raise AssistantError(
+                f"Claude API ответил {exc.status_code}: {_reason(exc)}"
+            ) from exc
+        except anthropic.APITimeoutError as exc:
+            # Наследник APIConnectionError, поэтому ловится раньше него.
+            raise AssistantError(
+                f"Claude API не ответил за {settings.assistant_timeout_seconds} с "
+                f"(ASSISTANT_TIMEOUT_SECONDS)"
+            ) from exc
         except anthropic.APIConnectionError as exc:
-            raise AssistantError("нет связи с Claude API") from exc
-        if response.stop_reason == "refusal" or response.parsed_output is None:
+            raise AssistantError(f"нет связи с Claude API: {exc}") from exc
+        if response.stop_reason == "refusal":
+            raise AssistantError("модель отклонила запрос")
+        if response.parsed_output is None:
             raise AssistantError("модель не дала ответ по схеме")
+        log.info(
+            "Помощник ответил за %.1f с (модель %s, effort %s)",
+            time.monotonic() - started,
+            settings.assistant_model,
+            effort,
+        )
         return response.parsed_output
 
 

@@ -201,3 +201,47 @@ def test_unreadable_prompt_file_falls_back(tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("ASSISTANT_PROMPT_FILE", raising=False)
         get_settings.cache_clear()
         assistant_prompt.request_assistant_prompt.cache_clear()
+
+
+# --- Диагностика (python -m app.assistant_check) ------------------------------
+
+
+def test_check_reports_disabled_assistant(capsys, monkeypatch) -> None:
+    from app.config import get_settings
+    from app import assistant_check
+    from app.core import assistant
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    get_settings.cache_clear()
+    assistant.set_transport(None)
+    try:
+        assert assistant_check.main() == 1
+    finally:
+        get_settings.cache_clear()
+    assert "не задан ANTHROPIC_API_KEY" in capsys.readouterr().out
+
+
+def test_check_explains_empty_balance(capsys, assistant_box) -> None:
+    """Ответ Anthropic виден целиком, а не «что-то пошло не так»."""
+    from app import assistant_check
+    from app.core import assistant
+
+    class Broken:
+        def ask(self, *, system, prompt, schema, history=None, effort="low"):
+            raise assistant.AssistantError(
+                "Claude API ответил 400: Your credit balance is too low"
+            )
+
+    assistant.set_transport(Broken())
+    assert assistant_check.main() == 1
+    out = capsys.readouterr().out
+    assert "credit balance is too low" in out
+    assert "Billing" in out
+
+
+def test_check_passes_when_model_answers(capsys, assistant_box) -> None:
+    from app import assistant_check
+
+    assistant_box.answer = {"ok": True, "word": "работает"}
+    assert assistant_check.main() == 0
+    assert "Помощник работает" in capsys.readouterr().out

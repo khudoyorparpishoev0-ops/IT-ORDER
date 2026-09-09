@@ -34,6 +34,7 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [draft, setDraft] = useState('');
   const [failed, setFailed] = useState(false);
+  const [last, setLast] = useState('');
   const started = useRef(false);
   const tail = useRef<HTMLDivElement>(null);
 
@@ -47,6 +48,7 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
   const send = async (text: string) => {
     const asked: AssistantTurn[] = text.trim() ? [...history, { role: 'user', text: text.trim() }] : history;
     setHistory(asked);
+    setLast(text);
     setDraft('');
     setFailed(false);
     try {
@@ -115,10 +117,18 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
         <div ref={tail} />
       </div>
 
-      {failed && (
-        <p className="caption" style={{ margin: 0 }} role="alert">
-          Помощник сейчас недоступен. Заполните заявку сами — форма работает как обычно.
-        </p>
+      {failed && !chat.isPending && (
+        <div className="chat-options" role="alert">
+          <p className="caption" style={{ margin: 0 }}>
+            Помощник не ответил. Заполните заявку сами — форма работает как обычно. Если это
+            повторяется, покажите администратору: он проверит помощника командой на сервере.
+          </p>
+          <div className="chat-chips">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void send(last)}>
+              Повторить
+            </button>
+          </div>
+        </div>
       )}
 
       {reply?.available && !chat.isPending && (
