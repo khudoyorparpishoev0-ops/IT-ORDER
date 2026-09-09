@@ -15,15 +15,18 @@ if [ -z "$DUMP" ] || [ ! -f "$DUMP" ]; then
   exit 1
 fi
 
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
+# Значения берём из .env, не загружая его в shell целиком: файл написан
+# для docker compose, и значение с пробелом без кавычек
+# (MAIL_FROM_NAME=IT-HONA ORDER) bash выполнил бы как команду. Читаем
+# только нужные ключи; при повторе ключа берём последний, как compose.
+env_value() {
+  [ -f .env ] || return 0
+  grep -E "^$1=" .env | tail -1 | cut -d= -f2- \
+    | sed -e 's/\r$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
 
-DB_NAME="${POSTGRES_DB:-hona_core}"
-DB_USER="${POSTGRES_USER:-hona}"
+DB_NAME="$(env_value POSTGRES_DB)"; DB_NAME="${DB_NAME:-hona_core}"
+DB_USER="$(env_value POSTGRES_USER)"; DB_USER="${DB_USER:-hona}"
 
 echo "Из копии: $DUMP"
 echo "В базу:   $DB_NAME"

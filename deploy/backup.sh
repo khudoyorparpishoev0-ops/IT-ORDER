@@ -13,18 +13,20 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Значения берём из .env, не требуя его экспорта в окружение.
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
-fi
+# Значения берём из .env, не загружая его в shell целиком: файл написан
+# для docker compose, и значение с пробелом без кавычек
+# (MAIL_FROM_NAME=IT-HONA ORDER) bash выполнил бы как команду. Читаем
+# только нужные ключи; при повторе ключа берём последний, как compose.
+env_value() {
+  [ -f .env ] || return 0
+  grep -E "^$1=" .env | tail -1 | cut -d= -f2- \
+    | sed -e 's/\r$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
 
-BACKUP_PATH="${BACKUP_PATH:-./data/backups}"
-KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
-DB_NAME="${POSTGRES_DB:-hona_core}"
-DB_USER="${POSTGRES_USER:-hona}"
+BACKUP_PATH="$(env_value BACKUP_PATH)"; BACKUP_PATH="${BACKUP_PATH:-./data/backups}"
+KEEP_DAYS="$(env_value BACKUP_KEEP_DAYS)"; KEEP_DAYS="${KEEP_DAYS:-14}"
+DB_NAME="$(env_value POSTGRES_DB)"; DB_NAME="${DB_NAME:-hona_core}"
+DB_USER="$(env_value POSTGRES_USER)"; DB_USER="${DB_USER:-hona}"
 
 mkdir -p "$BACKUP_PATH"
 STAMP="$(date +%Y-%m-%d_%H-%M)"
