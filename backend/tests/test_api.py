@@ -188,3 +188,38 @@ def test_request_without_lines_is_422(as_manager, manager, project) -> None:
         json={"employee_id": manager.id, "project_id": project.id, "lines": []},
     )
     assert response.status_code == 422
+
+
+def test_list_search_by_number_project_and_line(as_manager, session, manager, project) -> None:
+    """Один поиск на всё, что человек помнит о заявке."""
+    from decimal import Decimal
+
+    from app.schemas.request import ExpenseLineIn, RequestCreate
+    from app.services import requests as svc
+
+    request = svc.create_request(
+        session,
+        RequestCreate(
+            employee_id=manager.id,
+            project_id=project.id,
+            lines=[
+                ExpenseLineIn(title="Кабель UTP Cat6", quantity=Decimal("300"), unit="м"),
+                ExpenseLineIn(title="Коннекторы", quantity=Decimal("100"), unit="шт."),
+            ],
+        ),
+    )
+    session.flush()
+
+    def ids(q: str) -> list[int]:
+        return [r["id"] for r in as_manager.get("/api/requests", params={"search": q}).json()["items"]]
+
+    assert request.id in ids(request.number.lower())
+    assert request.id in ids("utp")
+    assert request.id in ids(project.name[:5].lower())
+    # Три совпавшие строки — одна заявка, а не три.
+    assert ids("к").count(request.id) == 1
+    assert request.id not in ids("несуществующее")
+
+    item = next(r for r in as_manager.get("/api/requests").json()["items"] if r["id"] == request.id)
+    assert item["title"] == "Кабель UTP Cat6 и ещё 1"
+    assert item["lines_count"] == 2

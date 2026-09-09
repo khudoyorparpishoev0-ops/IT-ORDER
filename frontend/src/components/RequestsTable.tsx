@@ -1,72 +1,44 @@
-import { Icon } from './Icon';
+import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from './StatusBadge';
-import { HOLDER } from '@/data/status';
-import { useAuth } from '@/api/auth';
-import { days, money } from '@/data/format';
+import { waitingShort } from './Waiting';
+import { money } from '@/data/format';
 import type { RequestListItem } from '@/api/types';
 
-export type SortKey = 'name' | 'amount' | null;
-
-type Props = {
-  rows: RequestListItem[];
-  sort: SortKey;
-  dir: 1 | -1;
-  onSort: (key: Exclude<SortKey, null>) => void;
-  onOpen: (r: RequestListItem) => void;
-  /** Показывать должность отдельной строкой (раздел «Заявки») */
-  withRole?: boolean;
-  minWidth?: number;
-};
-
+/**
+ * Таблица заявок по UI-киту: Номер · Наименование · Объект · Статус ·
+ * Сейчас ждёт · Дата · Сумма. Клик по строке ведёт в карточку.
+ * На телефоне строка становится карточкой: наименование → метаданные
+ * моно → статус и сумма.
+ */
 export function RequestsTable({
   rows,
-  sort,
-  dir,
-  onSort,
-  onOpen,
-  withRole = false,
-  minWidth = 520,
-}: Props) {
-  const { can } = useAuth();
-  // «Рассмотреть» обещает действие, которого у сотрудника нет.
-  const canDecide = can('decide_request');
-  const ariaSort = (key: Exclude<SortKey, null>) =>
-    sort === key ? (dir === 1 ? 'ascending' : 'descending') : 'none';
+  compact = false,
+  showWaiting = true,
+  showProject = true,
+}: {
+  rows: RequestListItem[];
+  /** Короткая версия для дашборда: без объекта и «сейчас ждёт». */
+  compact?: boolean;
+  showWaiting?: boolean;
+  showProject?: boolean;
+}) {
+  const navigate = useNavigate();
+  const project = showProject && !compact;
+  const waiting = showWaiting && !compact;
+  const open = (r: RequestListItem) => navigate(`/requests/${r.id}`);
 
   return (
     <div className="table-wrap">
-      {/* Минимальная ширина — переменной, а не инлайновым min-width:
-          на телефоне медиазапрос снимает её и раскладывает строку
-          карточкой, а инлайновый стиль он бы не перебил. */}
-      <table
-        className="tbl stack"
-        style={{ ['--tbl-min' as string]: `${minWidth}px` }}
-      >
+      <table className="tbl cards" style={{ ['--tbl-min' as string]: compact ? '520px' : '860px' }}>
         <thead>
           <tr>
-            <th
-              className="sortable"
-              style={{ width: withRole ? '42%' : '40%' }}
-              aria-sort={ariaSort('name')}
-              onClick={() => onSort('name')}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                СОТРУДНИК · ОБЪЕКТ
-                <Icon name="ti-arrows-sort" size={14} />
-              </span>
-            </th>
-            <th
-              className="sortable right"
-              style={{ width: '22%' }}
-              aria-sort={ariaSort('amount')}
-              onClick={() => onSort('amount')}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                СУММА
-                <Icon name="ti-arrows-sort" size={14} />
-              </span>
-            </th>
-            <th style={{ width: withRole ? '36%' : '38%' }}>СТАТУС</th>
+            <th>Номер</th>
+            <th>Наименование</th>
+            {project && <th>Объект</th>}
+            <th>Статус</th>
+            {waiting && <th>Сейчас ждёт</th>}
+            {!compact && <th>Дата</th>}
+            <th className="right">Сумма, TJS</th>
           </tr>
         </thead>
         <tbody>
@@ -75,51 +47,45 @@ export function RequestsTable({
               key={r.id}
               className="clickable"
               tabIndex={0}
-              onClick={() => onOpen(r)}
+              onClick={() => open(r)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  onOpen(r);
+                  open(r);
                 }
               }}
+              aria-label={`Заявка ${r.number}`}
             >
+              <td className="num desktop-only">{r.number}</td>
               <td>
-                <div>{r.employee_name}</div>
-                <div className="caption">{withRole ? `${r.employee_position} · ${r.project_name}` : r.project_name}</div>
-                <div className="meta">
-                  {r.number} · {r.date}
+                <div style={{ fontWeight: 500 }} className="row-title">
+                  {r.title}
+                </div>
+                <div className="meta mobile-meta">
+                  {r.number} · {r.date} · {r.project_name}
                 </div>
               </td>
-              {/* Пока закуп не назвал цену, суммы нет: ноль в колонке
-                  читался бы как «бесплатно». */}
+              {project && (
+                <td className="slate desktop-only">{r.project_name}</td>
+              )}
+              <td className="desktop-only">
+                <StatusBadge status={r.status} />
+              </td>
+              {waiting && (
+                <td className="desktop-only" style={{ color: r.awaiting_stage === 'closed' ? 'var(--grey)' : 'var(--slate)', fontSize: 13 }}>
+                  {waitingShort(r)}
+                </td>
+              )}
+              {!compact && <td className="mono desktop-only" style={{ color: 'var(--slate)', fontSize: 14 }}>{r.date}</td>}
               <td className="right">
-                {r.status === 'fulfilled' ? (
-                  <span className="caption">со склада</span>
-                ) : r.priced ? (
-                  <span className="num">{money(r.amount)}</span>
-                ) : (
-                  <span className="caption">не оценена</span>
-                )}
-              </td>
-              <td>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
-                >
-                  <StatusBadge status={r.status} />
-                  <span
-                    style={{ fontSize: 13, fontWeight: 600, color: 'var(--green-d)' }}
-                  >
-                    {r.status === 'pending' && canDecide ? 'Рассмотреть →' : 'Открыть →'}
-                  </span>
-                </div>
-                {/* У кого заявка сейчас: по статусу это понятно не всем,
-                    а вопрос «где она застряла» задают чаще прочих. */}
-                {HOLDER[r.awaiting_stage] && (
-                  <div className="caption">
-                    {HOLDER[r.awaiting_stage]}
-                    {r.awaiting_days ? ` · ${days(r.awaiting_days)}` : ''}
-                  </div>
-                )}
+                {/* На телефоне статус и сумма в одну строку под метаданными. */}
+                <span className="mobile-only">
+                  <StatusBadge status={r.status} inline />
+                  {r.awaiting_stage !== 'closed' && r.awaiting_days ? (
+                    <span className="caption">· {r.awaiting_days} дн.</span>
+                  ) : null}
+                </span>
+                <Amount request={r} />
               </td>
             </tr>
           ))}
@@ -127,4 +93,11 @@ export function RequestsTable({
       </table>
     </div>
   );
+}
+
+/** Сумма в списке: до оценки закупа — «не оценена», со склада — 0,00. */
+export function Amount({ request }: { request: RequestListItem }) {
+  if (request.status === 'fulfilled') return <span className="num">0,00</span>;
+  if (!request.priced) return <span className="unpriced">не оценена</span>;
+  return <span className="num">{money(request.amount)}</span>;
 }

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { IthonaLogoStacked } from '@/components/Logo';
+import { Field } from '@/components/Field';
 import { useAuth, useAuthPolicy } from '@/api/auth';
 import { useSessionExpired } from '@/api/session';
 import { TotpSetup } from '@/components/TotpSetup';
-import { PasswordReset } from './PasswordReset';
+import { AuthScreen, PasswordReset } from './PasswordReset';
 
 /**
  * Вход. Единственный экран вне общего шелла: сайдбар без известного
@@ -75,55 +75,31 @@ export function Login() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: 16,
-        background: 'var(--mist)',
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: pending === '2fa_setup_required' ? 520 : 400 }}>
-        <div style={{ marginBottom: 24 }}>
-          <IthonaLogoStacked height={64} style={{ color: 'var(--logo)' }} />
-          <div className="label" style={{ marginTop: 10 }}>
-            ORDER
-          </div>
+    <AuthScreen wide={pending === '2fa_setup_required'}>
+      {sessionExpired && pending === null && (
+        <div
+          role="status"
+          className="card card-accent small"
+          style={{ ['--accent' as string]: 'var(--yellow)', padding: 16 }}
+        >
+          Сессия истекла — войдите заново. Если вы что-то заполняли, эти
+          данные не сохранились: их придётся ввести ещё раз.
         </div>
+      )}
 
-        {sessionExpired && pending === null && (
-          <div
-            role="status"
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              border: '1px solid var(--dot-warn)',
-              borderRadius: 'var(--r-field)',
-              background: 'var(--st-warn-bg)',
-              color: 'var(--st-warn-fg)',
-            }}
-          >
-            Сессия истекла — войдите заново. Если вы что-то заполняли, эти
-            данные не сохранились: их придётся ввести ещё раз.
-          </div>
-        )}
-
-        {pending === null && (
-          <form className="card" onSubmit={submitCredentials} noValidate>
-            <div className="accent-rule" />
-            <h1 className="h3" style={{ marginBottom: 4 }}>
-              Вход в систему
-            </h1>
-            <p className="caption" style={{ margin: '0 0 24px' }}>
+      {pending === null && (
+        <form className="card" onSubmit={submitCredentials} noValidate style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <h1 className="h3">Вход в систему</h1>
+            <p className="caption" style={{ margin: '4px 0 0' }}>
               Заявки на расходы сотрудников
             </p>
+          </div>
 
-            <label style={{ display: 'block', marginBottom: 16 }}>
-              <div className="caption" style={{ marginBottom: 4 }}>
-                Корпоративная почта
-              </div>
+          <Field label="Корпоративная почта" required>
+            {(id) => (
               <input
+                id={id}
                 className="field"
                 type="email"
                 autoComplete="username"
@@ -133,13 +109,13 @@ export function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={`name${policy.data?.domains_hint ?? '@it-hona.tj'}`}
               />
-            </label>
+            )}
+          </Field>
 
-            <label style={{ display: 'block' }}>
-              <div className="caption" style={{ marginBottom: 4 }}>
-                Пароль
-              </div>
+          <Field label="Пароль" required error={error}>
+            {(id) => (
               <input
+                id={id}
                 className={`field${error ? ' field-error' : ''}`}
                 type="password"
                 autoComplete="current-password"
@@ -148,18 +124,13 @@ export function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={Boolean(error)}
               />
-            </label>
-
-            {error && (
-              <div className="field-error-text" role="alert" style={{ marginTop: 8 }}>
-                {error}
-              </div>
             )}
+          </Field>
 
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             <button
               type="submit"
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: 24 }}
+              className="btn btn-primary btn-block"
               disabled={isBusy || !email || !password}
             >
               {isBusy ? 'Проверяем…' : 'Войти'}
@@ -168,39 +139,37 @@ export function Login() {
             {policy.data?.password_reset_available && (
               <button
                 type="button"
-                className="btn btn-ghost"
-                style={{ width: '100%', marginTop: 8 }}
+                className="btn btn-ghost btn-block"
                 onClick={() => setRecovering(true)}
               >
                 Забыли пароль?
               </button>
             )}
+          </div>
 
-            <p className="caption" style={{ margin: '16px 0 0' }}>
-              Вход только с корпоративной почты
-              {policy.data?.domains_hint ? ` (${policy.data.domains_hint})` : ''}.
-              {!policy.data?.password_reset_available &&
-                ' Забыли пароль — обратитесь к администратору системы.'}
-            </p>
-          </form>
-        )}
+          <p className="caption" style={{ margin: 0 }}>
+            Вход только с корпоративной почты
+            {policy.data?.domains_hint ? ` (${policy.data.domains_hint})` : ''}.
+            {!policy.data?.password_reset_available &&
+              ' Забыли пароль — обратитесь к администратору системы.'}
+          </p>
+        </form>
+      )}
 
-        {pending === '2fa_required' && (
-          <form className="card" onSubmit={submitSecondFactor} noValidate>
-            <div className="accent-rule" />
-            <h1 className="h3" style={{ marginBottom: 4 }}>
-              Код подтверждения
-            </h1>
-            <p className="caption" style={{ margin: '0 0 24px' }}>
+      {pending === '2fa_required' && (
+        <form className="card" onSubmit={submitSecondFactor} noValidate style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <h1 className="h3">Код подтверждения</h1>
+            <p className="caption" style={{ margin: '4px 0 0' }}>
               Откройте приложение-аутентификатор и введите шестизначный код
             </p>
+          </div>
 
-            <label style={{ display: 'block' }}>
-              <div className="caption" style={{ marginBottom: 4 }}>
-                Код из приложения
-              </div>
+          <Field label="Код из приложения" required error={error}>
+            {(id) => (
               <input
-                className={`field${error ? ' field-error' : ''}`}
+                id={id}
+                className={`field mono${error ? ' field-error' : ''}`}
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 autoFocus
@@ -209,57 +178,46 @@ export function Login() {
                 onChange={(e) => setCode(e.target.value)}
                 aria-invalid={Boolean(error)}
                 placeholder="000000"
-                style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.2em' }}
+                style={{ letterSpacing: '0.2em' }}
               />
-            </label>
-
-            {error && (
-              <div className="field-error-text" role="alert" style={{ marginTop: 8 }}>
-                {error}
-              </div>
             )}
+          </Field>
 
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             <button
               type="submit"
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: 24 }}
+              className="btn btn-primary btn-block"
               disabled={isBusy || !code}
             >
               {isBusy ? 'Проверяем…' : 'Подтвердить'}
             </button>
 
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ width: '100%', marginTop: 8 }}
-              onClick={startOver}
-            >
+            <button type="button" className="btn btn-ghost btn-block" onClick={startOver}>
               Войти под другой учётной записью
             </button>
+          </div>
 
-            <p className="caption" style={{ margin: '16px 0 0' }}>
-              Потеряли телефон — введите один из кодов восстановления. Если их
-              тоже нет, второй фактор сбросит администратор.
-            </p>
-          </form>
-        )}
+          <p className="caption" style={{ margin: 0 }}>
+            Потеряли телефон — введите один из кодов восстановления. Если их
+            тоже нет, второй фактор сбросит администратор.
+          </p>
+        </form>
+      )}
 
-        {pending === '2fa_setup_required' && (
-          <div className="card">
-            <div className="accent-rule" />
-            <h1 className="h3" style={{ marginBottom: 4 }}>
-              Требуется двухфакторный вход
-            </h1>
-            <p className="caption" style={{ margin: '0 0 24px' }}>
+      {pending === '2fa_setup_required' && (
+        <div className="card" style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <h1 className="h3">Требуется двухфакторный вход</h1>
+            <p className="caption" style={{ margin: '4px 0 0' }}>
               Для вашей роли одного пароля недостаточно. Настройте приложение —
               это занимает минуту и делается один раз.
             </p>
-            {/* На панель переходим только после того, как человек
-                подтвердит, что сохранил коды восстановления. */}
-            <TotpSetup onCancel={startOver} onDone={finishPendingSetup} />
           </div>
-        )}
-      </div>
-    </main>
+          {/* На панель переходим только после того, как человек
+              подтвердит, что сохранил коды восстановления. */}
+          <TotpSetup onCancel={startOver} onDone={finishPendingSetup} />
+        </div>
+      )}
+    </AuthScreen>
   );
 }

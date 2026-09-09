@@ -10,23 +10,40 @@ import type { ReactNode } from 'react';
 export function Field({
   label,
   note,
+  required = false,
+  error,
   children,
 }: {
   label: string;
   note?: string;
+  /** Обязательное поле помечается звёздочкой. */
+  required?: boolean;
+  /** Текст ошибки под полем красным. */
+  error?: string | null;
   children: (id: string) => ReactNode;
 }) {
   const id = useId();
   return (
     <div>
-      <label className="caption" htmlFor={id} style={{ display: 'block', marginBottom: 4 }}>
+      <label className="label field-label" htmlFor={id}>
         {label}
+        {required && (
+          <span aria-hidden="true" style={{ color: 'var(--red)', marginLeft: 4 }}>
+            *
+          </span>
+        )}
       </label>
       {children(id)}
-      {note && (
-        <div className="caption" style={{ marginTop: 4 }}>
-          {note}
+      {error ? (
+        <div className="field-error-text" role="alert">
+          {error}
         </div>
+      ) : (
+        note && (
+          <div className="caption" style={{ marginTop: 4 }}>
+            {note}
+          </div>
+        )
       )}
     </div>
   );

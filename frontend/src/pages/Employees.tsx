@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
-import { Overlay } from '@/components/Overlay';
+import { Modal } from '@/components/Modal';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { useAuth } from '@/api/auth';
@@ -16,7 +16,7 @@ import {
   useUpdateEmployee,
 } from '@/api/hooks';
 import type { Employee, EmployeeAccess, EmployeeInput, EmployeeRole } from '@/api/types';
-import { formatDateTime, money } from '@/data/format';
+import { formatDateTime, money, plural } from '@/data/format';
 import { ROLE_LABEL } from '@/shell/config';
 import { useShell } from '@/shell/ShellContext';
 
@@ -69,45 +69,43 @@ export function Employees() {
     });
   }, [list.data, search, withDisabled]);
 
+  const total = list.data?.length ?? 0;
   const disabledCount = (list.data ?? []).filter((e) => !e.active).length;
 
   return (
     <>
       <PageHeader
-        kicker="СПРАВОЧНИК"
         title="Сотрудники"
-        lead="Кто заведён в системе, кто может входить и с какими правами"
+        lead={
+          list.data
+            ? `${total} ${plural(total, 'учётная запись', 'учётные записи', 'учётных записей')}`
+            : undefined
+        }
         actions={
           <button type="button" className="btn btn-primary" onClick={() => setEditing('new')}>
-            <Icon name="ti-plus" />
+            <Icon name="ti-plus" size={18} />
             Добавить сотрудника
           </button>
         }
       />
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginBottom: 'var(--gap)',
-        }}
-      >
-        <label style={{ flex: '1 1 240px', maxWidth: 360 }}>
-          <span className="sr-only">Поиск по имени, должности или почте</span>
-          <input
-            className="field"
-            type="search"
-            placeholder="Имя, должность или почта"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="filter-row">
+        <label className="sr-only" htmlFor="e-search">
+          Поиск по имени, должности или почте
         </label>
+        <input
+          id="e-search"
+          className="field"
+          type="search"
+          placeholder="Имя, должность или почта"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ height: 36, fontSize: 14, flex: '1 1 200px', maxWidth: 280 }}
+        />
         {disabledCount > 0 && (
           <button
             type="button"
-            className="chip"
+            className="filter"
             aria-pressed={withDisabled}
             onClick={() => setWithDisabled((v) => !v)}
           >
@@ -136,19 +134,19 @@ export function Employees() {
           access.refetch();
         }}
       >
-        <section className="panel">
+        <div className="panel">
           <div className="table-wrap">
-            <table className="tbl" style={{ minWidth: 760 }}>
+            <table className="tbl" style={{ ['--tbl-min' as string]: '760px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '26%' }}>СОТРУДНИК</th>
-                  <th style={{ width: '20%' }}>ПОЧТА</th>
-                  <th style={{ width: '14%' }}>РОЛЬ</th>
+                  <th style={{ width: '26%' }}>Сотрудник</th>
+                  <th style={{ width: '20%' }}>Почта</th>
+                  <th style={{ width: '14%' }}>Роль</th>
                   <th className="right" style={{ width: '12%' }}>
-                    ЛИМИТ, TJS
+                    Лимит, TJS
                   </th>
-                  <th style={{ width: '16%' }}>ДОСТУП</th>
-                  <th style={{ width: '12%' }}>ВТОРОЙ ФАКТОР</th>
+                  <th style={{ width: '16%' }}>Доступ</th>
+                  <th style={{ width: '12%' }}>Второй фактор</th>
                 </tr>
               </thead>
               <tbody>
@@ -171,12 +169,16 @@ export function Employees() {
                         <div style={{ fontWeight: 600 }}>{e.full_name}</div>
                         <div className="caption">{e.position || '—'}</div>
                       </td>
-                      <td className="num">{e.email ?? '—'}</td>
-                      <td>
+                      <td className="mono" style={{ overflowWrap: 'anywhere' }}>
+                        {e.email ?? '—'}
+                      </td>
+                      <td className="slate">
                         {ROLE_LABEL[e.role] ?? e.role}
                         {user?.id === e.id && <div className="caption">это вы</div>}
                       </td>
-                      <td className="right num">{e.monthly_limit ? money(e.monthly_limit) : '—'}</td>
+                      <td className="right">
+                        {e.monthly_limit ? <span className="num">{money(e.monthly_limit)}</span> : <span className="muted">—</span>}
+                      </td>
                       <td>
                         <AccessMark employee={e} access={a} />
                       </td>
@@ -189,10 +191,10 @@ export function Employees() {
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       </QueryState>
 
-      <p className="caption" style={{ marginTop: 'var(--gap)' }}>
+      <p className="caption" style={{ margin: 0 }}>
         Уволенного сотрудника отключают, а не удаляют: заявки неизменяемы и
         должны сохранить автора. Удаление доступно только для записи, по
         которой ещё не подано ни одной заявки.
@@ -216,7 +218,7 @@ export function Employees() {
 function Mark({ color, text, note }: { color: string; text: string; note?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span aria-hidden="true" style={{ width: 8, height: 8, flex: 'none', background: color }} />
+      <span className="dot" style={{ ['--dot' as string]: color }} />
       <span>
         {text}
         {note && <div className="caption">{note}</div>}
@@ -238,7 +240,7 @@ function AccessMark({ employee, access }: { employee: Employee; access?: Employe
 }
 
 function TwoFactorMark({ access }: { access?: EmployeeAccess }) {
-  if (!access) return <span className="caption">—</span>;
+  if (!access) return <span className="muted">—</span>;
   if (access.two_factor_enabled) {
     return (
       <Mark
@@ -266,6 +268,7 @@ type ModalProps = {
 function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }: ModalProps) {
   const create = useCreateEmployee();
   const update = useUpdateEmployee();
+  const formId = useId();
 
   const [fullName, setFullName] = useState(employee?.full_name ?? '');
   const [position, setPosition] = useState(employee?.position ?? '');
@@ -329,31 +332,24 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
     password !== '';
 
   return (
-    <Overlay
-      label={employee ? `Сотрудник ${employee.full_name}` : 'Новый сотрудник'}
+    <Modal
+      title={employee ? employee.full_name : 'Новый сотрудник'}
       onClose={onClose}
       dirty={dirty}
+      wide
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Отмена
+          </button>
+          <button type="submit" form={formId} className="btn btn-primary" disabled={saving || !fullName.trim()}>
+            {saving ? 'Сохраняем…' : employee ? 'Сохранить' : 'Завести сотрудника'}
+          </button>
+        </>
+      }
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <div className="label">{employee ? 'КАРТОЧКА СОТРУДНИКА' : 'НОВЫЙ СОТРУДНИК'}</div>
-          <div className="h3" style={{ marginTop: 4 }}>
-            {employee ? employee.full_name : 'Заведение сотрудника'}
-          </div>
-        </div>
-        <button
-          type="button"
-          className="btn btn-icon"
-          onClick={onClose}
-          aria-label="Закрыть"
-          style={{ border: 'none' }}
-        >
-          <Icon name="ti-x" />
-        </button>
-      </div>
-
-      <form onSubmit={submit} style={{ display: 'grid', gap: 16, marginTop: 24 }}>
-        <Field label="Имя и фамилия">
+      <form id={formId} onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+        <Field label="Имя и фамилия" required>
           {(id) => (
             <input
               id={id}
@@ -384,7 +380,7 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
           {(id) => (
             <input
               id={id}
-              className="field num"
+              className="field mono"
               type="email"
               autoComplete="off"
               value={email}
@@ -397,7 +393,7 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
           {(id) => (
             <input
               id={id}
-              className="field num"
+              className="field mono"
               autoComplete="off"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -426,7 +422,7 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
           {(id) => (
             <input
               id={id}
-              className="field num"
+              className="field mono"
               inputMode="decimal"
               value={limit ?? ''}
               onChange={(e) => setLimit(e.target.value)}
@@ -466,15 +462,6 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
             {error}
           </div>
         )}
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="submit" className="btn btn-primary" disabled={saving || !fullName.trim()}>
-            {saving ? 'Сохраняем…' : employee ? 'Сохранить' : 'Завести сотрудника'}
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Отмена
-          </button>
-        </div>
       </form>
 
       {employee && (
@@ -486,7 +473,7 @@ function EmployeeModal({ employee, access, isSelf, timezone, onClose, onFlash }:
           onDeleted={onClose}
         />
       )}
-    </Overlay>
+    </Modal>
   );
 }
 
@@ -526,10 +513,10 @@ function AccessSection({
   };
 
   return (
-    <section style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 24 }}>
-      <div className="label">ДОСТУП В СИСТЕМУ</div>
+    <section style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 24, display: 'grid', gap: 16 }}>
+      <div className="label">Доступ в систему</div>
 
-      <dl style={{ display: 'grid', gap: 12, margin: '16px 0 0' }}>
+      <dl style={{ display: 'grid', gap: 12, margin: 0 }}>
         <div>
           <dt className="caption">Последний вход</dt>
           <dd className="num" style={{ margin: '2px 0 0' }}>
@@ -538,7 +525,7 @@ function AccessSection({
         </div>
         <div>
           <dt className="caption">Второй фактор</dt>
-          <dd style={{ margin: '2px 0 0' }}>
+          <dd className="small" style={{ margin: '2px 0 0' }}>
             {access?.two_factor_enabled
               ? `включён, кодов восстановления осталось ${access.recovery_codes_left}`
               : access?.two_factor_required
@@ -548,7 +535,7 @@ function AccessSection({
         </div>
       </dl>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ display: 'grid', gap: 12 }}>
         <PasswordField
           value={password}
           onChange={setPasswordValue}
@@ -560,32 +547,33 @@ function AccessSection({
               : 'Сначала заполните рабочую почту — она служит логином.'
           }
         />
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ marginTop: 16 }}
-          disabled={busy || password.length < MIN_PASSWORD}
-          onClick={() =>
-            run(
-              () => setPassword.mutateAsync({ id: employee.id, password }),
-              () => {
-                setPasswordValue('');
-                onFlash('Пароль назначен', 'var(--dot-ok)');
-              },
-            )
-          }
-        >
-          {access?.has_password ? 'Заменить пароль' : 'Выдать пароль'}
-        </button>
+        <div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy || password.length < MIN_PASSWORD}
+            onClick={() =>
+              run(
+                () => setPassword.mutateAsync({ id: employee.id, password }),
+                () => {
+                  setPasswordValue('');
+                  onFlash('Пароль назначен', 'var(--dot-ok)');
+                },
+              )
+            }
+          >
+            {access?.has_password ? 'Заменить пароль' : 'Выдать пароль'}
+          </button>
+        </div>
       </div>
 
       {error && (
-        <div className="field-error-text" role="alert" style={{ marginTop: 16 }}>
+        <div className="field-error-text" role="alert" style={{ margin: 0 }}>
           {error}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {access?.two_factor_enabled && (
           <Confirm
             label="Сбросить второй фактор"
@@ -616,7 +604,7 @@ function AccessSection({
           }
         />
       </div>
-      <p className="caption" style={{ margin: '8px 0 0' }}>
+      <p className="caption" style={{ margin: 0 }}>
         Сброс второго фактора нужен, когда сотрудник потерял и телефон, и коды
         восстановления. Удаление работает только для записи без заявок.
       </p>
@@ -641,17 +629,14 @@ function PasswordField({
   return (
     <Field
       label={label}
-      note={
-        short
-          ? `Нужно не меньше ${MIN_PASSWORD} символов.`
-          : note
-      }
+      note={note}
+      error={short ? `Нужно не меньше ${MIN_PASSWORD} символов.` : null}
     >
       {(id) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             id={id}
-            className={`field num${short ? ' field-error' : ''}`}
+            className={`field mono${short ? ' field-error' : ''}`}
             type="text"
             autoComplete="off"
             spellCheck={false}
@@ -721,7 +706,7 @@ function Confirm({
       <span className="caption">{question}</span>
       <button
         type="button"
-        className={danger ? 'btn btn-danger' : 'btn btn-primary'}
+        className={danger ? 'btn btn-danger btn-sm' : 'btn btn-primary btn-sm'}
         disabled={disabled}
         onClick={() => {
           setAsking(false);
@@ -730,7 +715,7 @@ function Confirm({
       >
         Да
       </button>
-      <button type="button" className="btn btn-ghost" onClick={() => setAsking(false)}>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAsking(false)}>
         Отмена
       </button>
     </div>
@@ -751,46 +736,23 @@ function SquareCheck({
 }) {
   return (
     <div>
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={checked}
-        onClick={onToggle}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          minHeight: 44,
-          padding: '0 4px',
-          border: 'none',
-          background: 'transparent',
-          textAlign: 'left',
-          cursor: 'pointer',
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            width: 20,
-            height: 20,
-            flex: 'none',
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: 'var(--r-field)',
-            border: checked ? '1px solid var(--green)' : '1px solid var(--grey)',
-            background: checked ? 'var(--green)' : 'transparent',
-            color: '#FFFFFF',
+      <div className="check-row" onClick={onToggle}>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={checked}
+          aria-label={label}
+          className="check"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
           }}
         >
           <Icon name="ti-check" size={14} style={{ opacity: checked ? 1 : 0 }} />
-        </span>
-        {label}
-      </button>
-      {note && (
-        <div className="caption" style={{ marginTop: 4 }}>
-          {note}
-        </div>
-      )}
+        </button>
+        <span className="small">{label}</span>
+      </div>
+      {note && <div className="caption">{note}</div>}
     </div>
   );
 }

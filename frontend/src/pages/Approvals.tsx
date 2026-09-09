@@ -1,569 +1,93 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { DecisionModal } from '@/components/DecisionModal';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
-import { StatusBadge } from '@/components/StatusBadge';
-import { useDecision, useRequest, useRequests } from '@/api/hooks';
-import { money, periodLabel, somoni } from '@/data/format';
-import type { RequestStatus } from '@/api/types';
-import { useShell } from '@/shell/ShellContext';
 import { useAuth } from '@/api/auth';
+import { useRequests } from '@/api/hooks';
+import { DELAY_DAYS } from '@/data/status';
+import { money, plural } from '@/data/format';
+import type { RequestListItem } from '@/api/types';
 
-type Decision = 'approve' | 'reject';
-
-const PAGE_SIZE = 50;
-
-//: Статусы, в которых руководителю есть что решать.
-const DECIDABLE: RequestStatus[] = ['pending', 'priced'];
-
-const TABS: { key: RequestStatus; label: string }[] = [
-  // Два решения руководителя — две очереди: сперва нужна ли покупка,
-  // потом согласен ли он с суммой, которую назвал закуп.
-  { key: 'pending', label: 'Покупка' },
-  { key: 'priced', label: 'Сумма' },
-  { key: 'sourcing', label: 'У закупа' },
-  { key: 'approved', label: 'К оплате' },
-  { key: 'rejected', label: 'Отклонены' },
-];
-
+/**
+ * Очередь руководителя: заявки на согласование покупки и на утверждение
+ * суммы одним списком, самые давние сверху. Решение — в модалке прямо
+ * из списка; свою заявку человек видит без кнопок.
+ */
 export function Approvals() {
-  const { flash } = useShell();
   const { user } = useAuth();
-  const [tab, setTab] = useState<RequestStatus>('pending');
-  // Очередь бывает длиннее страницы. Раньше лишние заявки просто не
-  // показывались, и о них никто не узнавал.
-  const [limit, setLimit] = useState(PAGE_SIZE);
-  const [activeId, setActiveId] = useState<number | null>(null);
-  const [decision, setDecision] = useState<Decision>('approve');
-  const [comment, setComment] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const pending = useRequests({ status: 'pending', limit: 200, allPeriods: true });
+  const priced = useRequests({ status: 'priced', limit: 200, allPeriods: true });
+  const [decision, setDecision] = useState<{ request: RequestListItem; approve: boolean } | null>(null);
 
-  const list = useRequests({ status: tab, limit, allPeriods: true });
-  const items = list.data?.items ?? [];
-  const detail = useRequest(activeId);
-  const decide = useDecision();
-
-  // Первая заявка вкладки выбирается сама: очередь без выбранной карточки
-  // выглядит сломанной.
-  useEffect(() => {
-    if (items.length === 0) {
-      setActiveId(null);
-    } else if (!items.some((r) => r.id === activeId)) {
-      setActiveId(items[0].id);
-    }
-  }, [items, activeId]);
-
-  const reset = () => {
-    setDecision('approve');
-    setComment('');
-    setError(null);
-  };
-
-  const approve = decision === 'approve';
-  const active = detail.data;
-
-  const submit = () => {
-    if (!active) return;
-    if (!approve && comment.trim() === '') {
-      setError('Комментарий обязателен при отклонении заявки');
-      return;
-    }
-    // actor не передаём: сервер берёт имя согласующего из сессии.
-    decide.mutate(
-      {
-        id: active.id,
-        approve,
-        comment: comment.trim() || null,
-      },
-      {
-        onSuccess: () => {
-          flash(
-            !approve
-              ? `Заявка ${active.number} отклонена`
-              : active.priced
-                ? `Заявка ${active.number} утверждена к оплате`
-                : `Заявка ${active.number} передана в отдел закупа`,
-            approve ? 'var(--dot-ok)' : 'var(--dot-err)',
-          );
-          reset();
-        },
-        onError: (e) => setError(e instanceof Error ? e.message : 'Не удалось сохранить решение'),
-      },
-    );
-  };
+  const rows = [...(pending.data?.items ?? []), ...(priced.data?.items ?? [])].sort(
+    (a, b) => (b.awaiting_days ?? 0) - (a.awaiting_days ?? 0),
+  );
+  const isLoading = pending.isLoading || priced.isLoading;
+  const error = pending.error ?? priced.error;
 
   return (
     <>
       <PageHeader
-        kicker={periodLabel()}
         title="Согласование"
-        lead="Сперва согласуйте саму покупку, после оценки закупа — сумму. Комментарий к отклонению обязателен"
+        lead={isLoading ? undefined : `${rows.length} ${plural(rows.length, 'заявка ждёт', 'заявки ждут', 'заявок ждут')} вашего решения`}
       />
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--gap)' }}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className="chip"
-            aria-pressed={tab === t.key}
-            onClick={() => {
-              setTab(t.key);
-              setActiveId(null);
-              setLimit(PAGE_SIZE);
-              reset();
-            }}
-          >
-            {t.label}
-            {tab === t.key && list.data ? ` · ${list.data.total}` : ''}
-          </button>
-        ))}
-      </div>
-
       <QueryState
-        isLoading={list.isLoading}
-        error={list.error}
-        isEmpty={items.length === 0}
-        emptyTitle={
-          tab === 'pending'
-            ? 'Все заявки рассмотрены'
-            : tab === 'priced'
-              ? 'Оценённых заявок нет'
-              : 'В этой вкладке заявок нет'
-        }
-        emptyNote={
-          tab === 'pending'
-            ? 'Новые заявки появятся здесь сразу после подачи.'
-            : tab === 'priced'
-              ? 'Здесь появятся заявки, которые вернул отдел закупа с ценами.'
-              : undefined
-        }
-        onRetry={() => list.refetch()}
-      >
-        <div
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--gap)', alignItems: 'flex-start' }}
-        >
-          <section
-            className="panel"
-            aria-label="Очередь заявок"
-            style={{ flex: '1 1 240px', maxWidth: 320, minWidth: 0 }}
-          >
-            <div style={{ padding: 'var(--pad)', borderBottom: '1px solid var(--line)' }}>
-              <span className="label">ОЧЕРЕДЬ · {items.length}</span>
-            </div>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {items.map((r) => {
-                const isActive = r.id === activeId;
-                return (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveId(r.id);
-                        reset();
-                      }}
-                      aria-current={isActive}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '12px 16px',
-                        border: 'none',
-                        borderBottom: '1px solid var(--line)',
-                        borderLeft: `2px solid ${isActive ? 'var(--green)' : 'transparent'}`,
-                        background: isActive ? 'var(--mist)' : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'background 150ms ease-out',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                        <span style={{ fontWeight: isActive ? 700 : 400 }}>
-                          {r.employee_name}
-                        </span>
-                        {/* До оценки закупа суммы нет: ноль в очереди
-                            читался бы как «бесплатно». */}
-                        {r.status === 'fulfilled' ? (
-                          <span className="caption">со склада</span>
-                        ) : r.priced ? (
-                          <span className="num">{money(r.amount)}</span>
-                        ) : (
-                          <span className="caption">не оценена</span>
-                        )}
-                      </div>
-                      <div className="meta">
-                        {r.number} · {r.date}
-                      </div>
-                      <div className="caption">{r.project_name}</div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {list.data && items.length < list.data.total && (
-              <div style={{ padding: 'var(--pad)', borderTop: '1px solid var(--line)' }}>
-                <div className="caption" style={{ marginBottom: 8 }}>
-                  Показано {items.length} из {list.data.total}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setLimit((v) => v + PAGE_SIZE)}
-                >
-                  Показать ещё
-                </button>
-              </div>
-            )}
-          </section>
-
-          <div style={{ flex: '1 1 460px', minWidth: 0, display: 'grid', gap: 'var(--gap)' }}>
-            {active && (
-              <>
-                <section className="card">
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 16,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {/* minWidth: 0 обязателен: без него длинная почта не даёт
-                        блоку сжаться, и карточка вылезает за экран телефона. */}
-                    <div style={{ display: 'flex', gap: 12, minWidth: 0 }}>
-                      <div
-                        aria-hidden="true"
-                        style={{
-                          width: 44,
-                          height: 44,
-                          display: 'grid',
-                          placeItems: 'center',
-                          background: 'var(--st-ok-bg)',
-                          color: 'var(--st-ok-fg)',
-                          borderRadius: 'var(--r-field)',
-                          fontWeight: 700,
-                          flex: 'none',
-                        }}
-                      >
-                        {initials(active.employee_name)}
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div className="h3">{active.employee_name}</div>
-                        <div className="caption">
-                          {active.employee_position} · объект «{active.project_name}»
-                        </div>
-                        <div className="meta">
-                          {[active.employee_email, active.employee_phone]
-                            .filter(Boolean)
-                            .join(' · ') || 'Контакты не заполнены'}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <StatusBadge status={active.status} />
-                      <div className="meta" style={{ marginTop: 4 }}>
-                        {active.number} · {active.date}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="table-wrap" style={{ marginTop: 24 }}>
-                    <table
-                  className="tbl fit"
-                  style={{ ['--tbl-min' as string]: '380px' }}
-                >
-                      <thead>
-                        <tr>
-                          <th>ОПИСАНИЕ</th>
-                          <th className="right" style={{ width: 64 }}>
-                            КОЛ-ВО
-                          </th>
-                          <th className="right" style={{ width: 84 }}>
-                            ЦЕНА, TJS
-                          </th>
-                          <th className="right" style={{ width: 100 }}>
-                            СУММА, TJS
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {active.lines.map((l) => (
-                          <tr key={l.id}>
-                            <td>{l.title}</td>
-                            <td className="right num">
-                              {l.quantity}
-                              {l.unit ? ` ${l.unit}` : ''}
-                            </td>
-                            <td className="right">
-                              {l.from_stock ? (
-                                <span className="caption">со склада</span>
-                              ) : l.price === null ? (
-                                <span className="caption">—</span>
-                              ) : (
-                                <span className="num">{money(l.price)}</span>
-                              )}
-                            </td>
-                            <td className="right">
-                              {l.from_stock || l.total === null ? (
-                                <span className="caption">—</span>
-                              ) : (
-                                <span className="num">{money(l.total)}</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="total-row">
-                          <td colSpan={3}>
-                            {active.priced ? 'Итого к оплате' : 'Сумму назовёт закуп'}
-                          </td>
-                          <td className="right metric-sm">
-                            {active.priced ? money(active.amount) : '—'}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <hr className="divider" />
-
-                  <dl
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                      gap: 16,
-                      margin: 0,
-                    }}
-                  >
-                    <div>
-                      <dt className="label">ЛИМИТ СОТРУДНИКА</dt>
-                      <dd className="num" style={{ margin: '4px 0 0' }}>
-                        {active.employee_limit ? somoni(active.employee_limit) : 'не задан'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="label">ИЗРАСХОДОВАНО</dt>
-                      <dd className="num" style={{ margin: '4px 0 0' }}>
-                        {somoni(active.employee_spent)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="label">ПОЗИЦИЙ В ЗАЯВКЕ</dt>
-                      <dd className="num" style={{ margin: '4px 0 0' }}>
-                        {active.lines.length}
-                      </dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section className="card">
-                  <h2 className="h3" style={{ marginBottom: 16 }}>
-                    История изменений
-                  </h2>
-                  <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 16 }}>
-                    {active.events.map((h, i) => (
-                      <li
-                        key={`${h.created_at}-${i}`}
-                        style={{
-                          borderLeft: `2px solid ${
-                            i === active.events.length - 1 ? 'var(--green)' : 'var(--line)'
-                          }`,
-                          paddingLeft: 12,
-                        }}
-                      >
-                        <div>{h.text}</div>
-                        <div className="meta">{h.meta}</div>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-              </>
-            )}
-          </div>
-
-          {active && DECIDABLE.includes(active.status) && active.employee_id === user?.id && (
-            <section
-              className="card"
-              style={{ flex: '1 1 300px', minWidth: 0, position: 'sticky', top: 88 }}
-            >
-              <div className="label">ВАША ЗАЯВКА</div>
-              <p style={{ marginTop: 16, color: 'var(--slate)' }}>
-                Собственную заявку согласовать нельзя. Решение примет другой
-                руководитель.
-              </p>
-            </section>
-          )}
-
-          {active && DECIDABLE.includes(active.status) && active.employee_id !== user?.id && (
-            <section
-              className="card"
-              aria-label="Решение по заявке"
-              style={{ flex: '1 1 300px', minWidth: 0, position: 'sticky', top: 88 }}
-            >
-              <div className="label">РЕШЕНИЕ</div>
-              <div
-                role="radiogroup"
-                aria-label="Решение"
-                style={{ display: 'grid', gap: 8, marginTop: 16 }}
-              >
-                <DecisionOption
-                  label={active.priced ? 'Утвердить сумму' : 'Согласовать покупку'}
-                  accent="var(--dot-ok)"
-                  active={approve}
-                  onSelect={() => {
-                    setDecision('approve');
-                    setError(null);
-                  }}
-                />
-                <DecisionOption
-                  label="Отклонить"
-                  accent="var(--dot-err)"
-                  active={!approve}
-                  onSelect={() => setDecision('reject')}
-                />
-              </div>
-
-              <label>
-                <div className="label" style={{ margin: '24px 0 8px' }}>
-                  КОММЕНТАРИЙ
-                </div>
-                <textarea
-                  className={`field${error ? ' field-error' : ''}`}
-                  value={comment}
-                  onChange={(e) => {
-                    setComment(e.target.value);
-                    if (error) setError(null);
-                  }}
-                  aria-invalid={Boolean(error)}
-                  placeholder={
-                    approve
-                      ? 'Необязательно'
-                      : 'Укажите причину отклонения: факт, причина, что делаем, срок'
-                  }
-                />
-              </label>
-              {error && (
-                <div className="field-error-text" role="alert">
-                  {error}
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gap: 8, marginTop: 24 }}>
-                <button
-                  type="button"
-                  className={approve ? 'btn btn-primary' : 'btn btn-danger'}
-                  onClick={submit}
-                  disabled={decide.isPending}
-                >
-                  {decide.isPending
-                    ? 'Сохраняем…'
-                    : !approve
-                      ? 'Отклонить заявку'
-                      : active.priced
-                        ? `Утвердить ${somoni(active.amount)}`
-                        : 'Согласовать покупку'}
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={reset}>
-                  Отмена
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* Заявка, ждущая решения, показывает форму, а не итог:
-              во вкладке «Сумма» оба блока рядом сбивали с толку. */}
-          {active && !DECIDABLE.includes(active.status) && (
-            <section
-              className="card"
-              style={{ flex: '1 1 300px', minWidth: 0, position: 'sticky', top: 88 }}
-            >
-              <div className="label">РЕШЕНИЕ ПРИНЯТО</div>
-              <div style={{ marginTop: 16 }}>
-                <StatusBadge status={active.status} />
-              </div>
-              {active.decided_by && (
-                <div className="meta" style={{ marginTop: 12 }}>
-                  {active.decided_by.toUpperCase()}
-                </div>
-              )}
-              {active.decision_comment && (
-                <p
-                  style={{
-                    borderLeft: '2px solid var(--line)',
-                    paddingLeft: 12,
-                    marginTop: 12,
-                    color: 'var(--slate)',
-                  }}
-                >
-                  {active.decision_comment}
-                </p>
-              )}
-              {active.payment && (
-                <div style={{ marginTop: 16 }}>
-                  <div className="label">ВЫПЛАТА</div>
-                  <div className="num" style={{ marginTop: 4 }}>
-                    {money(active.payment.amount)} · {active.payment.document}
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
-      </QueryState>
-    </>
-  );
-}
-
-function DecisionOption({
-  label,
-  accent,
-  active,
-  onSelect,
-}: {
-  label: string;
-  accent: string;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onSelect}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        minHeight: 44,
-        padding: '0 12px',
-        border: active ? `2px solid ${accent}` : '1px solid var(--grey)',
-        borderRadius: 'var(--r-field)',
-        background: active ? 'var(--mist)' : 'transparent',
-        textAlign: 'left',
-        cursor: 'pointer',
-        transition: 'background 150ms ease-out',
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 18,
-          height: 18,
-          flex: 'none',
-          display: 'grid',
-          placeItems: 'center',
-          border: active ? `2px solid ${accent}` : '1px solid var(--grey)',
+        isLoading={isLoading}
+        error={error}
+        isEmpty={!isLoading && rows.length === 0}
+        emptyTitle="Все заявки рассмотрены"
+        emptyNote="Новые заявки появятся здесь сразу после подачи, оценённые — когда закуп проставит цены."
+        onRetry={() => {
+          void pending.refetch();
+          void priced.refetch();
         }}
       >
-        <span style={{ width: 10, height: 10, background: active ? accent : 'transparent' }} />
-      </span>
-      <span style={{ fontWeight: 600 }}>{label}</span>
-    </button>
-  );
-}
+        <div className="stack" style={{ gap: 12 }}>
+          {rows.map((r) => {
+            const d = r.awaiting_days ?? 0;
+            const own = r.employee_id === user?.id;
+            const stage = r.status === 'priced' ? 'согласование суммы' : 'согласование покупки';
+            return (
+              <article
+                key={r.id}
+                className={`card${d >= DELAY_DAYS ? ' card-accent' : ''}`}
+                style={{ ['--accent' as string]: 'var(--yellow)', padding: '16px 24px', borderRadius: 'var(--r-field)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}
+              >
+                <div style={{ flex: '1 1 320px', minWidth: 0, display: 'grid', gap: 4 }}>
+                  <Link to={`/requests/${r.id}`} style={{ display: 'flex', alignItems: 'baseline', gap: 12, color: 'var(--ink)' }}>
+                    <span className="num" style={{ color: 'var(--slate)' }}>{r.number}</span>
+                    <span style={{ fontSize: 16, fontWeight: 600 }}>{r.title}</span>
+                  </Link>
+                  <div className="caption">
+                    {r.employee_name} · {r.project_name} · {stage} · {d > 0 ? `ждёт ${d} ${plural(d, 'день', 'дня', 'дней')}` : 'поступила сегодня'}
+                  </div>
+                </div>
+                <div style={{ minWidth: 120, textAlign: 'right' }}>
+                  {r.priced ? <span className="num-lg">{money(r.amount)}</span> : <span className="unpriced">не оценена</span>}
+                </div>
+                {own ? (
+                  <span className="caption" style={{ flex: '0 0 auto' }}>Ваша заявка — решит другой руководитель</span>
+                ) : (
+                  <div className="sticky-actions" style={{ flex: '0 0 auto' }}>
+                    <button type="button" className="btn btn-danger" onClick={() => setDecision({ request: r, approve: false })}>
+                      Отклонить
+                    </button>
+                    <button type="button" className="btn btn-primary" onClick={() => setDecision({ request: r, approve: true })}>
+                      {r.status === 'priced' ? 'Утвердить' : 'Согласовать'}
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </QueryState>
 
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('');
+      {decision && (
+        <DecisionModal request={decision.request} approve={decision.approve} onClose={() => setDecision(null)} />
+      )}
+    </>
+  );
 }

@@ -29,19 +29,8 @@ export function QueryState({
 }: Props) {
   if (isLoading) {
     return (
-      <div
-        className="hatch"
-        style={{
-          padding: '48px var(--pad)',
-          border: '1px solid var(--line)',
-          borderRadius: 'var(--r-card)',
-          background: 'var(--paper)',
-          textAlign: 'center',
-        }}
-        role="status"
-        aria-live="polite"
-      >
-        <div className="label">ЗАГРУЗКА</div>
+      <div className="empty" role="status" aria-live="polite">
+        <div className="label">Загрузка</div>
       </div>
     );
   }
@@ -49,7 +38,7 @@ export function QueryState({
   if (error) {
     return (
       <EmptyState
-        kicker="ОШИБКА"
+        kicker="Ошибка"
         title={errorText(error)}
         note="Проверьте, что сервер запущен. Если ошибка повторяется, обратитесь к администратору."
         action={
@@ -66,7 +55,7 @@ export function QueryState({
   if (isEmpty) {
     return (
       <EmptyState
-        kicker="НЕТ ДАННЫХ"
+        kicker="Нет данных"
         title={emptyTitle}
         note={emptyNote}
         action={emptyAction}

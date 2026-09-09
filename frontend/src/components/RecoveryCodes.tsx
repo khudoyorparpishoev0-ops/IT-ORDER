@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 
 type Props = {
   codes: string[];
@@ -25,26 +26,26 @@ export function RecoveryCodes({ codes, onDone }: Props) {
   };
 
   return (
-    <div>
-      <div className="accent-rule" />
-      <h2 className="h3" style={{ marginBottom: 4 }}>
-        Коды восстановления
-      </h2>
-      <p className="caption" style={{ margin: '0 0 16px' }}>
-        Сохраните их в надёжном месте. Каждый код срабатывает один раз и
-        заменяет код из приложения, если телефон потерян.{' '}
-        <strong>Показываются только сейчас</strong> — в системе хранятся лишь
-        отпечатки, восстановить список нельзя.
-      </p>
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div>
+        <h2 className="h3">Коды восстановления</h2>
+        <p className="caption" style={{ margin: '4px 0 0' }}>
+          Сохраните их в надёжном месте. Каждый код срабатывает один раз и
+          заменяет код из приложения, если телефон потерян.{' '}
+          <strong>Показываются только сейчас</strong> — в системе хранятся лишь
+          отпечатки, восстановить список нельзя.
+        </p>
+      </div>
 
       <ul
         className="num"
         style={{
           listStyle: 'none',
           margin: 0,
-          padding: 'var(--pad)',
-          background: 'var(--mist)',
+          padding: 16,
+          background: 'var(--zebra)',
           border: '1px solid var(--line)',
+          borderRadius: 'var(--r-field)',
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           gap: 8,
@@ -56,40 +57,39 @@ export function RecoveryCodes({ codes, onDone }: Props) {
         ))}
       </ul>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-secondary" onClick={copy}>
           {copied ? 'Скопировано' : 'Копировать'}
         </button>
       </div>
 
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          minHeight: 44,
-          marginTop: 16,
-          cursor: 'pointer',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(e) => setConfirmed(e.target.checked)}
-          style={{ width: 20, height: 20 }}
-        />
-        Я сохранил коды
-      </label>
+      <div className="check-row" onClick={() => setConfirmed((v) => !v)}>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={confirmed}
+          aria-label="Я сохранил коды"
+          className="check"
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmed((v) => !v);
+          }}
+        >
+          <Icon name="ti-check" size={14} style={{ opacity: confirmed ? 1 : 0 }} />
+        </button>
+        <span className="small">Я сохранил коды</span>
+      </div>
 
-      <button
-        type="button"
-        className="btn btn-primary"
-        style={{ marginTop: 8 }}
-        disabled={!confirmed}
-        onClick={() => onDone?.()}
-      >
-        Продолжить
-      </button>
+      <div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!confirmed}
+          onClick={() => onDone?.()}
+        >
+          Продолжить
+        </button>
+      </div>
     </div>
   );
 }

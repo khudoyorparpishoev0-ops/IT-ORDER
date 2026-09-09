@@ -348,8 +348,9 @@ export function useQueueInfo(enabled = true) {
   });
 }
 
-export function useProjectShares() {
+export function useProjectShares(enabled = true) {
   return useQuery({
+    enabled,
     queryKey: keys.byProject,
     queryFn: () => api<ProjectShare[]>('/api/reports/by-project'),
   });

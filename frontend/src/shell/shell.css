@@ -1,3 +1,6 @@
+/* Каркас панели: сайдбар 240 px (forest), топбар 64 px, контент до 1240 px.
+   На телефоне сайдбар становится шторкой 320 px, топбар — 56 px. */
+
 .shell {
   display: flex;
   min-height: 100vh;
@@ -9,28 +12,210 @@
   width: var(--side-w);
   display: flex;
   flex-direction: column;
+  gap: 4px;
   position: sticky;
   top: 0;
   height: 100vh;
+  padding: 16px 12px;
+  background: var(--forest);
+  color: var(--forest-ink);
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  margin: 0 4px 24px;
+  color: #ffffff;
+}
+
+.sidebar-nav {
+  flex: 1;
+}
+.sidebar-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--r-field);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--forest-ink);
+  text-decoration: none;
+  transition: background var(--motion);
+}
+.nav-item:hover {
+  background: rgba(237, 242, 238, 0.08);
+  color: var(--forest-ink);
+}
+/* Активный пункт: без transition — состояние не должно догонять клик. */
+.nav-item.active {
+  background: var(--green);
+  color: var(--on-green);
+  font-weight: 600;
+  transition: none;
+}
+.nav-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.sidebar-foot {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(237, 242, 238, 0.14);
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+  min-height: 44px;
+}
+.sidebar-avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-field);
+  background: rgba(237, 242, 238, 0.12);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.sidebar-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-role {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--forest-slate);
+}
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-field);
+  border: 0;
+  background: transparent;
+  color: var(--forest-slate);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--motion), color var(--motion);
+}
+.sidebar-link:hover {
+  background: rgba(237, 242, 238, 0.08);
+  color: var(--forest-ink);
 }
 
 .shell-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-h);
+  padding: 0 32px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-search {
+  position: relative;
+  flex: 1;
+  max-width: 360px;
+}
+.topbar-search .field {
+  height: 36px;
+  padding-left: 36px;
+}
+.topbar-search .field:focus {
+  padding-left: 35px;
+}
+.topbar-search .icon {
+  position: absolute;
+  left: 10px;
+  top: 9px;
+  color: var(--slate);
+  pointer-events: none;
+}
+.topbar-spacer {
+  flex: 1;
+}
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--paper);
+}
+.theme-switch button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-field);
+  background: transparent;
+  color: var(--slate);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.theme-switch button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+[data-theme='dark'] .theme-switch button[aria-pressed='true'] {
+  background: var(--green);
+  color: var(--on-green);
+}
+.topbar-burger,
+.topbar-logo {
+  display: none;
 }
 
 .shell-content {
+  width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
   padding: 32px;
-}
-
-.shell-topbar {
-  display: none;
-}
-
-.shell-burger {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  flex: 1;
 }
 
 .shell-scrim {
@@ -38,19 +223,25 @@
 }
 
 @media (max-width: 900px) {
-  /* Сайдбар уходит из потока: на телефоне он выезжает поверх содержимого,
-     а не отнимает у него треть ширины. */
   .sidebar {
     position: fixed;
+    inset: 0 auto 0 0;
     z-index: 40;
     flex: none;
-    width: min(86vw, 320px);
+    width: min(86vw, var(--drawer-w));
+    height: 100vh;
     transform: translateX(-100%);
     transition: transform var(--motion);
+    box-shadow: var(--sh2);
   }
-
   .shell[data-menu-open='true'] .sidebar {
     transform: translateX(0);
+  }
+  .sidebar-logo {
+    display: none;
+  }
+  .nav-item {
+    height: 48px;
   }
 
   .shell-scrim {
@@ -60,32 +251,34 @@
     z-index: 30;
     border: 0;
     padding: 0;
-    background: rgba(16, 22, 19, 0.6);
+    background: var(--scrim);
     cursor: pointer;
   }
 
-  .shell-topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    padding: 8px 16px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+  .topbar {
+    height: 56px;
+    padding: 0 8px;
+    gap: 4px;
   }
-
-  .shell-burger {
+  .topbar-burger {
     display: inline-flex;
-    margin: 0;
-    width: 48px;
-    height: 48px;
-    padding: 0;
-    flex: none;
+  }
+  .topbar-logo {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    color: var(--logo);
+  }
+  .topbar-search {
+    display: none;
+  }
+  .topbar-spacer,
+  .theme-switch {
+    display: none;
   }
 
   .shell-content {
     padding: 16px;
+    gap: 16px;
   }
 }

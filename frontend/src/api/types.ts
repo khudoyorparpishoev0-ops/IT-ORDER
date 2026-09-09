@@ -267,6 +267,9 @@ export type RequestListItem = {
   employee_position: string;
   project_id: number;
   project_name: string;
+  /** Наименование для списка: первая позиция сметы (+ «и ещё N»). */
+  title: string;
+  lines_count: number;
   amount: Money;
   /** false — заявку ещё не оценил закуп, сумма пока ничего не значит. */
   priced: boolean;

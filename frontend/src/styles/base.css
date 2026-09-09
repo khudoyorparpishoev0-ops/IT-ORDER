@@ -1,6 +1,7 @@
-/* Базовые стили и переиспользуемые классы. Правила берутся из брендбука:
-   радиусы 0/2/4, обводки 1px line / 2px green, анимация 150ms ease-out,
-   строка таблицы 44px, только горизонтальные линии, статус — цвет + слово. */
+/* Базовые стили и классы компонентов по UI-киту HONA ORDER
+   (docs/design/README.md). Радиусы 0/2/4, границы 1px line, фокус 2px green,
+   анимация 150ms ease-out только на hover-свойствах, строка таблицы 44px,
+   статус — точка + слово. Цвета только через var(--token). */
 
 * {
   box-sizing: border-box;
@@ -28,7 +29,7 @@ a {
   font-weight: 600;
 }
 a:hover {
-  text-decoration: underline;
+  color: var(--green);
 }
 
 table {
@@ -44,8 +45,7 @@ button {
   color: inherit;
 }
 
-/* Фокус единый: 2px green с отступом 2px, без смещения элемента */
-:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+:where(a, button, [tabindex]):focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 2px;
 }
@@ -56,53 +56,80 @@ button {
   font-size: 30px;
   line-height: 1.16;
   font-weight: 700;
+  text-wrap: balance;
 }
-.lead {
-  margin: 8px 0 0;
-  font-size: 26px;
-  line-height: 1.3;
-  font-weight: 300;
-  color: var(--slate);
-}
-.lead-sm {
-  margin: 8px 0 0;
-  font-size: 16px;
-  font-weight: 300;
-  color: var(--slate);
+.h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
 }
 .h3 {
   margin: 0;
   font-size: 19px;
-  line-height: 1.26;
+  line-height: 1.3;
   font-weight: 700;
+}
+.small {
+  font-size: 14px;
+  line-height: 1.5;
 }
 .caption {
   font-size: 13px;
-  line-height: 1.46;
+  line-height: 1.5;
+  color: var(--slate);
+}
+/* Рубрика: Manrope 11/600, капслок, трекинг .08em */
+.label,
+.rubric {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+/* Рубрика графика — моно, трекинг .12em */
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--slate);
 }
 .mono {
   font-family: var(--font-mono);
 }
-.label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--slate);
-}
+/* Номер, сумма, дата: то, что сравнивают глазами */
 .num {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 }
+.num-lg {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Метаданные: «РЗ-0048 · 08.09.2026 · Регар» */
+.meta {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--slate);
+  overflow-wrap: anywhere;
+}
+.kpi-value,
 .metric {
   font-family: var(--font-mono);
   font-size: 30px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
 .metric-sm {
   font-family: var(--font-mono);
@@ -110,14 +137,21 @@ button {
   font-weight: 600;
   line-height: 1.2;
 }
-.meta {
+.muted {
+  color: var(--grey);
+}
+/* «не оценена» — серым, моно, без цифр */
+.unpriced {
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: 14px;
+  color: var(--grey);
+  white-space: nowrap;
+}
+.lead-sm {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--slate);
-  /* Почта и номер заявки — длинные строки без пробелов. На телефоне они
-     распирали карточку, и страница уезжала вбок. */
-  overflow-wrap: anywhere;
 }
 
 /* ---------- Поверхности ---------- */
@@ -125,44 +159,76 @@ button {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  box-shadow: var(--sh1);
   padding: var(--pad);
-  /* Карточки лежат в grid- и flex-раскладках, где минимальный размер по
-     умолчанию равен содержимому: широкая таблица внутри распирала колонку,
-     и на телефоне страница уезжала вбок. Прокрутку таблицы берёт на себя
-     .table-wrap. */
   min-width: 0;
+}
+/* Акцентная карточка: левая кромка статусным цветом (--accent) */
+.card-accent {
+  border-left: 2px solid var(--accent, var(--yellow));
 }
 .panel {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  box-shadow: var(--sh1);
+  min-width: 0;
+  overflow: hidden;
 }
-.accent-rule {
-  width: 48px;
-  height: 3px;
-  background: var(--green);
-  margin-bottom: 12px;
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-height: 52px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-body {
+  padding: var(--pad);
 }
 .divider {
   border: 0;
   border-top: 1px solid var(--line);
   margin: var(--sp-6) 0;
 }
-
-/* Срез угла 60° — один на носитель */
-.clip-corner {
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 16px) 100%, 0 100%);
+/* Заголовок-вывод отчёта: зелёный штрих 64×4 */
+.accent-rule {
+  width: 64px;
+  height: 4px;
+  background: var(--green);
+  margin-bottom: 12px;
 }
 
-/* Штриховка 60° — зоны «в работе» и пустые состояния */
-.hatch {
-  background-image: repeating-linear-gradient(
-    60deg,
-    var(--mist) 0 6px,
-    transparent 6px 14px
-  );
+/* ---------- KPI ---------- */
+.kpi {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.kpi-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kpi-note {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--slate);
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--gap);
+}
+
+/* Точка-индикатор 6px */
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dot, var(--grey));
+  flex: none;
 }
 
 /* ---------- Кнопки ---------- */
@@ -174,20 +240,26 @@ button {
   height: 44px;
   padding: 0 16px;
   border-radius: var(--r-card);
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   border: 1px solid transparent;
   background: transparent;
-  transition: background var(--motion), color var(--motion);
+  transition: background var(--motion), color var(--motion), border-color var(--motion);
   white-space: nowrap;
+  text-decoration: none;
 }
-.btn:disabled {
-  opacity: 0.5;
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  background: var(--mist);
+  border-color: var(--line);
+  color: var(--grey);
   cursor: not-allowed;
 }
 .btn-primary {
   background: var(--green);
-  color: #ffffff;
+  color: var(--on-green);
   border-color: var(--green);
 }
 .btn-primary:hover:not(:disabled) {
@@ -195,42 +267,63 @@ button {
   border-color: var(--green-d);
 }
 .btn-secondary {
-  border-color: var(--grey);
+  background: var(--paper);
+  border-color: var(--line);
   color: var(--ink);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--line);
-}
-.btn-danger {
-  background: var(--danger);
-  color: #ffffff;
-  border-color: var(--danger);
-}
-.btn-danger:hover:not(:disabled) {
-  background: var(--danger-d);
-  border-color: var(--danger-d);
+  border-color: var(--slate);
+  background: var(--zebra);
 }
 .btn-ghost {
   color: var(--slate);
-  font-size: 13px;
 }
 .btn-ghost:hover:not(:disabled) {
   background: var(--mist);
   color: var(--ink);
 }
+/* Destructive: обводка красным, заливка только при наведении */
+.btn-danger {
+  background: var(--paper);
+  border-color: var(--red);
+  color: var(--red);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--red);
+  color: #ffffff;
+}
 .btn-icon {
   width: 44px;
   height: 44px;
   padding: 0;
-  border-color: var(--grey);
+  background: var(--paper);
+  border-color: var(--line);
+  color: var(--ink);
 }
 .btn-icon:hover:not(:disabled) {
-  background: var(--line);
+  border-color: var(--slate);
+  background: var(--zebra);
+}
+.btn-sm {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+.btn-sm.btn-icon {
+  width: 36px;
+}
+.btn-block {
+  width: 100%;
 }
 
 @media (max-width: 640px) {
-  .btn {
+  .btn:not(.btn-sm) {
     height: 48px;
+    padding: 0 20px;
+  }
+  .btn-icon:not(.btn-sm) {
+    width: 48px;
+    padding: 0;
   }
 }
 
@@ -239,26 +332,35 @@ button {
   width: 100%;
   height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--grey);
+  border: 1px solid var(--line);
   border-radius: var(--r-field);
   background: var(--paper);
   color: var(--ink);
   outline: none;
+  transition: border-color var(--motion);
 }
 .field::placeholder {
   color: var(--grey);
 }
-.field:focus-visible {
-  outline: 2px solid var(--green);
-  outline-offset: 2px;
+.field:hover:not(:disabled):not(:focus) {
+  border-color: var(--slate);
+}
+.field:focus {
+  border: 2px solid var(--green);
+  padding: 0 11px;
+}
+.field:disabled {
+  background: var(--mist);
+  color: var(--grey);
 }
 .field-error {
-  border-color: var(--danger);
+  border-color: var(--red);
 }
 .field-error-text {
   margin-top: 4px;
   font-size: 13px;
-  color: var(--danger);
+  line-height: 1.4;
+  color: var(--red);
 }
 textarea.field {
   height: auto;
@@ -267,83 +369,138 @@ textarea.field {
   resize: vertical;
   line-height: 1.56;
 }
+textarea.field:focus {
+  padding: 11px;
+}
+select.field {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%235a655d' stroke-width='1.6' stroke-linecap='butt' stroke-linejoin='miter'><path d='M6 9l6 6l6 -6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+}
+@media (max-width: 640px) {
+  .field:not(textarea) {
+    height: 48px;
+  }
+}
 
-/* ---------- Чипы фильтров ---------- */
-.chip {
+/* ---------- Фильтры (36 px) ---------- */
+.filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.filter {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   height: 36px;
   padding: 0 12px;
-  border: 1px solid var(--grey);
+  border: 1px solid var(--line);
   border-radius: var(--r-field);
-  background: transparent;
+  background: var(--paper);
   color: var(--slate);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background var(--motion), color var(--motion);
+  transition: border-color var(--motion), color var(--motion);
 }
-.chip:hover {
-  background: var(--mist);
+.filter:hover {
+  border-color: var(--slate);
+  color: var(--ink);
 }
-.chip[aria-pressed='true'] {
-  background: var(--st-ok-bg);
-  color: var(--st-ok-fg);
-  border: 2px solid var(--green);
+.filter.is-active,
+.filter[aria-pressed='true'] {
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
 }
-
-/* Ряд фильтров: чипы слева, период справа. На телефоне чипы становятся
-   лентой с прокруткой вбок — восемь статусов иначе занимают пол-экрана,
-   а список заявок уезжает под сгиб. */
-.filters {
+.filter.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+select.filter {
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%235a655d' stroke-width='1.6' stroke-linecap='butt' stroke-linejoin='miter'><path d='M6 9l6 6l6 -6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+/* Переключатель 44×24 */
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex: none;
+  border: 0;
+  border-radius: var(--r-field);
+  background: var(--line);
+  padding: 2px;
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.toggle::after {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: var(--paper);
+  border-radius: var(--r-field);
+  transition: transform var(--motion);
+}
+.toggle[aria-checked='true'] {
+  background: var(--green);
+}
+.toggle[aria-checked='true']::after {
+  transform: translateX(20px);
+}
+.toggle:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.toggle-row {
   display: flex;
-  gap: 8px;
   align-items: center;
-  margin-bottom: var(--gap);
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--line);
 }
-.filters .chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.filters .period {
-  margin-left: auto;
-}
-.filters .period select {
-  width: auto;
+.toggle-row:last-child {
+  border-bottom: 0;
 }
 
-@media (max-width: 640px) {
-  .filters {
-    display: block;
-  }
-  .filters .chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    /* Лента идёт от края до края: обрезанный чип у границы экрана —
-       подсказка, что её можно листать. */
-    margin: 0 -16px;
-    padding: 0 16px 4px;
-    scrollbar-width: none;
-  }
-  .filters .chips::-webkit-scrollbar {
-    display: none;
-  }
-  .filters .chip {
-    flex: none;
-  }
-  .filters .period {
-    display: block;
-    margin: 12px 0 0;
-  }
-  .filters .period select {
-    width: 100%;
-  }
+/* Квадратный чекбокс 20px */
+.check {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-field);
+  background: var(--paper);
+  color: var(--on-green);
+  cursor: pointer;
+  padding: 0;
+}
+.check[aria-checked='true'] {
+  background: var(--green);
+  border-color: var(--green);
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
 }
 
 /* ---------- Таблицы ---------- */
@@ -353,18 +510,27 @@ textarea.field {
 .tbl {
   min-width: var(--tbl-min, 0);
 }
-.tbl thead tr {
-  background: var(--forest);
-  color: #ffffff;
-}
 .tbl th {
-  padding: var(--cell-y) var(--cell-x);
+  height: 36px;
+  padding: 0 16px;
+  background: var(--zebra);
+  border-bottom: 1px solid var(--line);
   text-align: left;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate);
   white-space: nowrap;
+}
+.tbl th:first-child,
+.tbl td:first-child {
+  padding-left: 24px;
+}
+.tbl th:last-child,
+.tbl td:last-child {
+  padding-right: 24px;
 }
 .tbl th.right,
 .tbl td.right {
@@ -377,47 +543,309 @@ textarea.field {
 .tbl tbody tr {
   height: var(--row-h);
   border-bottom: 1px solid var(--line);
-  transition: background var(--motion);
+}
+.tbl tbody tr:last-child {
+  border-bottom: 0;
 }
 .tbl tbody tr.clickable {
   cursor: pointer;
+  transition: background var(--motion);
 }
 .tbl tbody tr.clickable:hover {
   background: var(--zebra);
 }
 .tbl td {
-  padding: var(--cell-y) var(--cell-x);
+  padding: 8px 16px;
   vertical-align: middle;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.tbl td.slate {
+  color: var(--slate);
 }
 .tbl tr.total-row {
-  background: var(--mist);
+  background: var(--zebra);
 }
 .tbl tr.total-row td {
   font-weight: 700;
 }
+.tbl.compact tbody tr {
+  height: 36px;
+}
+/* Тёмная шапка — только у реестра выплат в отчётах */
+.tbl-forest th {
+  height: 40px;
+  background: var(--forest);
+  color: var(--forest-ink);
+  border-bottom: 0;
+}
+.tbl.tall td {
+  padding: 12px 16px;
+  vertical-align: top;
+}
 
-/* ---------- Статус-плашка ---------- */
-.badge {
+/* Пагинация */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pager-info {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--slate);
+}
+.pager-pages {
+  display: flex;
+  gap: 4px;
+}
+.pager-btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-field);
+  background: var(--paper);
+  color: var(--slate);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--motion), color var(--motion);
+}
+.pager-btn:hover:not(:disabled) {
+  border-color: var(--slate);
+  color: var(--ink);
+}
+.pager-btn[aria-current='page'] {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.pager-btn:disabled {
+  color: var(--grey);
+  cursor: not-allowed;
+}
+
+/* ---------- Статус ---------- */
+.status {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 12px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--st, var(--grey));
   border-radius: var(--r-flat);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.status .dot {
+  --dot: var(--st, var(--grey));
+}
+/* Статус словами без рамки: в карточках на телефоне */
+.status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
-.badge .dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
+.status-inline .dot {
+  --dot: var(--st, var(--grey));
 }
 
-/* ---------- Полоса прогресса ---------- */
+/* ---------- Workflow заявки ---------- */
+.wf {
+  display: flex;
+  gap: 8px;
+}
+.wf-step {
+  flex: 1 1 130px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.wf-bar {
+  height: 4px;
+  background: var(--line);
+}
+.wf-step.done .wf-bar {
+  background: var(--green);
+}
+.wf-step.now .wf-bar {
+  background: var(--st, var(--blue));
+}
+.wf-step.rejected .wf-bar {
+  background: var(--red);
+}
+.wf-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.wf-step.next .wf-name {
+  font-weight: 500;
+  color: var(--grey);
+}
+.wf-step.now .wf-name {
+  font-weight: 700;
+}
+.wf-step.now .dot {
+  --dot: var(--st, var(--blue));
+}
+.wf-step.rejected .dot {
+  --dot: var(--red);
+}
+.wf-sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wf-step.now .wf-sub {
+  font-weight: 600;
+  color: var(--st, var(--blue));
+}
+.wf-step.rejected .wf-sub {
+  font-weight: 600;
+  color: var(--red);
+}
+.wf-step.next .wf-sub {
+  color: var(--grey);
+}
+/* Вертикальный workflow на телефоне */
+.wf.vertical {
+  flex-direction: column;
+  gap: 12px;
+}
+.wf.vertical .wf-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+.wf.vertical .wf-bar {
+  width: 4px;
+  height: 20px;
+  flex: none;
+}
+.wf.vertical .wf-name {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .wf:not(.horizontal) {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .wf:not(.horizontal) .wf-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: none;
+  }
+  .wf:not(.horizontal) .wf-bar {
+    width: 4px;
+    height: 20px;
+    flex: none;
+  }
+  .wf:not(.horizontal) .wf-name {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* Блок «Сейчас ждёт» */
+.waiting {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  background: var(--zebra);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--st, var(--blue));
+  border-radius: var(--r-field);
+}
+.waiting.delayed {
+  border-color: var(--yellow);
+  border-left-width: 2px;
+}
+.waiting-who {
+  font-size: 19px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+/* ---------- Графики ---------- */
+.hbar-row {
+  display: grid;
+  gap: 6px;
+}
+.hbar-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.hbar {
+  height: 12px;
+  background: var(--mist);
+  overflow: hidden;
+}
+.hbar > span {
+  display: block;
+  height: 100%;
+  background: var(--chart-3);
+}
+.vbars {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 200px;
+  border-bottom: 1px solid var(--ink);
+}
+.vbar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+/* Заливка — последний span; первый — значение над столбцом. */
+.vbar > span:last-child {
+  display: block;
+  width: 100%;
+  background: var(--chart-3);
+}
+.vbar-labels {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+.vbar-labels > span {
+  flex: 1;
+  text-align: center;
+}
+/* Полоса лимита 10px */
 .bar {
   height: 10px;
-  background: var(--line);
-  border-radius: 0;
+  background: var(--mist);
   overflow: hidden;
 }
 .bar > span {
@@ -425,23 +853,132 @@ textarea.field {
   height: 100%;
 }
 
+/* ---------- Модалка ---------- */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal {
+  width: 440px;
+  max-width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh2);
+}
+.modal.wide {
+  width: 640px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+.modal-body {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  overflow-y: auto;
+}
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 24px 24px;
+}
+@media (max-width: 640px) {
+  .modal-scrim {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .modal-foot .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* ---------- Липкая панель действий (телефон) ---------- */
+.sticky-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 0 -16px -16px;
+    padding: 12px 16px;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: var(--sh2);
+  }
+  .sticky-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
 /* ---------- Сетки ---------- */
 .grid-auto {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--gap);
+}
+.grid-2-1 {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--gap);
+}
+@media (max-width: 900px) {
+  .grid-2-1 {
+    /* minmax(0, …): иначе колонка не уже своей широкой таблицы и страница
+       уезжает вбок. Прокрутку берёт .table-wrap. */
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .stack {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  min-width: 0;
 }
 .row-between {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+/* ---------- Пустое состояние ---------- */
+.empty {
+  padding: 48px var(--pad);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--paper);
+  text-align: center;
 }
 
 /* ---------- Тост ---------- */
@@ -468,56 +1005,61 @@ textarea.field {
   border: 0;
 }
 
-/* ---------- Таблица-карточки на телефоне ----------
-   Три колонки в 390 px не помещаются, а листать список вбок неудобно:
-   строка разворачивается в карточку. Разметка остаётся таблицей — с ней
-   работают экранные дикторы и сортировка по заголовкам. */
+/* ---------- Список-карточки на телефоне вместо таблицы ----------
+   Строка становится карточкой ≈100 px: наименование → метаданные моно →
+   статус и сумма. Разметка остаётся таблицей ради дикторов. Класс
+   называется cards, а не stack: .stack — раскладка колонкой, и таблица с
+   ним превращалась во flex-контейнер. */
+.tbl.cards tr.mobile-only {
+  display: none;
+}
 @media (max-width: 640px) {
-  /* Узкие таблицы (состав заявки, оценка закупа) на телефоне просто
-     сжимаются: описание переносится, числа и так короткие. Листать вбок
-     ради тридцати пикселей — худшее из решений. */
-  .tbl.fit {
-    --tbl-min: 0;
+  /* Ширина задана инлайновой переменной, поэтому здесь !important:
+     иначе таблица состава на телефоне держит 480 px и уводит страницу вбок. */
+  .tbl.fit,
+  .tbl.cards {
+    min-width: 0 !important;
   }
-
-  .tbl.stack {
-    --tbl-min: 0;
+  .tbl.cards {
     display: block;
   }
-  .tbl.stack thead {
-    /* Заголовки-сортировка на телефоне не нужны: список короткий,
-       а место дороже. */
+  .tbl.cards thead {
     display: none;
   }
-  .tbl.stack tbody,
-  .tbl.stack tr,
-  .tbl.stack td {
+  .tbl.cards tbody,
+  .tbl.cards tr,
+  .tbl.cards td {
     display: block;
     width: auto;
   }
-  .tbl.stack tbody tr {
+  .tbl.cards tbody tr {
     height: auto;
-    padding: 12px 0;
+    padding: 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    background: var(--paper);
   }
-  .tbl.stack td {
+  .tbl.cards tbody tr:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .tbl.cards td {
     padding: 2px 0;
   }
-  .tbl.stack td.right {
+  .tbl.cards td:first-child,
+  .tbl.cards td:last-child {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .tbl.cards td.right {
     text-align: left;
   }
-  /* Сумма и статус — в одну строку под именем: так карточка занимает
-     три строки вместо шести. */
-  .tbl.stack td.right .num,
-  .tbl.stack td.right .caption {
-    font-size: 15px;
-    font-weight: 600;
+  .tbl.cards td.desktop-only {
+    display: none;
   }
 }
 
-/* ---------- Строки сметы в форме заявки ----------
-   На широком экране — таблица из подписанных столбцов, на телефоне
-   название занимает всю ширину, а количество и единица встают под ним:
-   три поля в ряд на 390 px превращаются в неудобные огрызки. */
+/* ---------- Строки сметы в форме заявки ---------- */
 .line-head,
 .line-row {
   display: flex;
@@ -532,7 +1074,7 @@ textarea.field {
   min-width: 0;
 }
 .line-qty {
-  flex: 0 1 80px;
+  flex: 0 1 88px;
   min-width: 0;
 }
 .line-unit {
@@ -542,6 +1084,17 @@ textarea.field {
 .line-del {
   width: 44px;
   flex: none;
+}
+/* «Добавить позицию» — пунктирная кнопка */
+.btn-dashed {
+  width: 100%;
+  border: 1px dashed var(--line);
+  color: var(--green-d);
+  background: transparent;
+}
+.btn-dashed:hover:not(:disabled) {
+  border-color: var(--green);
+  background: var(--zebra);
 }
 
 @media (max-width: 640px) {
@@ -555,9 +1108,60 @@ textarea.field {
     flex: 1 1 100%;
   }
   .line-qty {
-    flex: 1 1 72px;
+    flex: 1 1 88px;
   }
   .line-unit {
     flex: 3 1 120px;
+  }
+}
+
+/* Строка списка заявок: на компьютере метаданные скрыты, на телефоне —
+   наоборот, скрыты отдельные колонки. */
+.mobile-meta,
+.mobile-only {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobile-meta {
+    display: block;
+    margin-top: 2px;
+  }
+  .mobile-only {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+  .tbl.cards .row-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .tbl.cards td.right {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+  }
+}
+
+/* Действия страницы: на компьютере в шапке, на телефоне — липкая панель
+   внизу (шапка их не показывает). */
+.page-actions-desktop {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-actions-mobile {
+  display: none;
+}
+@media (max-width: 640px) {
+  .page-actions-desktop {
+    display: none;
+  }
+  .page-actions-mobile {
+    display: flex;
   }
 }

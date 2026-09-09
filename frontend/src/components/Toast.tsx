@@ -21,6 +21,7 @@ export function Toast({ toast, onHide }: { toast: ToastData | null; onHide: () =
         position: 'fixed',
         top: 80,
         right: 24,
+        left: 'auto',
         zIndex: 60,
         display: 'flex',
         alignItems: 'center',
