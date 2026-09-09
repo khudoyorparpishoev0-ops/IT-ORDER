@@ -18,10 +18,13 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.core import assistant
 from app.core.audit_context import current_actor
+from app.config import get_settings
+from app.core.text import plural
 from app.core.time import utcnow
 from app.db.models import AiInteraction, AiKind, AiSource
 
@@ -49,6 +52,7 @@ def record(
     error: str | None = None,
     duration_ms: int | None = None,
     source: AiSource = AiSource.WEB,
+    usage: assistant.Usage | None = None,
 ) -> int | None:
     """Пишет обращение и возвращает его id.
 
@@ -68,6 +72,9 @@ def record(
         ok=ok,
         error=_cut(error),
         duration_ms=duration_ms,
+        model=usage.model if usage else None,
+        input_tokens=usage.input_tokens if usage else None,
+        output_tokens=usage.output_tokens if usage else None,
     )
     try:
         session.add(entry)
@@ -115,13 +122,34 @@ def stats(session: Session, *, days: int = 30) -> dict[str, object]:
         .group_by(AiInteraction.kind)
     ).all()
 
+    week = session.scalar(
+        select(func.count())
+        .select_from(AiInteraction)
+        .where(AiInteraction.created_at >= utcnow() - timedelta(days=7))
+    )
+    tokens_in, tokens_out = session.execute(
+        select(
+            func.sum(AiInteraction.input_tokens), func.sum(AiInteraction.output_tokens)
+        ).where(AiInteraction.created_at >= since)
+    ).one()
+
+    total = int(total or 0)
+    failed = int(failed or 0)
+    answered = total - failed
     return {
         "days": days,
-        "total": int(total or 0),
-        "failed": int(failed or 0),
+        "total": total,
+        "failed": failed,
+        "error_pct": round(failed * 100 / total) if total else None,
         "applied": int(applied or 0),
+        "apply_rate_pct": (
+            round(int(applied or 0) * 100 / answered) if answered else None
+        ),
         "avg_seconds": round(float(avg_ms) / 1000, 1) if avg_ms else None,
         "by_kind": {kind.value: int(count) for kind, count in by_kind},
+        "total_week": int(week or 0),
+        "input_tokens": int(tokens_in) if tokens_in else None,
+        "output_tokens": int(tokens_out) if tokens_out else None,
     }
 
 
@@ -131,4 +159,30 @@ def recent(session: Session, *, limit: int = 10) -> list[AiInteraction]:
         session.scalars(
             select(AiInteraction).order_by(AiInteraction.created_at.desc()).limit(limit)
         )
+    )
+
+
+def purge_old(session: Session, *, now=None) -> str:
+    """Чистит журнал обращений по сроку хранения. Фоновая задача.
+
+    Что при этом НЕ удаляется: заявки, их позиции и написания, журнал
+    действий `audit_log`, история статусов. Они лежат в других таблицах и
+    с этой не связаны ничем — ни ссылкой, ни каскадом. `ai_interactions`
+    вспомогательный: по нему видно, помогает помощник или мешает, и
+    больше ничего. Вместе с обращением уходит только оценка ответа
+    (`ai_feedback`, каскадом): мнение о несуществующем ответе не значит
+    ничего.
+
+    Срок берётся из `AI_INTERACTIONS_RETENTION_DAYS`.
+    """
+    days = get_settings().ai_interactions_retention_days
+    edge = (now or utcnow()) - timedelta(days=days)
+    removed = session.execute(
+        delete(AiInteraction).where(AiInteraction.created_at < edge)
+    ).rowcount
+    session.commit()
+    log.info("Журнал AI: удалено записей старше %s дней: %s", days, removed)
+    return (
+        f"удалено {removed} {plural(removed, 'запись', 'записи', 'записей')} "
+        f"старше {days} {plural(days, 'дня', 'дней', 'дней')}"
     )

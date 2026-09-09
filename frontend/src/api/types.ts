@@ -122,13 +122,24 @@ export type MaterialAdvice = {
 };
 
 /** Сколько помощником пользовались за период. Раздел администратора. */
+export type AiReasonCount = { reason: string; label: string; count: number };
+
 export type AiUsage = {
   days: number;
   total: number;
   failed: number;
+  error_pct: number | null;
   applied: number;
+  apply_rate_pct: number | null;
   avg_seconds: number | null;
   by_kind: Record<string, number>;
+  total_week: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  useful: number;
+  useless: number;
+  useless_pct: number | null;
+  top_reasons: AiReasonCount[];
 };
 
 /** Строка журнала обращений к AI. */
@@ -694,10 +705,11 @@ export type MemoryItem = {
   last_date: string | null;
 };
 
-/** Что ORDER помнит о заявках: частое, своё и по объекту. */
+/** Что ORDER помнит о заявках: частое, своё, недавнее и по объекту. */
 export type Memory = {
   frequent: MemoryItem[];
   mine: MemoryItem[];
+  recent: MemoryItem[];
   project: MemoryItem[];
 };
 
@@ -718,3 +730,43 @@ export type DuplicateCheck = {
   requests: SimilarRequest[];
   days: number;
 };
+
+
+/** Позиция шаблона. Форма та же, что у строки формы заявки. */
+export type TemplateLine = {
+  title: string;
+  quantity: number;
+  unit: string | null;
+};
+
+/** Шаблон заявки: повторяющееся дело в одно нажатие. */
+export type RequestTemplate = {
+  id: number;
+  name: string;
+  project_id: number | null;
+  project_name: string | null;
+  lines: TemplateLine[];
+  usage_count: number;
+  last_used_at: string | null;
+};
+
+/** Шаблон, готовый к подстановке. Заявку применение не создаёт. */
+export type TemplateApply = {
+  template: RequestTemplate;
+  /** Объект шаблона отключён или удалён. */
+  warning: string | null;
+};
+
+/** Найденный прошлый вариант для «как в прошлый раз». */
+export type RepeatOption = {
+  request_id: number;
+  number: string;
+  title: string;
+  project_id: number;
+  project: string;
+  days_ago: number;
+  lines: TemplateLine[];
+  reasons: string[];
+};
+
+export type RepeatResult = { options: RepeatOption[] };

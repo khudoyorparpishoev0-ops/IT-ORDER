@@ -211,6 +211,7 @@ def converse(
         answer=_answer_text(out),
         duration_ms=int((time.monotonic() - started) * 1000),
         source=source,
+        usage=assistant.last_usage(),
     )
     return out.model_copy(update={"interaction_id": entry_id})
 

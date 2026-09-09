@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import logging
 import time
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
@@ -37,6 +39,32 @@ def _reason(exc) -> str:
 
 #: Реплика диалога: («user» | «assistant», текст).
 Turn = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class Usage:
+    """Чем обошёлся ответ: модель и токены.
+
+    Нужна для расчёта стоимости ORDER AI: без токенов она известна
+    только из счёта Anthropic, то есть задним числом и целиком, без
+    разбивки по помощникам. Поля необязательные: SDK может не вернуть
+    статистику, и метрики обязаны это пережить.
+    """
+
+    model: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+#: Статистика последнего ответа. Отдаётся отдельно, а не в возвращаемом
+#: значении: у `ask` контракт «схема на входе — объект схемы на выходе»,
+#: и ломать его ради служебной метрики во всех вызывающих незачем.
+_last_usage: ContextVar[Usage | None] = ContextVar("assistant_usage", default=None)
+
+
+def last_usage() -> Usage | None:
+    """Чем обошёлся последний ответ в этом запросе."""
+    return _last_usage.get()
 
 
 class Transport(Protocol):
@@ -112,11 +140,21 @@ class ClaudeTransport:
             raise AssistantError("модель отклонила запрос")
         if response.parsed_output is None:
             raise AssistantError("модель не дала ответ по схеме")
+        usage = getattr(response, "usage", None)
+        _last_usage.set(
+            Usage(
+                model=settings.assistant_model,
+                input_tokens=getattr(usage, "input_tokens", None),
+                output_tokens=getattr(usage, "output_tokens", None),
+            )
+        )
         log.info(
-            "Помощник ответил за %.1f с (модель %s, effort %s)",
+            "Помощник ответил за %.1f с (модель %s, effort %s, токены %s/%s)",
             time.monotonic() - started,
             settings.assistant_model,
             effort,
+            getattr(usage, "input_tokens", "—"),
+            getattr(usage, "output_tokens", "—"),
         )
         return response.parsed_output
 
@@ -164,6 +202,9 @@ def ask(
     `history` — предыдущие реплики диалога: помощник задаёт уточняющий
     вопрос и должен помнить, что сотрудник уже ответил.
     """
+    # Сбрасываем перед вызовом: иначе при отказе модели в журнал попала
+    # бы статистика предыдущего, удачного ответа.
+    _last_usage.set(None)
     return _current().ask(
         system=system, prompt=prompt, schema=schema, history=history, effort=effort
     )

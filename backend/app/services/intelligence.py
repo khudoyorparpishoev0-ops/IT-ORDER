@@ -204,6 +204,7 @@ def digest(session: Session, *, now: datetime | None = None) -> DigestOut:
         question="Сводка",
         answer=text.headline,
         duration_ms=_ms(started),
+        usage=assistant.last_usage(),
     )
 
     return data.model_copy(
@@ -274,6 +275,7 @@ def ask(
         question=question,
         answer=reply.answer,
         duration_ms=_ms(started),
+        usage=assistant.last_usage(),
     )
 
     refs = [

@@ -22,6 +22,17 @@ def _url() -> str:
     return get_settings().database_url
 
 
+#: Индексы, которых нет в модели намеренно: они ускоряют работу, но
+#: зависят от расширений PostgreSQL, а те могут быть недоступны по
+#: правам. Их ставит миграция, если база даёт, и приложение обязано
+#: работать без них. Сравнивать их с моделью нечего — она о них не знает.
+OPTIONAL_INDEXES = {"ix_lines_normalized_trgm"}
+
+
+def _include_object(obj, name, type_, reflected, compare_to) -> bool:
+    return not (type_ == "index" and name in OPTIONAL_INDEXES)
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=_url(),
@@ -29,6 +40,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=_include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -43,6 +55,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_object=_include_object,
         )
         with context.begin_transaction():
             context.run_migrations()

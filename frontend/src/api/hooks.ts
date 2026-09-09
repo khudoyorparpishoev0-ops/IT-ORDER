@@ -49,6 +49,10 @@ import type {
   TelegramLink,
   TelegramSetup,
   TelegramStatus,
+  RepeatResult,
+  RequestTemplate,
+  TemplateApply,
+  TemplateLine,
 } from './types';
 
 export const keys = {
@@ -57,6 +61,8 @@ export const keys = {
   materials: ['materials'] as const,
   assistant: ['materials', 'assistant'] as const,
   aiSettings: ['ai', 'settings'] as const,
+  templates: ['templates'] as const,
+  feedbackReasons: ['ai', 'feedback', 'reasons'] as const,
   memory: (projectId: number | null) => ['assistant', 'memory', projectId] as const,
   digest: ['analytics', 'digest'] as const,
   telegram: ['telegram'] as const,
@@ -267,6 +273,73 @@ export function useMemory(projectId: number | null) {
     queryFn: () =>
       api<Memory>(`/api/assistant/memory${projectId ? `?project_id=${projectId}` : ''}`),
     refetchOnMount: 'always',
+  });
+}
+
+/** Шаблоны заявок. Свои у каждого: чужой шаблон сервер не отдаёт. */
+export function useTemplates() {
+  return useQuery({
+    queryKey: keys.templates,
+    queryFn: () => api<RequestTemplate[]>('/api/templates'),
+    refetchOnMount: 'always',
+  });
+}
+
+export function useSaveTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; project_id: number | null; lines: TemplateLine[] }) =>
+      api<RequestTemplate>('/api/templates', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.templates }),
+  });
+}
+
+export function useDeleteTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/templates/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.templates }),
+  });
+}
+
+/** Применение шаблона: подставляет состав в форму, заявку не создаёт. */
+export function useApplyTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<TemplateApply>(`/api/templates/${id}/apply`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.templates }),
+  });
+}
+
+/** «Как в прошлый раз»: находит прошлые варианты, но ничего не создаёт. */
+export function useRepeat() {
+  return useMutation({
+    mutationFn: (data: { text: string; project_id: number | null }) =>
+      api<RepeatResult>('/api/assistant/repeat', { method: 'POST', body: JSON.stringify(data) }),
+  });
+}
+
+/** Оценка ответа помощника. Причины — закрытый список с сервера. */
+export function useAiFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      interaction_id: number;
+      useful: boolean;
+      reason?: string | null;
+      comment?: string | null;
+    }) => api<void>('/api/ai/feedback', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.aiSettings }),
+  });
+}
+
+export function useFeedbackReasons(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.feedbackReasons,
+    queryFn: () => api<Record<string, string>>('/api/ai/feedback/reasons'),
+    enabled,
+    staleTime: 60 * 60_000,
   });
 }
 

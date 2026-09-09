@@ -18,8 +18,13 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.core.time import to_local, utcnow
 from app.db.models import JobRun
-from app.services import reminders
-from app.services.schedule import STALE_REQUESTS, WEEKLY_BUDGET, due_jobs
+from app.services import ai_log, reminders
+from app.services.schedule import (
+    AI_RETENTION,
+    STALE_REQUESTS,
+    WEEKLY_BUDGET,
+    due_jobs,
+)
 
 log = logging.getLogger(__name__)
 
@@ -28,12 +33,14 @@ log = logging.getLogger(__name__)
 HANDLERS = {
     STALE_REQUESTS: reminders.send_stale_reminders,
     WEEKLY_BUDGET: reminders.send_weekly_summary,
+    AI_RETENTION: ai_log.purge_old,
 }
 
 #: Понятные названия для панели и логов.
 JOB_LABEL = {
     STALE_REQUESTS: "Напоминания о залежавшихся заявках",
     WEEKLY_BUDGET: "Недельная сводка по бюджету",
+    AI_RETENTION: "Чистка журнала обращений к AI",
 }
 
 

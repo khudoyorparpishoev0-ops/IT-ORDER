@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 STALE_REQUESTS = "stale_requests"
 #: Недельная сводка по бюджету.
 WEEKLY_BUDGET = "weekly_budget"
+#: Чистка журнала обращений к AI по сроку хранения.
+AI_RETENTION = "ai_retention"
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,9 @@ def jobs(*, reminder_hour: int) -> list[Job]:
         Job(STALE_REQUESTS, hour=reminder_hour),
         # Понедельник: сводка нужна в начале недели, а не в её конце.
         Job(WEEKLY_BUDGET, hour=reminder_hour, weekday=0),
+        # Чистка идёт ночью: она ничего никому не шлёт, а днём лишний
+        # DELETE по большой таблице ни к чему.
+        Job(AI_RETENTION, hour=3),
     ]
 
 

@@ -489,6 +489,83 @@ class AuditLog(Base):
     )
 
 
+class AiFeedback(Base):
+    """Оценка ответа помощника человеком: подошло или нет и почему.
+
+    Отдельно от `ai_interactions`, потому что это другая природа данных:
+    там факт обращения, здесь мнение человека. Живёт ровно столько,
+    сколько живёт само обращение (`ON DELETE CASCADE`): оценка без
+    ответа, к которому она относится, не значит ничего.
+
+    Один человек — одна оценка на обращение: передумал и нажал другое —
+    заменяем, а не копим.
+    """
+
+    __tablename__ = "ai_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    interaction_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_interactions.id", ondelete="CASCADE"), nullable=False
+    )
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    #: True — «полезно», False — «не подходит».
+    useful: Mapped[bool] = mapped_column(nullable=False)
+    #: Причина отказа из готового списка (`app/services/ai_feedback.py`).
+    reason: Mapped[str | None] = mapped_column(String(64))
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[CreatedAt]
+
+    __table_args__ = (
+        UniqueConstraint("interaction_id", "employee_id", name="uq_ai_feedback_once"),
+        Index("ix_ai_feedback_created", "created_at"),
+    )
+
+
+class RequestTemplate(Base):
+    """Часто повторяющаяся заявка, сохранённая человеком.
+
+    «Заправка Opel», «Обед сотрудников», «UTP Cat6 на Регар» — это
+    заявки, которые подают каждую неделю одними и теми же словами.
+    Шаблон превращает их в одно нажатие.
+
+    Шаблон принадлежит человеку, а не компании: у каждого свои
+    повторяющиеся дела, а общий список шаблонов пришлось бы кому-то
+    вести. Создаётся только руками — помощник может предложить сохранить
+    шаблон, но не завести его сам.
+
+    Состав хранится в `payload` как в форме (позиции с количеством и
+    единицей): заявка неизменяема после подачи, а шаблон — заготовка,
+    и связывать его с конкретной заявкой нельзя, та может быть удалена.
+    """
+
+    __tablename__ = "request_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[Name]
+    #: Объект по умолчанию. NULL — спрашиваем при применении: «Обед
+    #: сотрудников» бывает на любом объекте.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL")
+    )
+    #: Позиции: [{"title", "quantity", "unit"}]. Форма шаблона совпадает
+    #: с формой заявки, поэтому применение — это подстановка, а не разбор.
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_used_at: Mapped[Timestamp | None]
+    created_at: Mapped[CreatedAt]
+    updated_at: Mapped[Timestamp | None]
+
+    __table_args__ = (
+        UniqueConstraint("employee_id", "name", name="uq_template_name_per_employee"),
+        Index("ix_templates_employee", "employee_id"),
+    )
+
+
 class TelegramSession(Base):
     """Незаконченный разговор с ботом: на каком шаге и что уже набрали.
 
@@ -578,6 +655,13 @@ class AiInteraction(Base):
     #: Человек воспользовался ответом: нажал «Применить». NULL — ответ
     #: такой кнопки не предполагал (вопрос аналитику).
     applied: Mapped[bool | None] = mapped_column()
+    #: Какой моделью отвечали. Модель меняют в `.env`, и сравнивать
+    #: качество ответов имеет смысл только внутри одной.
+    model: Mapped[str | None] = mapped_column(String(64))
+    #: Токены на вход и выход, если Anthropic их вернул. По ним считается
+    #: стоимость ORDER AI: без них она известна только из счёта.
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[CreatedAt]
 
     __table_args__ = (

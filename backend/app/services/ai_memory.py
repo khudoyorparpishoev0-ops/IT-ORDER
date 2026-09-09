@@ -34,6 +34,7 @@ from app.db.models import (
     RequestStatus,
 )
 from app.services.material_norm import normalize
+from app.services.requests import title_of
 
 #: За какой срок собираем историю. Год назад заказывали другое и по
 #: другим ценам, а подсказка из позапрошлого сезона только мешает.
@@ -279,3 +280,298 @@ def remember_alias(session: Session, *, wrote: str, canonical: str, unit: str | 
     existing.unit = (unit or "").strip() or existing.unit
     existing.uses += 1
     existing.updated_at = utcnow()
+
+
+# --- Ранжирование: какие прошлые заявки относятся к делу -----------------------
+
+#: Вес совпадений. Порядок задан заказчиком: свой опыт на своём объекте
+#: точнее всего, дальше — объект, дальше — сам человек, дальше — материал,
+#: и в самом конце корпоративная частота. Веса подобраны так, чтобы
+#: сумма нижних уровней не перебивала верхний: «тот же сотрудник на том
+#: же объекте» должен стоять выше любой комбинации остального.
+W_SAME_EMPLOYEE_AND_PROJECT = 100
+W_SAME_PROJECT = 40
+W_SAME_EMPLOYEE = 25
+W_SAME_MATERIAL = 30
+W_CORPORATE_FREQUENCY = 2
+
+#: За сколько дней вес заявки падает вдвое. Полтора месяца: заявка
+#: месячной давности ещё про то же самое, полугодовой — обычно нет.
+RECENCY_HALF_LIFE_DAYS = 45
+
+#: Сколько релевантных заявок уходит в промпт. Больше не нужно: из
+#: пятисот прошлых заявок модели полезны три-десять, а каждая лишняя —
+#: это токены, задержка и лишний повод ошибиться.
+CONTEXT_LIMIT = 10
+
+
+@dataclass(frozen=True)
+class Scored:
+    """Прошлая заявка с оценкой того, насколько она относится к делу."""
+
+    request_id: int
+    number: str
+    title: str
+    project_id: int
+    project: str
+    employee_id: int
+    employee: str
+    created_at: object
+    days_ago: int
+    lines: list[dict]
+    score: float
+    #: Почему заявка выбрана: «тот же объект», «тот же материал».
+    reasons: list[str]
+
+
+def _recency(days_ago: int) -> float:
+    """Множитель свежести: сегодня 1.0, через полтора месяца 0.5."""
+    return 0.5 ** (max(0, days_ago) / RECENCY_HALF_LIFE_DAYS)
+
+
+def _same_material(line_key: str, keys: set[str]) -> bool:
+    """Тот же материал, что ищут.
+
+    Сравниваем вхождением в обе стороны, а не точным равенством: человек
+    пишет «гофра16», а в прошлой заявке «Гофра 16 мм» — это одна и та же
+    вещь, названная короче и полнее. Точное совпадение не нашло бы ни
+    одной прошлой заявки, ради которых ранжирование и делалось.
+    """
+    if not line_key:
+        return False
+    return any(key in line_key or line_key in key for key in keys)
+
+
+def ranked(
+    session: Session,
+    *,
+    employee_id: int,
+    project_id: int | None = None,
+    materials: list[str] | None = None,
+    visible_employee_id: int | None = None,
+    limit: int = CONTEXT_LIMIT,
+    days: int = HISTORY_DAYS,
+) -> list[Scored]:
+    """Прошлые заявки, отсортированные по тому, насколько они сейчас к месту.
+
+    Считает сервер и только сервер: модель получает три-десять готовых
+    строк, а не пятьсот заявок. Это дешевле, быстрее, короче по токенам и
+    меньше поводов посоветовать не то.
+
+    `visible_employee_id` — граница видимости: без права видеть чужие
+    заявки сюда приходит id сотрудника, и в выборку попадёт только его
+    история. Материалы при этом остаются общими: их даёт `frequent`,
+    где чужих имён и сумм нет вовсе.
+    """
+    keys = {normalize(m) for m in (materials or []) if normalize(m)}
+
+    stmt = (
+        select(ExpenseRequest, Project.name, Employee.full_name)
+        .join(Project, ExpenseRequest.project_id == Project.id)
+        .join(Employee, ExpenseRequest.employee_id == Employee.id)
+        .where(
+            ExpenseRequest.status.in_(SUBMITTED),
+            ExpenseRequest.created_at >= _since(days),
+        )
+        .order_by(ExpenseRequest.created_at.desc())
+        # Берём разумный запас: скоринг может поднять наверх заявку,
+        # которая по дате была бы двадцатой.
+        .limit(200)
+    )
+    if visible_employee_id is not None:
+        stmt = stmt.where(ExpenseRequest.employee_id == visible_employee_id)
+
+    now = utcnow()
+    scored: list[Scored] = []
+    for request, project_name, employee_name in session.execute(stmt).all():
+        days_ago = (now - request.created_at).days
+        score = 0.0
+        reasons: list[str] = []
+
+        same_employee = request.employee_id == employee_id
+        same_project = project_id is not None and request.project_id == project_id
+
+        if same_employee and same_project:
+            score += W_SAME_EMPLOYEE_AND_PROJECT
+            reasons.append("ваша заявка на этом объекте")
+        elif same_project:
+            score += W_SAME_PROJECT
+            reasons.append("тот же объект")
+        elif same_employee:
+            score += W_SAME_EMPLOYEE
+            reasons.append("ваша прошлая заявка")
+
+        matched = [line.title for line in request.lines if _same_material(line.normalized_text, keys)]
+        if matched:
+            score += W_SAME_MATERIAL
+            reasons.append("тот же материал")
+
+        if score == 0:
+            # Корпоративная частота: заявка ни с чем не совпала, но
+            # такие вещи в компании заказывают, и совсем выбрасывать её
+            # рано — просто она в самом низу.
+            score += W_CORPORATE_FREQUENCY
+
+        scored.append(
+            Scored(
+                request_id=request.id,
+                number=request.number,
+                title=title_of(request),
+                project_id=request.project_id,
+                project=project_name,
+                employee_id=request.employee_id,
+                employee=employee_name,
+                created_at=request.created_at,
+                days_ago=days_ago,
+                lines=[
+                    {
+                        "title": line.title,
+                        "quantity": line.quantity,
+                        "unit": line.unit,
+                    }
+                    for line in request.lines
+                ],
+                score=round(score * _recency(days_ago), 2),
+                reasons=reasons,
+            )
+        )
+
+    scored.sort(key=lambda item: (-item.score, -item.request_id))
+    return scored[:limit]
+
+
+def last_like(
+    session: Session,
+    *,
+    employee_id: int,
+    text: str = "",
+    project_id: int | None = None,
+    visible_employee_id: int | None = None,
+    limit: int = 3,
+) -> list[Scored]:
+    """«Как в прошлый раз»: наиболее вероятные прошлые заявки.
+
+    Заявка по этому не создаётся никогда — только показывается человеку
+    с кнопками «Использовать», «Изменить», «Другой вариант». Угадать
+    можно и неверно, а деньги тратятся настоящие.
+
+    Слова запроса участвуют в поиске как материалы: «мне опять этот
+    кабель» найдёт заявки с кабелем, «как вчера, но на Регар» — заявки
+    с объектом Регар, потому что объект приходит отдельным параметром.
+    """
+    found = ranked(
+        session,
+        employee_id=employee_id,
+        project_id=project_id,
+        materials=_words(text),
+        visible_employee_id=visible_employee_id,
+        limit=limit * 4,
+    )
+    if not found:
+        return []
+
+    # Свою историю предпочитаем чужой: «в прошлый раз» — это про себя.
+    own = [item for item in found if item.employee_id == employee_id]
+    return (own or found)[:limit]
+
+
+def _words(text: str) -> list[str]:
+    """Слова запроса как кандидаты в материалы.
+
+    Отдельного разбора не делаем: совпадение всё равно проверяется по
+    приведённому написанию целой позиции, а лишние слова просто ничего
+    не найдут.
+    """
+    clean = normalize(text)
+    if not clean:
+        return []
+    return [clean, *[w for w in clean.split() if len(w) > 3]]
+
+
+# --- Нечёткий поиск ------------------------------------------------------------
+
+
+def search_materials(
+    session: Session, *, text: str, limit: int = 8
+) -> list[Suggestion]:
+    """Поиск материала по неточному написанию.
+
+    Сначала точное совпадение приведённого написания, потом вхождение,
+    потом принятые людьми поправки (`material_aliases`). Отдельная
+    векторная база пока не нужна и не заводится: на наших объёмах
+    приведённое написание с триграммным индексом отвечает мгновенно.
+
+    Контракт функции подобран так, чтобы переход на pgvector ничего не
+    менял снаружи: на вход текст, на выход список подсказок. Появится
+    вектор — поменяется тело, а API и панель останутся как есть.
+    """
+    key = normalize(text)
+    if not key:
+        return []
+
+    alias = session.scalar(select(MaterialAlias).where(MaterialAlias.alias == key))
+    if alias is not None:
+        text = alias.canonical
+        key = normalize(alias.canonical)
+
+    base = _submitted_lines().subquery()
+    grouped = (
+        select(
+            base.c.normalized_text.label("key"),
+            func.max(base.c.id).label("last_id"),
+            func.count().label("times"),
+        )
+        .where(base.c.normalized_text.ilike(f"%{key}%"))
+        .group_by(base.c.normalized_text)
+        .order_by(func.count().desc())
+        .limit(limit)
+        .subquery()
+    )
+    rows = session.execute(
+        select(ExpenseLine.title, ExpenseLine.unit, grouped.c.times)
+        .join(grouped, grouped.c.last_id == ExpenseLine.id)
+        .order_by(grouped.c.times.desc(), ExpenseLine.title)
+    ).all()
+    return [
+        Suggestion(title=title, unit=unit, times=int(times))
+        for title, unit, times in rows
+    ]
+
+
+def recent(session: Session, employee_id: int, *, limit: int = 5) -> list[Suggestion]:
+    """Что человек заказывал в последний раз. Не самое частое, а самое свежее:
+    «недавно заказывали» отвечает на другой вопрос, чем «часто»."""
+    base = _submitted_lines(employee_id=employee_id).subquery()
+    grouped = (
+        select(
+            base.c.normalized_text.label("key"),
+            func.max(base.c.id).label("last_id"),
+            func.count().label("times"),
+        )
+        .group_by(base.c.normalized_text)
+        .order_by(func.max(base.c.id).desc())
+        .limit(limit)
+        .subquery()
+    )
+    rows = session.execute(
+        select(
+            ExpenseLine.title,
+            ExpenseLine.unit,
+            grouped.c.times,
+            ExpenseRequest.number,
+            ExpenseRequest.created_at,
+        )
+        .join(grouped, grouped.c.last_id == ExpenseLine.id)
+        .join(ExpenseRequest, ExpenseLine.request_id == ExpenseRequest.id)
+        .order_by(ExpenseLine.id.desc())
+    ).all()
+    return [
+        Suggestion(
+            title=title,
+            unit=unit,
+            times=int(times),
+            last_number=number,
+            last_date=created_at.date().isoformat(),
+        )
+        for title, unit, times, number, created_at in rows
+    ]
