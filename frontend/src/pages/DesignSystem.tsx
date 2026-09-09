@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Bar } from '@/components/Bar';
 import { Icon } from '@/components/Icon';
 import { Kpi } from '@/components/Kpi';
-import { IthonaLogo, IthonaLogoStacked, IthonaMark } from '@/components/Logo';
+import { IthonaLogo, IthonaLogoStacked, IthonaMark, OrderLogo, OrderLogoStacked, OrderMark } from '@/components/Logo';
 import { Modal } from '@/components/Modal';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -152,7 +152,29 @@ export function DesignSystem() {
         lead="Токены, классы и компоненты HONA ORDER по хендоффу UI-кита · сентябрь 2026"
       />
 
-      <Section title="Логотип" note="Только официальные композиции из components/Logo.tsx. Имя шрифтом не набирать.">
+      <Section title="Логотип приложения ORDER" note="Композиции из components/Logo.tsx: вертикальная (вход), горизонтальная (сайдбар, топбар), знак (иконки). Слово разложено в контуры, текстом не набирать.">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
+          <OrderLogoStacked height={96} style={{ color: 'var(--logo)' }} />
+          <OrderLogo height={40} style={{ color: 'var(--logo)' }} />
+          <OrderMark size={40} style={{ color: 'var(--logo)' }} />
+          <div
+            style={{
+              background: 'var(--forest)',
+              padding: '16px 24px',
+              borderRadius: 'var(--r-card)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 24,
+            }}
+          >
+            <OrderLogoStacked height={72} style={{ color: 'var(--forest-ink)' }} />
+            <OrderLogo height={28} style={{ color: 'var(--forest-ink)' }} />
+            <OrderMark size={28} style={{ color: 'var(--forest-ink)' }} />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Знак компании IT-HONA" note="Официальные композиции бренд-пакета: документы и печатные формы. Имя шрифтом не набирать.">
         <div style={{ display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
           <IthonaLogoStacked height={72} style={{ color: 'var(--logo)' }} />
           <IthonaLogo height={34} style={{ color: 'var(--logo)' }} />

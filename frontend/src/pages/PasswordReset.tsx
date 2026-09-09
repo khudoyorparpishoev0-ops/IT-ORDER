@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Field } from '@/components/Field';
 import { api } from '@/api/client';
 import { useAuthPolicy } from '@/api/auth';
-import { IthonaLogoStacked } from '@/components/Logo';
+import { OrderLogoStacked } from '@/components/Logo';
 
 /**
  * Восстановление пароля. Два экрана: запрос ссылки и ввод нового пароля
@@ -217,10 +217,7 @@ export function AuthScreen({ wide = false, children }: { wide?: boolean; childre
     >
       <div style={{ width: '100%', maxWidth: wide ? 520 : 400, display: 'grid', gap: 16 }}>
         <div style={{ marginBottom: 8 }}>
-          <IthonaLogoStacked height={64} style={{ color: 'var(--logo)' }} />
-          <div className="label" style={{ marginTop: 10 }}>
-            ORDER
-          </div>
+          <OrderLogoStacked height={96} style={{ color: 'var(--logo)' }} />
         </div>
         {children}
       </div>
