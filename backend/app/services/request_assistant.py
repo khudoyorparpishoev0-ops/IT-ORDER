@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import assistant
+from app.db.models import AiKind, AiSource
 from app.schemas.assistant import (
     AssistantContext,
     AssistantLineOut,
@@ -26,6 +28,7 @@ from app.schemas.assistant import (
     AssistantReplyOut,
     AssistantTurn,
 )
+from app.services import ai_log, ai_memory
 from app.services.assistant_prompt import request_assistant_prompt
 from app.services.reference import materials_catalog
 
@@ -87,6 +90,26 @@ def _context_block(session: Session, context: AssistantContext) -> str:
             title + (f" ({unit})" if unit else "") for title, unit, _ in known
         )
         lines.append(f"Что уже заказывали раньше: {catalog}")
+
+    # Память ORDER: чем чаще позицию берут на этом объекте, тем вероятнее
+    # она нужна и сейчас. Считает базу сервер — модель ничего не выбирает
+    # сама и не может назвать материал, которого в компании не заказывали.
+    if context.project_id is not None:
+        on_site = ai_memory.by_project(session, context.project_id, limit=10)
+        if on_site:
+            lines.append(
+                "Что чаще берут на этом объекте: "
+                + ", ".join(
+                    f"{x.title} ({x.times})" for x in on_site
+                )
+            )
+    if context.employee_id is not None:
+        own = ai_memory.mine(session, context.employee_id, limit=10)
+        if own:
+            lines.append(
+                "Что обычно заказывает этот сотрудник: "
+                + ", ".join(x.title for x in own)
+            )
     return "\n".join(part for part in lines if part)
 
 
@@ -125,6 +148,7 @@ def converse(
     text: str,
     history: list[AssistantTurn],
     context: AssistantContext,
+    source: AiSource = AiSource.WEB,
 ) -> AssistantReplyOut:
     """Одна реплика диалога. Никогда не бросает: сбой модели отдаётся
     признаком `available=false`, и форма работает как раньше."""
@@ -151,6 +175,11 @@ def converse(
         )
     )
     turns = [(t.role, t.text.strip()) for t in history[-MAX_HISTORY:] if t.text.strip()]
+    # В журнал пишем реплику сотрудника, а не весь промпт: каталог и
+    # контекст формы он и так видел, а хранить их копию на каждый вопрос —
+    # это мегабайты ради ничего.
+    asked = question or "проверка формы"
+    started = time.monotonic()
     try:
         reply = assistant.ask(
             system=request_assistant_prompt(),
@@ -163,5 +192,40 @@ def converse(
         )
     except assistant.AssistantError as exc:
         log.warning("Помощник по заявке не ответил: %s", exc)
+        ai_log.record(
+            session,
+            kind=AiKind.REQUEST,
+            question=asked,
+            ok=False,
+            error=str(exc),
+            duration_ms=int((time.monotonic() - started) * 1000),
+            source=source,
+        )
         return AssistantReplyOut(available=False, status="need_clarification", message="")
-    return _to_out(reply)
+
+    out = _to_out(reply)
+    entry_id = ai_log.record(
+        session,
+        kind=AiKind.REQUEST,
+        question=asked,
+        answer=_answer_text(out),
+        duration_ms=int((time.monotonic() - started) * 1000),
+        source=source,
+    )
+    return out.model_copy(update={"interaction_id": entry_id})
+
+
+def _answer_text(reply: AssistantReplyOut) -> str:
+    """Ответ одной строкой для журнала: фраза помощника и что он предложил."""
+    parts = [reply.message]
+    if reply.questions:
+        parts.append("Вопросы: " + "; ".join(q.question for q in reply.questions))
+    if reply.lines:
+        parts.append(
+            "Позиции: "
+            + "; ".join(
+                f"{line.title} — {line.quantity}" + (f" {line.unit}" if line.unit else "")
+                for line in reply.lines
+            )
+        )
+    return "\n".join(part for part in parts if part)

@@ -58,6 +58,7 @@ from app.schemas.request import (
     SourcingIn,
 )
 from app.services.audit import write_audit
+from app.services.material_norm import normalize
 
 SYSTEM_ACTOR = "СИСТЕМА"
 
@@ -238,6 +239,9 @@ def _apply_lines(request: ExpenseRequest, lines: list[ExpenseLineIn]) -> None:
         request.lines.append(
             ExpenseLine(
                 title=line.title,
+                # Приведённое написание считаем один раз при записи: искать
+                # по выражению от колонки — значит не пользоваться индексом.
+                normalized_text=normalize(line.title)[:200],
                 quantity=line.quantity,
                 unit=(line.unit or "").strip() or None,
                 price=None,

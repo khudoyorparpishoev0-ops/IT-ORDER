@@ -37,6 +37,10 @@ class Message:
     text: str
     #: Кнопка-ссылка под сообщением: (подпись, адрес).
     button: tuple[str, str] | None = None
+    #: Кнопки выбора: (подпись, код ответа). Код возвращается боту, когда
+    #: человек нажал — по нему и понятно, что он выбрал. Каждая кнопка на
+    #: своей строке: русские подписи длинные, в ряд не помещаются.
+    choices: list[tuple[str, str]] = field(default_factory=list)
     extra: dict = field(default_factory=dict)
 
 
@@ -88,11 +92,12 @@ class HttpTransport:
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
         }
+        rows = [[{"text": title, "callback_data": code}] for title, code in message.choices]
         if message.button:
             title, url = message.button
-            payload["reply_markup"] = {
-                "inline_keyboard": [[{"text": title, "url": url}]]
-            }
+            rows.append([{"text": title, "url": url}])
+        if rows:
+            payload["reply_markup"] = {"inline_keyboard": rows}
         payload.update(message.extra)
         call("sendMessage", payload)
 
@@ -136,3 +141,16 @@ def send_quietly(message: Message) -> None:
         log.warning("Не удалось отправить в Telegram: %s", exc)
     except Exception:  # noqa: BLE001
         log.exception("Неожиданная ошибка при отправке в Telegram")
+
+
+def answer_callback(callback_id: str) -> None:
+    """Гасит «часики» на нажатой кнопке.
+
+    Без этого Telegram крутит ожидание на кнопке до таймаута, и человеку
+    кажется, что бот завис. Ошибку глотаем: не ответить на нажатие — не
+    повод ронять разбор самого нажатия.
+    """
+    try:
+        call("answerCallbackQuery", {"callback_query_id": callback_id})
+    except TelegramError as exc:
+        log.debug("Не удалось погасить кнопку: %s", exc)

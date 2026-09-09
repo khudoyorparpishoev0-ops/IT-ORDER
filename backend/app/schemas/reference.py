@@ -55,6 +55,9 @@ class MaterialAdviceOut(BaseModel):
     #: Такое уже заказывали — предложено написание из каталога.
     matches_existing: bool = False
     notes: list[str] = []
+    #: Номер записи в журнале обращений. По нему панель отмечает, что
+    #: советом воспользовались — иначе о пользе помощника судить нечем.
+    interaction_id: int | None = None
 
 
 class AssistantStatus(BaseModel):

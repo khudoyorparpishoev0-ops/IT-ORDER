@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections import OrderedDict
 
 from pydantic import BaseModel, Field
@@ -20,7 +21,9 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import assistant
+from app.db.models import AiKind
 from app.schemas.reference import MaterialAdviceOut
+from app.services import ai_log, ai_memory
 from app.services.reference import materials_catalog
 
 log = logging.getLogger(__name__)
@@ -91,12 +94,36 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
     if len(clean) < 3:
         return MaterialAdviceOut(enabled=True, available=True, title=clean)
 
+    # Такую поправку уже принимали люди — спрашивать модель не за что.
+    # Ответ мгновенный, бесплатный и тот же самый, что получил коллега.
+    known = ai_memory.alias_for(session, clean)
+    if known is not None:
+        return _logged(
+            session,
+            MaterialAdviceOut(
+                enabled=True,
+                available=True,
+                title=clean,
+                suggested=known.canonical,
+                changed=known.canonical != clean,
+                unit=(unit or "").strip() or known.unit,
+                matches_existing=True,
+                notes=[],
+            ),
+            question=clean,
+            duration_ms=None,
+        )
+
     key = (clean.lower(), (unit or "").strip().lower())
     cached = _cache.get(key)
     if cached is not None:
         _cache.move_to_end(key)
-        return cached
+        # Ответ из кэша человек всё равно увидел и может применить, поэтому
+        # обращение пишем. Время не пишем: модель мы не ждали, и средняя
+        # задержка не должна выглядеть лучше, чем она есть.
+        return _logged(session, cached, question=clean, duration_ms=None)
 
+    started = time.monotonic()
     try:
         advice = assistant.ask(
             system=SYSTEM,
@@ -105,6 +132,14 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
         )
     except assistant.AssistantError as exc:
         log.warning("Помощник по материалам не ответил: %s", exc)
+        ai_log.record(
+            session,
+            kind=AiKind.MATERIAL,
+            question=clean,
+            ok=False,
+            error=str(exc),
+            duration_ms=_ms(started),
+        )
         return MaterialAdviceOut(enabled=True, available=False, title=clean)
 
     normalized = " ".join(advice.normalized.split()) or clean
@@ -121,4 +156,30 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
     _cache[key] = result
     if len(_cache) > _CACHE_LIMIT:
         _cache.popitem(last=False)
-    return result
+    return _logged(session, result, question=clean, duration_ms=_ms(started))
+
+
+def _ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
+
+
+def _logged(
+    session: Session,
+    advice: MaterialAdviceOut,
+    *,
+    question: str,
+    duration_ms: int | None,
+) -> MaterialAdviceOut:
+    """Пишет обращение и возвращает совет с номером записи.
+
+    Номер нужен кнопке «Применить»: по нему панель отмечает, что советом
+    воспользовались. В кэше он не хранится — иначе двое сотрудников
+    получили бы один и тот же номер чужого обращения."""
+    entry_id = ai_log.record(
+        session,
+        kind=AiKind.MATERIAL,
+        question=question,
+        answer=advice.suggested or advice.title,
+        duration_ms=duration_ms,
+    )
+    return advice.model_copy(update={"interaction_id": entry_id})

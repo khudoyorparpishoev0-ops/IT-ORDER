@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import assistant
+from app.db.models import AiKind
 from app.core.money import money
 from app.schemas.analytics import (
     AnalyticsReplyOut,
@@ -28,6 +30,7 @@ from app.schemas.analytics import (
     AiText,
     DigestOut,
 )
+from app.services import ai_log
 from app.services.analytics import digest_facts
 from app.services.analytics_prompt import analytics_prompt
 
@@ -170,6 +173,7 @@ def digest(session: Session, *, now: datetime | None = None) -> DigestOut:
     if not enabled:
         return data
 
+    started = time.monotonic()
     try:
         text = assistant.ask(
             system=analytics_prompt(),
@@ -182,7 +186,25 @@ def digest(session: Session, *, now: datetime | None = None) -> DigestOut:
         )
     except assistant.AssistantError as exc:
         log.warning("Аналитик не ответил на сводку: %s", exc)
+        ai_log.record(
+            session,
+            kind=AiKind.ANALYTICS,
+            question="Сводка",
+            ok=False,
+            error=str(exc),
+            duration_ms=_ms(started),
+        )
         return data.model_copy(update={"ai": AiText(enabled=True, available=False)})
+
+    # Сводка стоит денег на каждом заходе в раздел, поэтому она в журнале
+    # наравне с вопросами: иначе счётчик обращений врёт о расходе.
+    ai_log.record(
+        session,
+        kind=AiKind.ANALYTICS,
+        question="Сводка",
+        answer=text.headline,
+        duration_ms=_ms(started),
+    )
 
     return data.model_copy(
         update={
@@ -221,6 +243,7 @@ def ask(
     known.update({p.second_number: p.second_id for p in data.duplicates})
 
     turns = [(turn.role, turn.text) for turn in (history or [])][-MAX_HISTORY:]
+    started = time.monotonic()
     try:
         reply = assistant.ask(
             system=analytics_prompt(),
@@ -235,7 +258,23 @@ def ask(
         )
     except assistant.AssistantError as exc:
         log.warning("Аналитик не ответил на вопрос: %s", exc)
+        ai_log.record(
+            session,
+            kind=AiKind.ANALYTICS,
+            question=question,
+            ok=False,
+            error=str(exc),
+            duration_ms=_ms(started),
+        )
         return AnalyticsReplyOut(enabled=True, available=False)
+
+    ai_log.record(
+        session,
+        kind=AiKind.ANALYTICS,
+        question=question,
+        answer=reply.answer,
+        duration_ms=_ms(started),
+    )
 
     refs = [
         AnalyticsRequestRef(id=known[ref.number], number=ref.number, why=ref.why.strip())
@@ -251,3 +290,7 @@ def ask(
         requests=refs[:10],
         recommendations=[r.strip() for r in reply.recommendations if r.strip()][:3],
     )
+
+
+def _ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)

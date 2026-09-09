@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Icon } from '@/components/Icon';
+import { AiButton } from '@/components/AiButton';
 import { Modal } from '@/components/Modal';
-import { useAssistantChat } from '@/api/hooks';
+import { useAiApplied, useAssistantChat } from '@/api/hooks';
 import type { AssistantLine, AssistantReply, AssistantTurn } from '@/api/types';
 
 /** Строка формы в том виде, в каком её видит помощник. */
@@ -30,13 +30,18 @@ const STATUS: Record<AssistantReply['status'], { label: string; color: string }>
  */
 export function RequestAssistant({ projectName, lines, onApply, onClose }: Props) {
   const chat = useAssistantChat();
+  const applied = useAiApplied();
   const [history, setHistory] = useState<AssistantTurn[]>([]);
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [draft, setDraft] = useState('');
   const [failed, setFailed] = useState(false);
   const [last, setLast] = useState('');
+  // Человек отказался от предложенных позиций: карточку убираем, разговор
+  // продолжается — «Отмена» отменяет предложение, а не помощника.
+  const [dropped, setDropped] = useState(false);
   const started = useRef(false);
   const tail = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
 
   const context = {
     project_name: projectName,
@@ -51,6 +56,7 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
     setLast(text);
     setDraft('');
     setFailed(false);
+    setDropped(false);
     try {
       const answer = await chat.mutateAsync({ text, history, context });
       setReply(answer);
@@ -78,7 +84,22 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
   }, [history.length, chat.isPending]);
 
   const status = reply && reply.available ? STATUS[reply.status] : null;
-  const canApply = Boolean(reply?.available && reply.lines.length);
+  const canApply = Boolean(reply?.available && reply.lines.length && !dropped);
+
+  const apply = () => {
+    if (!reply) return;
+    // Отметка «ответом воспользовались» служебная: её сбой не должен
+    // отнимать у человека позиции, поэтому ошибку глотаем.
+    if (reply.interaction_id !== null) applied.mutate(reply.interaction_id, { onError: () => {} });
+    onApply(reply.lines);
+  };
+
+  // «Изменить» — не отказ: карточка уходит, разговор продолжается с того
+  // же места, курсор оказывается в поле ответа.
+  const amend = () => {
+    setDropped(true);
+    input.current?.focus();
+  };
 
   return (
     <Modal
@@ -86,19 +107,9 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
       onClose={onClose}
       wide
       footer={
-        <>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Закрыть
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!canApply}
-            onClick={() => reply && onApply(reply.lines)}
-          >
-            Применить в заявку
-          </button>
-        </>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>
+          Закрыть
+        </button>
       }
     >
       <div className="chat">
@@ -158,7 +169,7 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
             </div>
           ))}
 
-          {reply.lines.length > 0 && (
+          {canApply && (
             <div className="chat-lines">
               <div className="rubric">Позиции заявки</div>
               {reply.lines.map((line, i) => (
@@ -170,6 +181,20 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
                   </div>
                 </div>
               ))}
+              {/* Три исхода, и все три названы словами: перенести в заявку,
+                  поправить в разговоре, отказаться от предложения. Молча
+                  подставлять позиции нельзя — отвечать за заявку человеку. */}
+              <div className="chat-actions">
+                <button type="button" className="btn btn-primary" onClick={apply}>
+                  Применить в заявку
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={amend}>
+                  Изменить
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setDropped(true)}>
+                  Отмена
+                </button>
+              </div>
             </div>
           )}
 
@@ -193,16 +218,20 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
         </label>
         <input
           id="assistant-input"
+          ref={input}
           className="field"
           value={draft}
-          placeholder="Ответьте или уточните…"
+          placeholder={dropped ? 'Напишите, что поправить…' : 'Ответьте или уточните…'}
           onChange={(e) => setDraft(e.target.value)}
           disabled={chat.isPending}
         />
-        <button type="submit" className="btn btn-secondary" disabled={!draft.trim() || chat.isPending}>
-          <Icon name="ti-chevron-right" size={18} />
-          <span className="sr-only">Отправить</span>
-        </button>
+        <AiButton
+          type="submit"
+          active={Boolean(draft.trim())}
+          busy={chat.isPending}
+          label="Спросить"
+          disabled={!draft.trim()}
+        />
       </form>
     </Modal>
   );

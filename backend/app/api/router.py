@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    ai,
     analytics,
     assistant,
     audit,
@@ -23,6 +24,7 @@ api_router.include_router(auth.router)
 api_router.include_router(reference.router)
 api_router.include_router(assistant.router)
 api_router.include_router(analytics.router)
+api_router.include_router(ai.router)
 api_router.include_router(requests.router)
 api_router.include_router(reports.router)
 api_router.include_router(exports.router)

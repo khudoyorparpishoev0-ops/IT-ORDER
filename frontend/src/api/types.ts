@@ -96,6 +96,8 @@ export type AssistantReply = {
   lines: AssistantLine[];
   warnings: string[];
   recommendations: string[];
+  /** Номер записи в журнале обращений: по нему отмечается «Применить». */
+  interaction_id: number | null;
 };
 
 /** Настроен ли помощник по материалам (ключ Claude API на сервере). */
@@ -116,6 +118,44 @@ export type MaterialAdvice = {
   /** Так это уже заказывали: предложено написание из каталога. */
   matches_existing: boolean;
   notes: string[];
+  interaction_id: number | null;
+};
+
+/** Сколько помощником пользовались за период. Раздел администратора. */
+export type AiUsage = {
+  days: number;
+  total: number;
+  failed: number;
+  applied: number;
+  avg_seconds: number | null;
+  by_kind: Record<string, number>;
+};
+
+/** Строка журнала обращений к AI. */
+export type AiEntry = {
+  id: number;
+  kind: string;
+  source: string;
+  username: string | null;
+  question: string | null;
+  answer: string | null;
+  ok: boolean;
+  error: string | null;
+  applied: boolean | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+/** Состояние помощника для администратора. Ключ — только маска. */
+export type AiSettings = {
+  enabled: boolean;
+  model: string;
+  key_mask: string | null;
+  timeout_seconds: number;
+  prompt_overridden: boolean;
+  analytics_prompt_overridden: boolean;
+  usage: AiUsage;
+  recent: AiEntry[];
 };
 
 /** Запуск фоновой задачи — строка в списке «Фоновые задачи». */
@@ -642,4 +682,39 @@ export type AnalyticsReply = {
   bullets: string[];
   requests: AnalyticsRequestRef[];
   recommendations: string[];
+};
+
+
+/** Подсказка из истории заявок. Считает база, модель не участвует. */
+export type MemoryItem = {
+  title: string;
+  unit: string | null;
+  times: number;
+  last_number: string | null;
+  last_date: string | null;
+};
+
+/** Что ORDER помнит о заявках: частое, своё и по объекту. */
+export type Memory = {
+  frequent: MemoryItem[];
+  mine: MemoryItem[];
+  project: MemoryItem[];
+};
+
+/** Недавняя заявка с теми же позициями. */
+export type SimilarRequest = {
+  id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  status: RequestStatus;
+  days_ago: number;
+  materials: string[];
+};
+
+/** Ответ проверки на повтор. */
+export type DuplicateCheck = {
+  requests: SimilarRequest[];
+  days: number;
 };

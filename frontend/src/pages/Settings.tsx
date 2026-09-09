@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Field } from '@/components/Field';
 import { PageHeader } from '@/components/PageHeader';
 import {
+  useAiSettings,
   useHealth,
   useJobRuns,
   usePushConfig,
@@ -16,7 +17,7 @@ import {
   useTelegramUnlink,
 } from '@/api/hooks';
 import { useAuth } from '@/api/auth';
-import { formatDateTime } from '@/data/format';
+import { formatDateTime, plural } from '@/data/format';
 import { api } from '@/api/client';
 import { ROLE_LABEL } from '@/shell/config';
 import { RecoveryCodes } from '@/components/RecoveryCodes';
@@ -97,6 +98,7 @@ export function Settings() {
         <TelegramCard onFlash={flash} />
         <InstallCard onFlash={flash} />
         <PushCard onFlash={flash} />
+        <AiCard />
         <JobsCard onFlash={flash} />
 
         <Card title="О системе">
@@ -496,10 +498,15 @@ function TelegramCard({ onFlash }: { onFlash: (text: string, color: string) => v
   };
 
   return (
-    <Card title="Уведомления в Telegram">
+    <Card title="Заявки и уведомления в Telegram">
       <p className="caption" style={{ margin: 0 }}>
         Бот пишет автору заявки на каждом шаге: согласование покупки, оценка закупа, решение по
         сумме, выплата. Тем, к кому заявка пришла, — что она у них.
+      </p>
+      <p className="caption" style={{ margin: 0 }}>
+        Заявку можно подать прямо из бота: команда <span className="num">/new</span>. Бот спросит
+        объект и что нужно, покажет карточку и подаст заявку только после подтверждения. Цены
+        указывать не надо — их поставит закуп.
       </p>
 
       {!status.data?.configured ? (
@@ -550,6 +557,127 @@ function TelegramCard({ onFlash }: { onFlash: (text: string, color: string) => v
  * происходит, и уметь запустить её сейчас: ждать девяти утра, чтобы
  * проверить настройку почты и бота, неразумно.
  */
+/**
+ * Помощник AI для администратора: работает ли, какой моделью, сколько им
+ * пользуются и что он отвечает.
+ *
+ * Ключ Anthropic здесь только маской. Целиком он живёт в `.env` на сервере
+ * и в панель не отдаётся никогда — иначе достаточно было бы одной открытой
+ * вкладки, чтобы его унести. Маски хватает ровно на то, ради чего сюда
+ * приходят: убедиться, что на сервере лежит новый ключ, а не старый.
+ */
+function AiCard() {
+  const { can } = useAuth();
+  const allowed = can('manage_reference');
+  const ai = useAiSettings(allowed);
+
+  if (!allowed) return null;
+
+  const data = ai.data;
+  const usage = data?.usage;
+  const share =
+    usage && usage.total > 0 ? Math.round(((usage.total - usage.failed) / usage.total) * 100) : null;
+
+  return (
+    <Card title="Помощник AI">
+      <dl style={{ display: 'grid', gap: 12, margin: 0 }}>
+        <Row
+          k="Состояние"
+          v={
+            <Status
+              on={Boolean(data?.enabled)}
+              text={data?.enabled ? 'Работает' : 'Ключ не задан'}
+              offColor="var(--dot-err)"
+            />
+          }
+        />
+        <Row k="Модель" v={<span className="num">{data?.model ?? '—'}</span>} />
+        <Row k="Ключ" v={<span className="num">{data?.key_mask ?? '—'}</span>} />
+        <Row k="Ждём ответ не дольше" v={<span className="num">{data ? `${data.timeout_seconds} с` : '—'}</span>} />
+        {data?.prompt_overridden && <Row k="Правила помощника" v="Заменены файлом" />}
+        {data?.analytics_prompt_overridden && <Row k="Правила аналитика" v="Заменены файлом" />}
+      </dl>
+
+      {usage && (
+        <>
+          <div className="rubric">За {usage.days} {plural(usage.days, 'день', 'дня', 'дней')}</div>
+          <dl style={{ display: 'grid', gap: 12, margin: 0 }}>
+            <Row k="Обращений" v={<span className="num">{usage.total}</span>} />
+            <Row
+              k="Ответила модель"
+              v={<span className="num">{share === null ? '—' : `${share}%`}</span>}
+            />
+            <Row k="Ответом воспользовались" v={<span className="num">{usage.applied}</span>} />
+            <Row
+              k="Среднее время ответа"
+              v={
+                <span className="num">
+                  {usage.avg_seconds === null ? '—' : `${usage.avg_seconds.toFixed(1).replace('.', ',')} с`}
+                </span>
+              }
+            />
+          </dl>
+        </>
+      )}
+
+      {data && data.recent.length > 0 && (
+        <>
+          <div className="rubric">Последние обращения</div>
+          <div className="stack">
+            {data.recent.map((entry) => (
+              <div key={entry.id} className="chat-line">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    className="dot"
+                    style={{ ['--dot' as string]: entry.ok ? 'var(--dot-ok)' : 'var(--dot-err)' }}
+                    aria-hidden="true"
+                  />
+                  <span style={{ fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>
+                    {entry.question ?? '—'}
+                  </span>
+                </div>
+                <div className="caption">
+                  {[
+                    AI_KIND[entry.kind] ?? entry.kind,
+                    entry.username,
+                    formatDateTime(entry.created_at),
+                    entry.applied ? 'применено' : null,
+                    entry.ok ? null : entry.error,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {data && !data.enabled && (
+        <Warn>
+          Задайте ANTHROPIC_API_KEY в <span className="num">.env</span> и поднимите контейнеры
+          командой <span className="num">docker compose up -d</span>: перезапуск оставляет прежнее
+          окружение. Проверка — <span className="num">docker compose exec api python -m
+          app.assistant_check</span>.
+        </Warn>
+      )}
+      {data?.enabled && usage && usage.failed > 0 && (
+        <Warn>
+          {usage.failed} {plural(usage.failed, 'обращение осталось', 'обращения остались', 'обращений остались')} без
+          ответа. Причина — в строках выше и в логе <span className="num">api</span>.
+        </Warn>
+      )}
+    </Card>
+  );
+}
+
+/** Подписи видов помощника. Голый код администратору ни о чём не говорит. */
+const AI_KIND: Record<string, string> = {
+  MATERIAL: 'Написание материала',
+  REQUEST: 'Помощник по заявке',
+  ANALYTICS: 'Аналитик',
+};
+
 function JobsCard({ onFlash }: { onFlash: (text: string, color: string) => void }) {
   const { can } = useAuth();
   const allowed = can('manage_reference');

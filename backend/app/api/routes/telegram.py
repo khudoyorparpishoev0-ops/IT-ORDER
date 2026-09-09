@@ -10,13 +10,21 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, DbSession, RequirePermission, bind_audit_actor
 from app.config import get_settings
 from app.core.errors import ConflictError, ValidationError
 from app.core.permissions import Permission
-from app.core.telegram import Message, TelegramError, call, send_quietly
+from app.core.telegram import (
+    Message,
+    TelegramError,
+    answer_callback,
+    call,
+    send_quietly,
+)
 from app.schemas.telegram import TelegramLinkOut, TelegramSetupOut, TelegramStatusOut
+from app.services import telegram_flow as flow
 from app.services import telegram_link as svc
 from app.services.notifications import panel_url
 
@@ -39,6 +47,13 @@ UNKNOWN_CODE = (
 NOT_LINKED = (
     "Этот чат ни к кому не привязан.\n\n"
     "Откройте в панели «Параметры» → «Telegram» и нажмите «Подключить»."
+)
+HELP = (
+    "Что я умею:\n\n"
+    "/new — подать заявку прямо отсюда\n"
+    "/cancel — прервать начатую заявку\n"
+    "/stop — отключить уведомления\n\n"
+    "Остальное — в панели."
 )
 
 
@@ -107,7 +122,12 @@ def setup_webhook():
 
     url = f"{settings.public_base_url.rstrip('/')}/api/telegram/webhook/{settings.telegram_webhook_secret}"
     try:
-        call("setWebhook", {"url": url, "allowed_updates": ["message"]})
+        call(
+            "setWebhook",
+            # Нажатия кнопок приходят отдельным типом обновления: без него
+            # карточка подтверждения заявки была бы нажимаемой, но немой.
+            {"url": url, "allowed_updates": ["message", "callback_query"]},
+        )
     except TelegramError as exc:
         raise ValidationError(str(exc)) from exc
 
@@ -130,6 +150,19 @@ async def webhook(secret: str, session: DbSession, request: Request):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     update = await request.json()
+
+    # Нажатие кнопки под сообщением: карточка подтверждения заявки,
+    # выбор объекта, готовый вариант ответа.
+    press = update.get("callback_query")
+    if press:
+        chat_id = ((press.get("message") or {}).get("chat") or {}).get("id")
+        code = (press.get("data") or "").strip()
+        if press.get("id"):
+            answer_callback(str(press["id"]))
+        if chat_id:
+            _handle_press(session, int(chat_id), code)
+        return {"ok": True}
+
     message = update.get("message") or update.get("edited_message") or {}
     chat = message.get("chat") or {}
     chat_id = chat.get("id")
@@ -168,15 +201,84 @@ async def webhook(secret: str, session: DbSession, request: Request):
         return {"ok": True}
 
     employee = svc.by_chat(session, int(chat_id))
-    _reply(
-        chat_id,
-        "Я только присылаю уведомления о заявках.\n\n"
-        "Всё остальное — в панели."
-        if employee is not None
-        else NOT_LINKED,
-        with_button=employee is not None,
-    )
+    if employee is None:
+        _reply(chat_id, NOT_LINKED)
+        return {"ok": True}
+    if not employee.active:
+        _reply(chat_id, "Учётная запись отключена. Обратитесь к администратору.")
+        return {"ok": True}
+
+    if text.startswith("/new"):
+        # Сначала коммит, потом сообщение: иначе человек прочтёт про шаг,
+        # которого в базе не осталось.
+        reply = flow.start(session, employee)
+        session.commit()
+        _send(chat_id, reply)
+        return {"ok": True}
+
+    if text.startswith("/cancel"):
+        reply = flow.cancel(session, employee)
+        session.commit()
+        _send(chat_id, reply)
+        return {"ok": True}
+
+    if text.startswith("/help"):
+        _reply(chat_id, HELP, with_button=True)
+        return {"ok": True}
+
+    # Обычный текст — это ответ боту, если разговор идёт. Иначе человек
+    # написал в пустоту, и подсказать ему нужно то, что он может сделать.
+    if text and not text.startswith("/") and flow.in_dialogue(session, employee):
+        reply = flow.handle_text(session, employee, text)
+        session.commit()
+        _send(chat_id, reply)
+        return {"ok": True}
+
+    _reply(chat_id, HELP, with_button=True)
     return {"ok": True}
+
+
+def _handle_press(session: Session, chat_id: int, code: str) -> None:
+    """Разбор нажатой кнопки. Право проверяется у каждого шага: разговор
+    мог начаться вчера, а роль с тех пор понизили."""
+    employee = svc.by_chat(session, chat_id)
+    if employee is None or not employee.active:
+        _reply(chat_id, NOT_LINKED)
+        return
+
+    if code.startswith(flow.PICK_PROJECT):
+        reply = flow.pick_project(session, employee, _number(code, flow.PICK_PROJECT))
+    elif code.startswith(flow.PICK_OPTION):
+        reply = flow.pick_option(session, employee, _number(code, flow.PICK_OPTION))
+    elif code == flow.CONFIRM_SEND:
+        reply = flow.confirm(session, employee)
+    elif code == flow.CONFIRM_EDIT:
+        reply = flow.edit(session, employee)
+    elif code == flow.CONFIRM_CANCEL:
+        reply = flow.cancel(session, employee)
+    else:
+        reply = flow.LOST
+
+    session.commit()
+    _send(chat_id, reply)
+
+
+def _number(code: str, prefix: str) -> int:
+    try:
+        return int(code[len(prefix) :])
+    except ValueError:
+        return 0
+
+
+def _send(chat_id: int, reply: flow.Reply) -> None:
+    send_quietly(
+        Message(
+            chat_id=int(chat_id),
+            text=reply.text,
+            choices=reply.choices,
+            button=reply.button,
+        )
+    )
 
 
 def _reply(chat_id: int, text: str, *, with_button: bool = False) -> None:

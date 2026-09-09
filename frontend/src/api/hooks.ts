@@ -6,6 +6,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, query } from './client';
 import type {
+  AiSettings,
+  DuplicateCheck,
+  Memory,
   ApprovalQueueInfo,
   AuditActor,
   AuditEntry,
@@ -53,6 +56,8 @@ export const keys = {
   projects: ['projects'] as const,
   materials: ['materials'] as const,
   assistant: ['materials', 'assistant'] as const,
+  aiSettings: ['ai', 'settings'] as const,
+  memory: (projectId: number | null) => ['assistant', 'memory', projectId] as const,
   digest: ['analytics', 'digest'] as const,
   telegram: ['telegram'] as const,
   push: ['push'] as const,
@@ -245,6 +250,57 @@ export function useAssistantChat() {
       history: AssistantTurn[];
       context: { project_name: string | null; lines: AssistantContextLine[] };
     }) => api<AssistantReply>('/api/assistant/request', { method: 'POST', body: JSON.stringify(data) }),
+  });
+}
+
+/**
+ * Что ORDER помнит о заявках: частое, своё и по объекту.
+ *
+ * Модель здесь не участвует — это запросы к базе, поэтому подсказки
+ * работают и при выключенном помощнике. Справочник перезапрашиваем при
+ * открытии формы: вкладка у сотрудника открыта с утра, а заявки за день
+ * подали новые.
+ */
+export function useMemory(projectId: number | null) {
+  return useQuery({
+    queryKey: keys.memory(projectId),
+    queryFn: () =>
+      api<Memory>(`/api/assistant/memory${projectId ? `?project_id=${projectId}` : ''}`),
+    refetchOnMount: 'always',
+  });
+}
+
+/** Не заказывали ли это на прошлой неделе. Спрашиваем до подачи. */
+export function useDuplicateCheck() {
+  return useMutation({
+    mutationFn: (data: { titles: string[]; project_id: number | null }) =>
+      api<DuplicateCheck>('/api/assistant/duplicates', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
+/**
+ * Отметка «ответом воспользовались»: человек нажал «Применить».
+ *
+ * Единственный способ узнать, помогает помощник или мешает: ответ, который
+ * никто не применяет, помощником не является. Ошибку глотаем — отметка
+ * служебная, и её сбой не должен мешать человеку заполнять заявку.
+ */
+export function useAiApplied() {
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/ai/applied/${id}`, { method: 'POST' }),
+  });
+}
+
+/** Состояние помощника для администратора: модель, маска ключа, расход. */
+export function useAiSettings(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.aiSettings,
+    queryFn: () => api<AiSettings>('/api/ai/settings'),
+    enabled,
+    refetchOnMount: 'always',
   });
 }
 
