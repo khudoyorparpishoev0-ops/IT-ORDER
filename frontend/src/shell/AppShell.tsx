@@ -4,6 +4,7 @@ import { Icon, IconSprite } from '@/components/Icon';
 import { IthonaLogo } from '@/components/Logo';
 import { Toast } from '@/components/Toast';
 import { Sidebar } from './Sidebar';
+import { TabBar } from './TabBar';
 import { useShell } from './ShellContext';
 import './shell.css';
 
@@ -21,10 +22,24 @@ export function AppShell() {
     setMenuOpen(false);
   }, [location.pathname]);
 
+  // Escape закрывает шторку: её открывают и с клавиатуры.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   // Поле поиска отражает адрес: очистили фильтр в списке — очистилось и здесь.
   useEffect(() => {
     if (location.pathname === '/requests') setQuery(params.get('q') ?? '');
   }, [location.pathname, params]);
+
+  // На форме заявки панели нет: это push-флоу со стрелкой назад и своими
+  // действиями внизу.
+  const hasTabBar = !/^\/requests\/(new|\d+\/edit)$/.test(location.pathname);
 
   const search = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +50,7 @@ export function AppShell() {
   return (
     <>
       <IconSprite />
-      <div className="shell" data-menu-open={menuOpen}>
+      <div className={hasTabBar ? 'shell has-tabbar' : 'shell'} data-menu-open={menuOpen}>
         <Sidebar onNavigate={() => setMenuOpen(false)} />
 
         {menuOpen && (
@@ -108,6 +123,8 @@ export function AppShell() {
             <Outlet />
           </main>
         </div>
+
+        {hasTabBar && <TabBar onMore={() => setMenuOpen(true)} />}
       </div>
 
       <Toast toast={toast} onHide={hideToast} />

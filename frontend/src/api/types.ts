@@ -132,7 +132,6 @@ export type Employee = {
   email: string | null;
   phone: string | null;
   role: EmployeeRole;
-  monthly_limit: Money | null;
   active: boolean;
 };
 
@@ -157,7 +156,6 @@ export type EmployeeInput = {
   email: string | null;
   phone: string | null;
   role: EmployeeRole;
-  monthly_limit: Money | null;
   active: boolean;
   /** Только при заведении: пароль уходит вместе с карточкой одним запросом. */
   password?: string | null;
@@ -185,10 +183,7 @@ export type TeamMember = {
   id: number;
   full_name: string;
   position: string;
-  limit: Money | null;
   spent: Money;
-  /** Доля израсходованного, 0..100. null — лимит не задан. */
-  pct: number | null;
   requests_count: number;
 };
 
@@ -287,8 +282,6 @@ export type RequestListItem = {
 export type RequestDetail = RequestListItem & {
   employee_email: string | null;
   employee_phone: string | null;
-  employee_limit: Money | null;
-  employee_spent: Money;
   lines: ExpenseLine[];
   events: RequestEvent[];
   payment: PaymentInfo | null;
@@ -309,15 +302,32 @@ export type Page<T> = {
   offset: number;
 };
 
-export type DashboardStats = {
-  total_requests: number;
-  employees_count: number;
-  approved_amount: Money;
-  approved_count: number;
-  pending_amount: Money;
-  pending_count: number;
-  budget_amount: Money | null;
-  budget_used_pct: number | null;
+export type OverviewStage = {
+  key: 'draft' | 'pending' | 'sourcing' | 'priced' | 'approved';
+  label: string;
+  count: number;
+  /** Хотя бы одна заявка стоит на этапе дольше порога задержки. */
+  delayed: boolean;
+  avg_days: number | null;
+};
+
+/** Дашборд: очередь решений, где стоят заявки, справочные цифры месяца.
+ *  Сотрудник получает всё это по своим заявкам, руководитель — по всем. */
+export type Overview = {
+  decisions: number;
+  delayed_decisions: number;
+  queue: RequestListItem[];
+  in_work: number;
+  delayed_total: number;
+  stages: OverviewStage[];
+  slowest_stage: string | null;
+  slowest_days: number | null;
+  to_pay_amount: Money;
+  to_pay_count: number;
+  paid_amount: Money;
+  paid_count: number;
+  avg_cycle_days: number | null;
+  rejected_count: number;
 };
 
 export type ApprovalQueueInfo = {

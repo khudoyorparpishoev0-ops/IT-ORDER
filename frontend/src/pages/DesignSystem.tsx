@@ -62,8 +62,6 @@ const SAMPLE: RequestDetail = {
   date: '01.09.2026',
   employee_email: 'i.petrov@it-hona.tj',
   employee_phone: null,
-  employee_limit: '20000.00',
-  employee_spent: '8400.00',
   lines: [
     { id: 1, title: 'Кабель UTP Cat6, бухта 305 м', quantity: 2, unit: 'шт.', price: null, total: null, from_stock: false },
     { id: 2, title: 'Коннектор RJ-45', quantity: 100, unit: 'шт.', price: null, total: null, from_stock: false },

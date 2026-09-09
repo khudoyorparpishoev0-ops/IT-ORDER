@@ -108,8 +108,6 @@ class RequestListItem(BaseModel):
 class RequestDetail(RequestListItem):
     employee_email: str | None
     employee_phone: str | None
-    employee_limit: Decimal | None
-    employee_spent: Decimal
     lines: list[ExpenseLineOut]
     events: list[RequestEventOut]
     payment: PaymentOut | None

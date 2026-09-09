@@ -7,6 +7,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from app.db.models import PaymentMethod
+from app.schemas.request import RequestListItem
 
 
 class DashboardStats(BaseModel):
@@ -31,6 +32,47 @@ class ApprovalQueueInfo(BaseModel):
     oldest_days: int | None
     #: Сколько заявок вернулось из закупа и ждёт решения по сумме.
     priced_count: int = 0
+
+
+class OverviewStage(BaseModel):
+    """Один этап пути заявки на дашборде: сколько заявок на нём стоит."""
+
+    key: str
+    label: str
+    count: int
+    #: Хотя бы одна заявка стоит на этапе дольше порога задержки.
+    delayed: bool
+    #: Среднее ожидание на этапе в сутках, None — этап пуст.
+    avg_days: float | None
+
+
+class Overview(BaseModel):
+    """Дашборд: очередь на решение, где стоят заявки, справочные цифры.
+
+    Считается по заявкам, которые видит вошедший: сотрудник — по своим,
+    руководитель — по всем.
+    """
+
+    #: Сколько решений ждёт именно этого человека (0 — права решать нет).
+    decisions: int
+    #: Из них дольше порога задержки.
+    delayed_decisions: int
+    #: До трёх заявок из очереди, самые давние первыми.
+    queue: list[RequestListItem]
+    #: Заявок в работе (не закрытых) всего.
+    in_work: int
+    #: Из них стоят на своём шаге дольше порога.
+    delayed_total: int
+    stages: list[OverviewStage]
+    slowest_stage: str | None
+    slowest_days: float | None
+    to_pay_amount: Decimal
+    to_pay_count: int
+    paid_amount: Decimal
+    paid_count: int
+    #: Среднее число суток от подачи до выплаты по выплатам месяца.
+    avg_cycle_days: float | None
+    rejected_count: int
 
 
 class ProjectShare(BaseModel):

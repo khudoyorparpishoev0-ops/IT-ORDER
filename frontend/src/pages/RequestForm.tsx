@@ -144,7 +144,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
       >
         <section className="card" style={{ display: 'grid', gap: 16 }}>
           {forOthers ? (
-            <Field label="Сотрудник" note="Заявка подаётся от его имени и считается в его лимит.">
+            <Field label="Сотрудник" note="Заявка подаётся от его имени.">
               {(id) => (
                 <select id={id} className="field" value={employeeId ?? ''} onChange={(e) => setEmployeeId(Number(e.target.value) || null)}>
                   <option value="">— выберите —</option>

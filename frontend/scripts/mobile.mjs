@@ -90,9 +90,21 @@ for (const role of ROLES) {
     await page.screenshot({ path: `${OUT}/menu.png` });
     await page.keyboard.press('Escape');
 
+    // Нижняя панель: есть на разделах, «Ещё» открывает шторку, на форме
+    // заявки панели нет.
+    await page.goto(`${BASE}/`);
+    await page.waitForTimeout(800);
+    if (!(await page.locator('nav.tabbar').isVisible())) problems.push('нижняя панель не показана на дашборде');
+    await page.getByRole('button', { name: 'Ещё разделы' }).click();
+    await page.waitForTimeout(500);
+    if (!(await page.locator('.sidebar .nav-item').first().isVisible())) problems.push('«Ещё» не открывает шторку');
+    await checkWidth(page, 'шторка по «Ещё»');
+    await page.keyboard.press('Escape');
+
     await page.goto(`${BASE}/requests/new`);
     await page.waitForTimeout(1000);
     await checkWidth(page, 'форма «Новая заявка»');
+    if (await page.locator('nav.tabbar').isVisible()) problems.push('нижняя панель показана на форме заявки');
     await page.screenshot({ path: `${OUT}/form-new.png` });
 
     await page.goto(`${BASE}/requests`);

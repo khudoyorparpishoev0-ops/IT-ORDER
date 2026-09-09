@@ -70,6 +70,19 @@ SPENT_STATUSES = (
     RequestStatus.PAID,
 )
 
+#: Заявка «в работе»: у кого-то на руках, путь не закончен.
+IN_WORK_STATUSES = (
+    RequestStatus.DRAFT,
+    RequestStatus.PENDING,
+    RequestStatus.SOURCING,
+    RequestStatus.PRICED,
+    RequestStatus.APPROVED,
+)
+
+#: С какого дня ожидание на шаге считается задержкой. То же число в панели
+#: (`DELAY_DAYS` в `data/status.ts`): жёлтая метка ставится по нему.
+DELAY_DAYS = 3
+
 
 # --------------------------------------------------------------------------
 # Номера заявок

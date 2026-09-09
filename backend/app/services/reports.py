@@ -25,12 +25,20 @@ from app.schemas.report import (
     BudgetInfo,
     DashboardStats,
     MonthFact,
+    Overview,
+    OverviewStage,
     PaidRecord,
     PaymentsRegister,
     ProjectShare,
 )
 from app.schemas.reference import TeamMemberOut
-from app.services.requests import SPENT_STATUSES, pending_age_days
+from app.services.requests import (
+    DELAY_DAYS,
+    IN_WORK_STATUSES,
+    SPENT_STATUSES,
+    awaiting_days,
+    pending_age_days,
+)
 
 MONTH_LABELS = (
     "ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН",
@@ -138,6 +146,125 @@ def approval_queue(session: Session) -> ApprovalQueueInfo:
         oldest_employee=oldest.employee.full_name,
         oldest_days=pending_age_days(oldest),
         priced_count=priced,
+    )
+
+
+#: Этапы дашборда «Где стоят заявки» в порядке пути.
+OVERVIEW_STAGES: tuple[tuple[RequestStatus, str, str], ...] = (
+    (RequestStatus.DRAFT, "draft", "Черновик"),
+    (RequestStatus.PENDING, "pending", "Согласование покупки"),
+    (RequestStatus.SOURCING, "sourcing", "У закупа"),
+    (RequestStatus.PRICED, "priced", "Согласование суммы"),
+    (RequestStatus.APPROVED, "approved", "К оплате"),
+)
+
+
+def decision_queue(
+    session: Session, *, decider_id: int, limit: int = 3
+) -> tuple[list[ExpenseRequest], int, int]:
+    """Очередь решений для дашборда: самые давние первыми.
+
+    Собственные заявки не считаются — их этот человек решить не может,
+    и кнопка «Согласовать» под ними была бы обманом. Возвращает срез,
+    общее число и число задержавшихся.
+    """
+    rows = list(
+        session.scalars(
+            select(ExpenseRequest)
+            .options(
+                selectinload(ExpenseRequest.employee),
+                selectinload(ExpenseRequest.project),
+                selectinload(ExpenseRequest.lines),
+            )
+            .where(
+                ExpenseRequest.status.in_((RequestStatus.PENDING, RequestStatus.PRICED)),
+                ExpenseRequest.employee_id != decider_id,
+            )
+        )
+    )
+    now = utcnow()
+    rows.sort(key=lambda r: awaiting_days(r, now=now) or 0, reverse=True)
+    delayed = sum(1 for r in rows if (awaiting_days(r, now=now) or 0) >= DELAY_DAYS)
+    return rows[:limit], len(rows), delayed
+
+
+def overview(
+    session: Session,
+    *,
+    year: int,
+    month: int,
+    employee_id: int | None = None,
+) -> Overview:
+    """Дашборд без очереди: очередь заполняет роутер, у него есть право.
+
+    `employee_id` сужает всё до заявок одного человека — так сотрудник
+    видит свой дашборд, а не цифры компании.
+    """
+    start, end = month_bounds(year, month)
+    scope = [] if employee_id is None else [ExpenseRequest.employee_id == employee_id]
+    now = utcnow()
+
+    in_work = list(
+        session.scalars(
+            select(ExpenseRequest).where(
+                ExpenseRequest.status.in_(IN_WORK_STATUSES), *scope
+            )
+        )
+    )
+    stages: list[OverviewStage] = []
+    for status, key, label in OVERVIEW_STAGES:
+        waits = [awaiting_days(r, now=now) or 0 for r in in_work if r.status is status]
+        stages.append(
+            OverviewStage(
+                key=key,
+                label=label,
+                count=len(waits),
+                delayed=any(w >= DELAY_DAYS for w in waits),
+                avg_days=round(sum(waits) / len(waits), 1) if waits else None,
+            )
+        )
+    busy = [s for s in stages if s.avg_days is not None]
+    slowest = max(busy, key=lambda s: s.avg_days or 0) if busy else None
+    delayed_total = sum(
+        1 for r in in_work if (awaiting_days(r, now=now) or 0) >= DELAY_DAYS
+    )
+
+    paid_period = (
+        ExpenseRequest.status == RequestStatus.PAID,
+        ExpenseRequest.paid_at >= start,
+        ExpenseRequest.paid_at < end,
+        *scope,
+    )
+    paid = list(session.scalars(select(ExpenseRequest).where(*paid_period)))
+    cycles = [
+        (r.paid_at - r.submitted_at).total_seconds() / 86400
+        for r in paid
+        if r.paid_at is not None and r.submitted_at is not None
+    ]
+
+    return Overview(
+        decisions=0,
+        delayed_decisions=0,
+        queue=[],
+        in_work=len(in_work),
+        delayed_total=delayed_total,
+        stages=stages,
+        slowest_stage=slowest.label if slowest else None,
+        slowest_days=slowest.avg_days if slowest else None,
+        to_pay_amount=_sum_where(
+            session, ExpenseRequest.status == RequestStatus.APPROVED, *scope
+        ),
+        to_pay_count=sum(1 for r in in_work if r.status is RequestStatus.APPROVED),
+        paid_amount=to_decimal(sum((r.amount for r in paid), Decimal("0"))),
+        paid_count=len(paid),
+        avg_cycle_days=round(sum(cycles) / len(cycles), 1) if cycles else None,
+        rejected_count=_count_where(
+            session,
+            ExpenseRequest.status == RequestStatus.REJECTED,
+            ExpenseRequest.decided_at >= start,
+            ExpenseRequest.decided_at < end,
+            *scope,
+        ),
     )
 
 
@@ -304,18 +431,12 @@ def team_overview(session: Session, *, year: int, month: int) -> list[TeamMember
 
     result: list[TeamMemberOut] = []
     for employee, spent, cnt in rows:
-        spent_dec = to_decimal(spent or 0)
-        pct = None
-        if employee.monthly_limit and employee.monthly_limit > 0:
-            pct = int((spent_dec / employee.monthly_limit * 100).to_integral_value())
         result.append(
             TeamMemberOut(
                 id=employee.id,
                 full_name=employee.full_name,
                 position=employee.position,
-                limit=employee.monthly_limit,
-                spent=spent_dec,
-                pct=pct,
+                spent=to_decimal(spent or 0),
                 requests_count=cnt,
             )
         )
