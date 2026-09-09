@@ -198,13 +198,15 @@ export function useMaterials() {
   });
 }
 
-/** Настроен ли помощник по материалам. Меняется только правкой .env,
- *  поэтому держим долго. */
+/** Настроен ли помощник по материалам. Перепрашиваем при каждом
+ *  открытии формы: администратор включил ключ днём, а приложение на
+ *  телефоне живёт открытым сутками и иначе помнило бы «выключен». */
 export function useAssistantStatus() {
   return useQuery({
     queryKey: keys.assistant,
     queryFn: () => api<AssistantStatus>('/api/materials/assistant'),
-    staleTime: 30 * 60_000,
+    staleTime: 60_000,
+    refetchOnMount: 'always',
   });
 }
 
