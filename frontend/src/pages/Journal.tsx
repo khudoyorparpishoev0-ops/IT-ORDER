@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
+import { Pager } from '@/components/Pager';
 import { QueryState } from '@/components/QueryState';
 import { useAudit, useAuditActors, useHealth } from '@/api/hooks';
 import type { AuditFilters } from '@/api/hooks';
@@ -13,7 +13,7 @@ import {
   actionTone,
   entityLabel,
 } from '@/data/audit';
-import { formatDateTime, plural } from '@/data/format';
+import { formatDateTime } from '@/data/format';
 
 const PAGE_SIZE = 50;
 
@@ -48,7 +48,6 @@ export function Journal() {
 
   const rows = list.data?.items ?? [];
   const total = list.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = Boolean(entity || action || actor || search.trim() || dateFrom || dateTo);
 
   // Любое изменение фильтра возвращает на первую страницу: иначе человек
@@ -71,13 +70,12 @@ export function Journal() {
   return (
     <>
       <PageHeader
-        kicker="БЕЗОПАСНОСТЬ"
         title="Журнал"
-        lead="Кто, что и когда делал в системе: входы, решения по заявкам, правки справочников"
+        lead="История действий по всем заявкам и справочникам"
         actions={
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-sm"
             disabled={busy !== null}
             onClick={() =>
               download('audit', '/api/exports/audit.xlsx', {
@@ -90,137 +88,112 @@ export function Journal() {
               })
             }
           >
-            <Icon name="ti-file-spreadsheet" />
+            <Icon name="ti-file-spreadsheet" size={18} />
             {busy ? 'Готовим…' : 'Excel'}
           </button>
         }
       />
 
-      <section className="panel" style={{ padding: 'var(--pad)', marginBottom: 'var(--gap)' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 16,
-          }}
+      <div className="filter-row">
+        <label className="sr-only" htmlFor="j-search">
+          Поиск
+        </label>
+        <input
+          id="j-search"
+          className="field"
+          type="search"
+          placeholder="Имя, номер, адрес"
+          value={search}
+          onChange={(e) => set(setSearch)(e.target.value)}
+          style={{ height: 36, fontSize: 14, flex: '1 1 200px', maxWidth: 280 }}
+        />
+
+        <label className="sr-only" htmlFor="j-entity">
+          Раздел
+        </label>
+        <select
+          id="j-entity"
+          className={`filter${entity ? ' is-active' : ''}`}
+          value={entity}
+          onChange={(e) => set(setEntity)(e.target.value)}
         >
-          <Field label="Поиск">
-            {(id) => (
-              <input
-                id={id}
-                className="field"
-                type="search"
-                placeholder="Имя, номер, адрес"
-                value={search}
-                onChange={(e) => set(setSearch)(e.target.value)}
-              />
-            )}
-          </Field>
+          {ENTITY_FILTER.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
 
-          <Field label="Раздел">
-            {(id) => (
-              <select
-                id={id}
-                className="field"
-                value={entity}
-                onChange={(e) => set(setEntity)(e.target.value)}
-              >
-                {ENTITY_FILTER.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-
-          <Field label="Действие">
-            {(id) => (
-              <select
-                id={id}
-                className="field"
-                value={action}
-                onChange={(e) => set(setAction)(e.target.value)}
-              >
-                <option value="">Все действия</option>
-                {ACTION_GROUPS.map((group) => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.actions.map((a) => (
-                      <option key={a} value={a}>
-                        {actionLabel(a)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            )}
-          </Field>
-
-          <Field label="Сотрудник">
-            {(id) => (
-              <select
-                id={id}
-                className="field"
-                value={actor}
-                onChange={(e) => set(setActor)(e.target.value)}
-              >
-                <option value="">Все сотрудники</option>
-                {(actors.data ?? [])
-                  .filter((a) => a.employee_id !== null)
-                  .map((a) => (
-                    <option key={a.employee_id} value={String(a.employee_id)}>
-                      {a.username}
-                    </option>
-                  ))}
-              </select>
-            )}
-          </Field>
-
-          <Field label="С даты">
-            {(id) => (
-              <input
-                id={id}
-                className="field num"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => set(setDateFrom)(e.target.value)}
-              />
-            )}
-          </Field>
-
-          <Field label="По дату">
-            {(id) => (
-              <input
-                id={id}
-                className="field num"
-                type="date"
-                value={dateTo}
-                onChange={(e) => set(setDateTo)(e.target.value)}
-              />
-            )}
-          </Field>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            marginTop: 16,
-            flexWrap: 'wrap',
-          }}
+        <label className="sr-only" htmlFor="j-action">
+          Действие
+        </label>
+        <select
+          id="j-action"
+          className={`filter${action ? ' is-active' : ''}`}
+          value={action}
+          onChange={(e) => set(setAction)(e.target.value)}
         >
-          <span className="caption">
-            {total} {plural(total, 'запись', 'записи', 'записей')} по фильтру
-          </span>
-          {filtered && (
-            <button type="button" className="btn btn-ghost" onClick={reset}>
-              Сбросить фильтр
-            </button>
-          )}
-        </div>
-      </section>
+          <option value="">Все действия</option>
+          {ACTION_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.actions.map((a) => (
+                <option key={a} value={a}>
+                  {actionLabel(a)}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+
+        <label className="sr-only" htmlFor="j-actor">
+          Сотрудник
+        </label>
+        <select
+          id="j-actor"
+          className={`filter${actor ? ' is-active' : ''}`}
+          value={actor}
+          onChange={(e) => set(setActor)(e.target.value)}
+        >
+          <option value="">Все сотрудники</option>
+          {(actors.data ?? [])
+            .filter((a) => a.employee_id !== null)
+            .map((a) => (
+              <option key={a.employee_id} value={String(a.employee_id)}>
+                {a.username}
+              </option>
+            ))}
+        </select>
+
+        <label className="sr-only" htmlFor="j-from">
+          С даты
+        </label>
+        <input
+          id="j-from"
+          className={`filter mono${dateFrom ? ' is-active' : ''}`}
+          type="date"
+          value={dateFrom}
+          max={dateTo || undefined}
+          onChange={(e) => set(setDateFrom)(e.target.value)}
+        />
+
+        <label className="sr-only" htmlFor="j-to">
+          По дату
+        </label>
+        <input
+          id="j-to"
+          className={`filter mono${dateTo ? ' is-active' : ''}`}
+          type="date"
+          value={dateTo}
+          min={dateFrom || undefined}
+          onChange={(e) => set(setDateTo)(e.target.value)}
+        />
+
+        {filtered && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={reset}>
+            Сбросить фильтр
+          </button>
+        )}
+      </div>
 
       <QueryState
         isLoading={list.isLoading}
@@ -232,19 +205,26 @@ export function Journal() {
             ? 'Измените период или снимите ограничения.'
             : 'Записи появятся с первым входом и первым действием в системе.'
         }
+        emptyAction={
+          filtered && (
+            <button type="button" className="btn btn-secondary" onClick={reset}>
+              Сбросить фильтр
+            </button>
+          )
+        }
         onRetry={() => list.refetch()}
       >
-        <section className="panel">
+        <div className="panel">
           <div className="table-wrap">
-            <table className="tbl" style={{ minWidth: 860 }}>
+            <table className="tbl" style={{ ['--tbl-min' as string]: '860px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '15%' }}>КОГДА</th>
-                  <th style={{ width: '20%' }}>КТО</th>
-                  <th style={{ width: '12%' }}>РАЗДЕЛ</th>
-                  <th style={{ width: '23%' }}>ДЕЙСТВИЕ</th>
-                  <th style={{ width: '20%' }}>ЗАПИСЬ</th>
-                  <th style={{ width: '10%' }}>АДРЕС</th>
+                  <th style={{ width: '15%' }}>Дата и время</th>
+                  <th style={{ width: '20%' }}>Кто</th>
+                  <th style={{ width: '12%' }}>Раздел</th>
+                  <th style={{ width: '23%' }}>Действие</th>
+                  <th style={{ width: '20%' }}>Запись</th>
+                  <th style={{ width: '10%' }}>Адрес</th>
                 </tr>
               </thead>
               <tbody>
@@ -252,73 +232,35 @@ export function Journal() {
                   const tone = actionTone(row.action);
                   return (
                     <tr key={row.id}>
-                      <td className="num">
+                      <td className="num" style={{ fontWeight: 400 }}>
                         {formatDateTime(row.created_at, health.data?.timezone)}
                       </td>
-                      <td>{row.username ?? '—'}</td>
-                      <td>{entityLabel(row.entity)}</td>
+                      <td className="slate">{row.username ?? '—'}</td>
+                      <td className="slate">{entityLabel(row.entity)}</td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {tone && (
-                            <span
-                              aria-hidden="true"
-                              style={{ width: 8, height: 8, flex: 'none', background: tone }}
-                            />
-                          )}
-                          <span>{actionLabel(row.action)}</span>
-                        </div>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          {tone && <span className="dot" style={{ ['--dot' as string]: tone }} />}
+                          {actionLabel(row.action)}
+                        </span>
                       </td>
                       <td>
                         <div className="num">{row.entity_id}</div>
                         {row.details && <div className="caption">{row.details}</div>}
                       </td>
-                      <td className="num">{row.ip ?? '—'}</td>
+                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                        {row.ip ?? '—'}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-
-          <nav
-            aria-label="Страницы"
-            style={{
-              padding: 'var(--pad)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-              flexWrap: 'wrap',
-            }}
-          >
-            <span className="label">
-              СТРАНИЦА {page + 1} ИЗ {pages}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn-icon"
-                aria-label="Предыдущая страница"
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-              >
-                <Icon name="ti-chevron-left" />
-              </button>
-              <button
-                type="button"
-                className="btn btn-icon"
-                aria-label="Следующая страница"
-                disabled={page >= pages - 1}
-                onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
-              >
-                <Icon name="ti-chevron-right" />
-              </button>
-            </div>
-          </nav>
-        </section>
+        </div>
+        <Pager total={total} offset={page * PAGE_SIZE} limit={PAGE_SIZE} onChange={(offset) => setPage(offset / PAGE_SIZE)} />
       </QueryState>
 
-      <p className="caption" style={{ marginTop: 'var(--gap)' }}>
+      <p className="caption" style={{ margin: 0 }}>
         Записи журнала не редактируются и не удаляются — ни здесь, ни через API.
         Адрес берётся из запроса; за прокси это адрес из заголовка, который
         выставляет наш же сервер.

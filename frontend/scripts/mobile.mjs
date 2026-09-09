@@ -90,19 +90,17 @@ for (const role of ROLES) {
     await page.screenshot({ path: `${OUT}/menu.png` });
     await page.keyboard.press('Escape');
 
+    await page.goto(`${BASE}/requests/new`);
+    await page.waitForTimeout(1000);
+    await checkWidth(page, 'форма «Новая заявка»');
+    await page.screenshot({ path: `${OUT}/form-new.png` });
+
     await page.goto(`${BASE}/requests`);
     await page.waitForTimeout(1000);
-    await page.getByRole('button', { name: /Новая заявка/ }).click();
-    await page.waitForTimeout(700);
-    await checkWidth(page, 'окно «Новая заявка»');
-    await page.screenshot({ path: `${OUT}/modal-new.png` });
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
-
     await page.locator('table.tbl tbody tr').first().click();
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(1000);
     await checkWidth(page, 'карточка заявки');
-    await page.screenshot({ path: `${OUT}/modal-request.png` });
+    await page.screenshot({ path: `${OUT}/request.png`, fullPage: true });
   }
 
   await page.goto(`${BASE}/`);

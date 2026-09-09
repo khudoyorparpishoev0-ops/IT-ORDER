@@ -16,7 +16,7 @@
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Новая заявка", "url": "/requests?new=1", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Новая заявка", "url": "/requests/new", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Мои заявки", "url": "/requests", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

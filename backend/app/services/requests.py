@@ -25,7 +25,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
@@ -94,7 +94,25 @@ def _base_query() -> Select[tuple[ExpenseRequest]]:
     return select(ExpenseRequest).options(
         selectinload(ExpenseRequest.employee),
         selectinload(ExpenseRequest.project),
+        # Строки нужны и списку: наименование заявки складывается из
+        # первой строки, отдельного поля «название» у заявки нет намеренно.
+        selectinload(ExpenseRequest.lines),
     )
+
+
+def title_of(request: ExpenseRequest) -> str:
+    """Наименование заявки для списка: первая строка сметы.
+
+    Отдельного названия у заявки нет — сотрудник пишет, что нужно, а не
+    придумывает заголовок. Если строк несколько, добавляем «и ещё N».
+    """
+    lines = sorted(request.lines, key=lambda line: line.id)
+    if not lines:
+        return "Пустой черновик"
+    rest = len(lines) - 1
+    if rest == 0:
+        return lines[0].title
+    return f"{lines[0].title} и ещё {rest}"
 
 
 def get_request(session: Session, request_id: int, *, full: bool = False) -> ExpenseRequest:
@@ -146,10 +164,27 @@ def list_requests(
         conditions.append(ExpenseRequest.created_at >= start)
         conditions.append(ExpenseRequest.created_at < end)
     if search:
+        # Один поиск на всё, что человек помнит о заявке: номер, объект,
+        # автор, что просили. Строки ищутся подзапросом, чтобы заявка с
+        # тремя совпавшими строками не пришла трижды.
         pattern = f"%{search.strip().lower()}%"
-        stmt = stmt.join(ExpenseRequest.employee)
-        count_stmt = count_stmt.join(Employee, Employee.id == ExpenseRequest.employee_id)
-        conditions.append(func.lower(Employee.full_name).like(pattern))
+        line_match = (
+            select(ExpenseLine.request_id)
+            .where(func.lower(ExpenseLine.title).like(pattern))
+            .scalar_subquery()
+        )
+        stmt = stmt.join(ExpenseRequest.employee).join(ExpenseRequest.project)
+        count_stmt = count_stmt.join(
+            Employee, Employee.id == ExpenseRequest.employee_id
+        ).join(Project, Project.id == ExpenseRequest.project_id)
+        conditions.append(
+            or_(
+                func.lower(Employee.full_name).like(pattern),
+                func.lower(ExpenseRequest.number).like(pattern),
+                func.lower(Project.name).like(pattern),
+                ExpenseRequest.id.in_(line_match),
+            )
+        )
 
     if conditions:
         stmt = stmt.where(*conditions)

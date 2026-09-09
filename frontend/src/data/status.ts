@@ -1,62 +1,23 @@
 import type { RequestStatus } from '@/api/types';
 
-/** Оформление статусов. Точка-индикатор одинакова в обеих темах,
- *  фон и текст плашки — токены, переключаемые темой. */
-export const STATUS: Record<
-  RequestStatus,
-  { label: string; dot: string; bg: string; fg: string }
-> = {
-  pending: {
-    label: 'Согласование покупки',
-    dot: 'var(--dot-warn)',
-    bg: 'var(--st-warn-bg)',
-    fg: 'var(--st-warn-fg)',
-  },
-  sourcing: {
-    label: 'У закупа',
-    dot: 'var(--dot-info)',
-    bg: 'var(--st-info-bg)',
-    fg: 'var(--st-info-fg)',
-  },
-  priced: {
-    label: 'Согласование суммы',
-    dot: 'var(--dot-warn)',
-    bg: 'var(--st-warn-bg)',
-    fg: 'var(--st-warn-fg)',
-  },
-  approved: {
-    label: 'К оплате',
-    dot: 'var(--dot-info)',
-    bg: 'var(--st-info-bg)',
-    fg: 'var(--st-info-fg)',
-  },
-  paid: {
-    label: 'Оплачена',
-    dot: 'var(--dot-ok)',
-    bg: 'var(--st-ok-bg)',
-    fg: 'var(--st-ok-fg)',
-  },
-  fulfilled: {
-    label: 'Выдано со склада',
-    dot: 'var(--dot-ok)',
-    bg: 'var(--st-ok-bg)',
-    fg: 'var(--st-ok-fg)',
-  },
-  rejected: {
-    label: 'Отклонена',
-    dot: 'var(--dot-err)',
-    bg: 'var(--st-err-bg)',
-    fg: 'var(--st-err-fg)',
-  },
-  draft: {
-    label: 'Черновик',
-    dot: 'var(--dot-off)',
-    bg: 'var(--st-off-bg)',
-    fg: 'var(--st-off-fg)',
-  },
+/**
+ * Оформление статусов по UI-киту: у каждого один цвет — он идёт в точку
+ * 6 px и в рамку плашки. Семантика: серый — черновик, жёлтый — ждёт
+ * решения человека, синий — в работе службы, зелёный — завершена,
+ * красный — отклонена.
+ */
+export const STATUS: Record<RequestStatus, { label: string; color: string }> = {
+  draft: { label: 'Черновик', color: 'var(--grey)' },
+  pending: { label: 'Согласование покупки', color: 'var(--yellow)' },
+  sourcing: { label: 'У закупа', color: 'var(--blue)' },
+  priced: { label: 'Согласование суммы', color: 'var(--yellow)' },
+  approved: { label: 'К оплате', color: 'var(--blue)' },
+  paid: { label: 'Оплачена', color: 'var(--green)' },
+  fulfilled: { label: 'Выдано со склада', color: 'var(--green)' },
+  rejected: { label: 'Отклонена', color: 'var(--red)' },
 };
 
-/** Порядок фильтров в разделе «Заявки». */
+/** Порядок статусов в фильтрах. */
 export const STATUS_ORDER: RequestStatus[] = [
   'pending',
   'sourcing',
@@ -76,9 +37,12 @@ export const PAYMENT_METHOD: Record<'card' | 'cash', string> = {
 
 /** Кто держит заявку — коротко, для строки списка. */
 export const HOLDER: Record<string, string> = {
-  author: 'у автора',
-  manager: 'у руководителя',
-  procurement: 'у закупа',
-  finance: 'в бухгалтерии',
+  author: 'Автор',
+  manager: 'Руководитель',
+  procurement: 'Отдел закупа',
+  finance: 'Бухгалтерия',
   closed: '',
 };
+
+/** Порог задержки на этапе, дней: с него блок «Сейчас ждёт» подсвечивается. */
+export const DELAY_DAYS = 3;

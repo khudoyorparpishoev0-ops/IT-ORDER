@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/api/auth';
 import type { TotpSetup as SetupData } from '@/api/types';
+import { Field } from './Field';
 import { RecoveryCodes } from './RecoveryCodes';
 
 type Props = {
@@ -68,11 +69,15 @@ export function TotpSetup({ onCancel, onDone }: Props) {
   }
 
   if (!setup) {
-    return <div className="label">ГОТОВИМ КЛЮЧ</div>;
+    return (
+      <div className="label" role="status" aria-live="polite">
+        Готовим ключ
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={confirm} noValidate>
+    <form onSubmit={confirm} noValidate style={{ display: 'grid', gap: 16 }}>
       <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 16 }}>
         <li>
           Установите приложение-аутентификатор: Google Authenticator, Aegis, 1Password
@@ -85,8 +90,11 @@ export function TotpSetup({ onCancel, onDone }: Props) {
               marginTop: 12,
               width: 180,
               height: 180,
+              // QR читается только тёмным по белому: в тёмной теме подложка
+              // остаётся белой намеренно, это не цвет интерфейса.
               background: '#FFFFFF',
               border: '1px solid var(--line)',
+              borderRadius: 'var(--r-field)',
               padding: 8,
             }}
             // Разметка приходит от нашего же сервера: это QR, сгенерированный
@@ -95,8 +103,9 @@ export function TotpSetup({ onCancel, onDone }: Props) {
           />
           <button
             type="button"
-            className="btn btn-ghost"
-            style={{ paddingLeft: 0 }}
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: 8, marginLeft: -12 }}
+            aria-expanded={showSecret}
             onClick={() => setShowSecret((v) => !v)}
           >
             {showSecret ? 'Скрыть ключ' : 'Не сканируется — ввести ключ вручную'}
@@ -105,10 +114,13 @@ export function TotpSetup({ onCancel, onDone }: Props) {
             <div
               className="num"
               style={{
+                marginTop: 8,
                 userSelect: 'all',
                 padding: '8px 12px',
-                background: 'var(--mist)',
+                background: 'var(--zebra)',
                 border: '1px solid var(--line)',
+                borderRadius: 'var(--r-field)',
+                whiteSpace: 'normal',
                 wordBreak: 'break-all',
               }}
             >
@@ -117,36 +129,26 @@ export function TotpSetup({ onCancel, onDone }: Props) {
           )}
         </li>
         <li>
-          <label style={{ display: 'block' }}>
-            <div className="caption" style={{ marginBottom: 4 }}>
-              Введите код из приложения
-            </div>
-            <input
-              className={`field${error ? ' field-error' : ''}`}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              aria-invalid={Boolean(error)}
-              placeholder="000000"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                letterSpacing: '0.2em',
-                maxWidth: 200,
-              }}
-            />
-          </label>
+          <Field label="Введите код из приложения" required error={error}>
+            {(id) => (
+              <input
+                id={id}
+                className={`field mono${error ? ' field-error' : ''}`}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                aria-invalid={Boolean(error)}
+                placeholder="000000"
+                style={{ letterSpacing: '0.2em', maxWidth: 200 }}
+              />
+            )}
+          </Field>
         </li>
       </ol>
 
-      {error && (
-        <div className="field-error-text" role="alert" style={{ marginTop: 12 }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button type="submit" className="btn btn-primary" disabled={busy || !code}>
           {busy ? 'Проверяем…' : 'Включить'}
         </button>

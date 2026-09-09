@@ -7,19 +7,10 @@ type Props = {
   action?: ReactNode;
 };
 
-/** Пустое состояние: штриховка 60°, рубрика, пояснение, действие. */
+/** Пустое состояние: рубрика, заголовок, пояснение, действие. */
 export function EmptyState({ kicker, title, note, action }: Props) {
   return (
-    <div
-      className="hatch"
-      style={{
-        padding: '64px var(--pad)',
-        border: '1px solid var(--line)',
-        borderRadius: 'var(--r-card)',
-        background: 'var(--paper)',
-        textAlign: 'center',
-      }}
-    >
+    <div className="empty">
       <div className="label">{kicker}</div>
       <div className="h3" style={{ marginTop: 8 }}>
         {title}
@@ -29,7 +20,7 @@ export function EmptyState({ kicker, title, note, action }: Props) {
           {note}
         </p>
       )}
-      {action && <div style={{ marginTop: 24 }}>{action}</div>}
+      {action && <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center' }}>{action}</div>}
     </div>
   );
 }

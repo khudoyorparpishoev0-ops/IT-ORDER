@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { EmptyState } from '@/components/EmptyState';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 
@@ -7,7 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 const FAQ = [
   {
     q: 'Как подать заявку?',
-    a: 'Кнопка «Новая заявка» на «Панели» или в «Заявках». Выберите объект и перечислите, что нужно, сколько и в чём считать: «мешок», «шт.», «м²». Цены указывать не нужно — их назовёт отдел закупа. «Отправить на согласование» уводит заявку руководителю, «Сохранить черновиком» оставляет её у вас.',
+    a: 'Кнопка «Создать заявку» на дашборде или в «Заявках». Выберите объект и перечислите, что нужно, сколько и в чём считать: «мешок», «шт.», «м²». Цены указывать не нужно — их назовёт отдел закупа. «Отправить на согласование» уводит заявку руководителю, «Сохранить черновиком» оставляет её у вас.',
   },
   {
     q: 'Что означают статусы заявок?',
@@ -37,7 +38,6 @@ const FAQ = [
 
 export function Help() {
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<string | null>(FAQ[0].q);
 
   const q = query.trim().toLowerCase();
   const items = q
@@ -46,65 +46,53 @@ export function Help() {
 
   return (
     <>
-      <PageHeader
-        title="Справка"
-        lead="Как подать заявку, что значат статусы и к кому идти. Спорные случаи — к администратору системы"
-      />
+      <PageHeader title="Справка" lead="Как проходит заявка и кто за что отвечает" />
 
-      <label style={{ display: 'block', maxWidth: 440, marginBottom: 'var(--gap)' }}>
-        <span className="sr-only">Поиск по справке</span>
+      <div style={{ maxWidth: 440 }}>
+        <label className="sr-only" htmlFor="help-search">
+          Поиск по справке
+        </label>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Icon name="ti-search" style={{ position: 'absolute', left: 12, color: 'var(--slate)' }} />
+          <Icon
+            name="ti-search"
+            size={18}
+            style={{ position: 'absolute', left: 12, color: 'var(--slate)', pointerEvents: 'none' }}
+          />
           <input
+            id="help-search"
             className="field"
+            type="search"
             style={{ paddingLeft: 40 }}
             placeholder="Поиск по вопросам"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-      </label>
-
-      <div style={{ display: 'grid', gap: 'var(--gap)' }}>
-        {items.map((f) => {
-          const expanded = open === f.q;
-          return (
-            <section key={f.q} className="card">
-              <button
-                type="button"
-                aria-expanded={expanded}
-                onClick={() => setOpen(expanded ? null : f.q)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                  width: '100%',
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                <span className="h3">{f.q}</span>
-                <Icon
-                  name="ti-chevron-down"
-                  style={{
-                    transform: expanded ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 150ms ease-out',
-                  }}
-                />
-              </button>
-              {expanded && (
-                <p style={{ maxWidth: '72ch', color: 'var(--slate)', margin: '12px 0 0' }}>
-                  {f.a}
-                </p>
-              )}
-            </section>
-          );
-        })}
       </div>
+
+      {items.length === 0 ? (
+        <EmptyState
+          kicker="Ничего не найдено"
+          title="По запросу ничего нет"
+          note="Попробуйте другое слово или очистите поиск. Спорные случаи — к администратору системы."
+          action={
+            <button type="button" className="btn btn-secondary" onClick={() => setQuery('')}>
+              Очистить поиск
+            </button>
+          }
+        />
+      ) : (
+        <div className="grid-auto">
+          {items.map((f) => (
+            <section key={f.q} className="card" style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+              <h2 className="label" style={{ margin: 0 }}>
+                {f.q}
+              </h2>
+              <p style={{ margin: 0 }}>{f.a}</p>
+            </section>
+          ))}
+        </div>
+      )}
     </>
   );
 }

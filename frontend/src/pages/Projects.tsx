@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
-import { Overlay } from '@/components/Overlay';
+import { Modal } from '@/components/Modal';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { useCreateProject, useProjects, useUpdateProject } from '@/api/hooks';
@@ -31,45 +31,44 @@ export function Projects() {
     });
   }, [list.data, search, withDisabled]);
 
-  const disabledCount = (list.data ?? []).filter((p) => !p.active).length;
+  const all = list.data ?? [];
+  const disabledCount = all.filter((p) => !p.active).length;
+  const requestsTotal = all.reduce((sum, p) => sum + p.requests_count, 0);
 
   return (
     <>
       <PageHeader
-        kicker="СПРАВОЧНИК"
         title="Объекты"
-        lead="Стройки и площадки, на которые списываются расходы"
+        lead={
+          list.data
+            ? `${all.length} ${plural(all.length, 'объект', 'объекта', 'объектов')} · ${requestsTotal} ${plural(requestsTotal, 'заявка', 'заявки', 'заявок')}`
+            : undefined
+        }
         actions={
           <button type="button" className="btn btn-primary" onClick={() => setEditing('new')}>
-            <Icon name="ti-plus" />
+            <Icon name="ti-plus" size={18} />
             Добавить объект
           </button>
         }
       />
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          marginBottom: 'var(--gap)',
-        }}
-      >
-        <label style={{ flex: '1 1 240px', maxWidth: 360 }}>
-          <span className="sr-only">Поиск по названию</span>
-          <input
-            className="field"
-            type="search"
-            placeholder="Название объекта"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="filter-row">
+        <label className="sr-only" htmlFor="p-search">
+          Поиск по названию
         </label>
+        <input
+          id="p-search"
+          className="field"
+          type="search"
+          placeholder="Название объекта"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ height: 36, fontSize: 14, flex: '1 1 200px', maxWidth: 280 }}
+        />
         {disabledCount > 0 && (
           <button
             type="button"
-            className="chip"
+            className="filter"
             aria-pressed={withDisabled}
             onClick={() => setWithDisabled((v) => !v)}
           >
@@ -95,19 +94,19 @@ export function Projects() {
         }
         onRetry={() => list.refetch()}
       >
-        <section className="panel">
+        <div className="panel">
           <div className="table-wrap">
-            <table className="tbl" style={{ minWidth: 560 }}>
+            <table className="tbl" style={{ ['--tbl-min' as string]: '640px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '46%' }}>ОБЪЕКТ</th>
+                  <th style={{ width: '46%' }}>Объект</th>
                   <th className="right" style={{ width: '14%' }}>
-                    ЗАЯВОК
+                    Заявок
                   </th>
                   <th className="right" style={{ width: '20%' }}>
-                    РАСХОД, TJS
+                    Расход, TJS
                   </th>
-                  <th style={{ width: '20%' }}>СОСТОЯНИЕ</th>
+                  <th style={{ width: '20%' }}>Состояние</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,28 +127,23 @@ export function Projects() {
                     <td className="right num">{p.requests_count}</td>
                     <td className="right num">{money(p.spent)}</td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                         <span
-                          aria-hidden="true"
-                          style={{
-                            width: 8,
-                            height: 8,
-                            flex: 'none',
-                            background: p.active ? 'var(--dot-ok)' : 'var(--dot-off)',
-                          }}
+                          className="dot"
+                          style={{ ['--dot' as string]: p.active ? 'var(--dot-ok)' : 'var(--dot-off)' }}
                         />
                         {p.active ? 'В работе' : 'Отключён'}
-                      </div>
+                      </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       </QueryState>
 
-      <p className="caption" style={{ marginTop: 'var(--gap)' }}>
+      <p className="caption" style={{ margin: 0 }}>
         Закрытый объект отключают, а не удаляют: заявки неизменяемы и должны
         сохранить, на что был расход. Отключённый объект пропадает из выбора при
         подаче новой заявки, старые заявки остаются на месте.
@@ -177,6 +171,7 @@ function ProjectModal({
 }) {
   const create = useCreateProject();
   const update = useUpdateProject();
+  const formId = useId();
   const [name, setName] = useState(project?.name ?? '');
   const [active, setActive] = useState(project?.active ?? true);
   const [error, setError] = useState<string | null>(null);
@@ -205,32 +200,26 @@ function ProjectModal({
   };
 
   return (
-    <Overlay
-      label={project ? `Объект ${project.name}` : 'Новый объект'}
+    <Modal
+      title={project ? project.name : 'Новый объект'}
       onClose={onClose}
       dirty={dirty}
+      wide
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Отмена
+          </button>
+          <button type="submit" form={formId} className="btn btn-primary" disabled={saving || !name.trim()}>
+            {saving ? 'Сохраняем…' : project ? 'Сохранить' : 'Завести объект'}
+          </button>
+        </>
+      }
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <div className="label">{project ? 'ОБЪЕКТ' : 'НОВЫЙ ОБЪЕКТ'}</div>
-          <div className="h3" style={{ marginTop: 4 }}>
-            {project ? project.name : 'Заведение объекта'}
-          </div>
-        </div>
-        <button
-          type="button"
-          className="btn btn-icon"
-          onClick={onClose}
-          aria-label="Закрыть"
-          style={{ border: 'none' }}
-        >
-          <Icon name="ti-x" />
-        </button>
-      </div>
-
-      <form onSubmit={submit} style={{ display: 'grid', gap: 16, marginTop: 24 }}>
+      <form id={formId} onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
         <Field
           label="Название"
+          required
           note="Так объект увидят в заявках и отчётах: «Вилла Колхозная», «Рекова 132»."
         >
           {(id) => (
@@ -247,42 +236,23 @@ function ProjectModal({
         </Field>
 
         <div>
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={active}
-            onClick={() => setActive((v) => !v)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              minHeight: 44,
-              padding: '0 4px',
-              border: 'none',
-              background: 'transparent',
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 20,
-                height: 20,
-                flex: 'none',
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: 'var(--r-field)',
-                border: active ? '1px solid var(--green)' : '1px solid var(--grey)',
-                background: active ? 'var(--green)' : 'transparent',
-                color: '#FFFFFF',
+          <div className="check-row" onClick={() => setActive((v) => !v)}>
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={active}
+              aria-label="Объект в работе"
+              className="check"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActive((v) => !v);
               }}
             >
               <Icon name="ti-check" size={14} style={{ opacity: active ? 1 : 0 }} />
-            </span>
-            Объект в работе
-          </button>
-          <div className="caption" style={{ marginTop: 4 }}>
+            </button>
+            <span className="small">Объект в работе</span>
+          </div>
+          <div className="caption">
             Снятая отметка убирает объект из выбора при подаче новой заявки.
             Поданные заявки остаются как есть.
           </div>
@@ -302,16 +272,7 @@ function ProjectModal({
             {error}
           </div>
         )}
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="submit" className="btn btn-primary" disabled={saving || !name.trim()}>
-            {saving ? 'Сохраняем…' : project ? 'Сохранить' : 'Завести объект'}
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Отмена
-          </button>
-        </div>
       </form>
-    </Overlay>
+    </Modal>
   );
 }

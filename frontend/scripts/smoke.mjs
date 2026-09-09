@@ -22,6 +22,7 @@ const DOMAIN = process.env.SMOKE_DOMAIN ?? 'ithona.tj';
 const COMMON = [
   ['/', 'dashboard'],
   ['/requests', 'requests'],
+  ['/requests/new', 'new'],
   ['/settings', 'settings'],
   ['/help', 'help'],
   ['/system', 'system'],
@@ -67,16 +68,12 @@ await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch(EXECUTABLE ? { executablePath: EXECUTABLE } : {});
 const problems = [];
 
-async function run(role, theme, variant, { screenshots = true } = {}) {
-  const tag = `${role.label}-${theme}-${variant}`;
+async function run(role, theme, { screenshots = true } = {}) {
+  const tag = `${role.label}-${theme}`;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  await ctx.addInitScript(
-    ([t, v]) => {
-      localStorage.setItem('hona-core:theme', t);
-      localStorage.setItem('hona-core:variant', v);
-    },
-    [theme, variant],
-  );
+  await ctx.addInitScript((t) => {
+    localStorage.setItem('hona-core:theme', t);
+  }, theme);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => problems.push(`[${tag}] pageerror ${e.message}`));
   page.on('requestfailed', (r) => {
@@ -141,14 +138,12 @@ async function run(role, theme, variant, { screenshots = true } = {}) {
   await ctx.close();
 }
 
-// Разрешённые разделы каждой роли — в светлой теме варианта B.
+// Разрешённые разделы каждой роли — в светлой теме.
 for (const role of ROLES) {
-  await run(role, 'light', 'dispatch');
+  await run(role, 'light');
 }
-// Тёмная тема и вариант C проверяются на самой полной роли.
-const manager = ROLES[0];
-await run(manager, 'dark', 'dispatch');
-await run(manager, 'light', 'light');
+// Тёмная тема проверяется на самой полной роли.
+await run(ROLES[0], 'dark');
 
 await browser.close();
 

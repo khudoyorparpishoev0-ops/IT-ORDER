@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FFFFFF; --mist:#F5F7F5; --line:#E3E7E3; --ink:#101613; --slate:#5A655D; --grey:#9AA39C;
+  --green:#22A74E; --green-dark:#186B36; --forest:#0E3B21; --zebra:#FAFBFA;
+  --yellow:#E0A126; --blue:#2E6FD9; --red:#B8382C;
+  --on-green:#FFFFFF; --forest-ink:#EDF2EE; --forest-slate:#8FA697;
+  --shadow-1:0 1px 2px rgba(16,22,19,.06);
+  --shadow-2:0 8px 24px rgba(16,22,19,.14);
+  --stroke:1.6; --note-d:block; --row-h:44px;
+  --t-light-bg:var(--ink); --t-light-fg:var(--paper);
+  --t-dark-bg:transparent; --t-dark-fg:var(--slate);
+}
+[data-theme="dark"]{
+  --paper:#0B120E; --mist:#151E18; --line:#26332B; --ink:#EDF2EE; --slate:#8E9A91; --grey:#8E9A91;
+  --green:#33C561; --green-dark:#33C561; --forest:#0E3B21; --zebra:#101A14;
+  --on-green:#06120A;
+  --shadow-1:0 1px 2px rgba(0,0,0,.5);
+  --shadow-2:0 8px 24px rgba(0,0,0,.6);
+  --t-light-bg:transparent; --t-light-fg:var(--slate);
+  --t-dark-bg:var(--green); --t-dark-fg:var(--on-green);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--mist);color:var(--ink);font-family:Manrope,'Noto Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-wrap:pretty}
+a{color:var(--green-dark);text-decoration:none}
+a:hover{color:var(--green)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+svg{stroke-width:var(--stroke)}
+</style>
+</helmet>
+
+<div style="max-width:1240px;margin:0 auto;padding:32px 32px 96px;display:flex;flex-direction:column;gap:48px">
+
+  <header style="display:flex;flex-wrap:wrap;align-items:center;gap:24px;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:24px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="width:132px;height:44px;border:1px dashed var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--grey);text-transform:uppercase">logo slot</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font:800 19px/1.1 Manrope,sans-serif;letter-spacing:-.01em">HONA ORDER</div>
+        <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">UI System · v1.0</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">Desktop 1440 · Mobile 390</div>
+      <div style="display:flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:4px;background:var(--paper)">
+        <button onClick="{{ setLight }}" style="height:32px;padding:0 12px;border:0;border-radius:2px;background:var(--t-light-bg);color:var(--t-light-fg);font:600 13px/1 Manrope,sans-serif">Light</button>
+        <button onClick="{{ setDark }}" style="height:32px;padding:0 12px;border:0;border-radius:2px;background:var(--t-dark-bg);color:var(--t-dark-fg);font:600 13px/1 Manrope,sans-serif">Dark</button>
+      </div>
+    </div>
+  </header>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px">
+    <p style="margin:0;font:400 16px/1.56 Manrope,sans-serif;color:var(--ink);grid-column:span 2;min-width:0">Современная корпоративная система: чистая, технологичная, лёгкая, с большим количеством светлого пространства и аккуратными зелёными акцентами. Сначала информация и действие — декор только там, где он помогает восприятию.</p>
+    <div style="font:600 13px/1.6 'JetBrains Mono',monospace;color:var(--slate)">White space<br>+ Forest structure<br>+ Green action<br>+ Mono data<br>+ Sharp geometry</div>
+  </div>
+
+  <!-- 01 ПАЛИТРА -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">01</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Палитра</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Light и Dark проектируются отдельно. Никакого инвертирования: в Dark зелёный светлее для сохранения контраста.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Light theme</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#FFFFFF;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Paper</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#FFFFFF</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#F5F7F5;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Mist</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#F5F7F5</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#E3E7E3;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Line</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#E3E7E3</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#101613;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Ink</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#101613</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#5A655D;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Slate</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#5A655D</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#9AA39C;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Grey</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#9AA39C</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#22A74E;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Green</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#22A74E</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#186B36;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Green Dark</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#186B36</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#0E3B21;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Forest</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#0E3B21</div></div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow:hidden"><div style="height:56px;background:#FAFBFA;border-bottom:1px solid var(--line)"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif">Zebra</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">#FAFBFA</div></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Dark theme</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#0B120E;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Paper</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#0B120E</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#151E18;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Mist</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#151E18</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#26332B;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Line</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#26332B</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#EDF2EE;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Ink</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#EDF2EE</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#8E9A91;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Slate / Grey</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#8E9A91</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#33C561;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Green</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#33C561</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#0E3B21;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Forest</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#0E3B21</div></div></div>
+        <div style="background:#0B120E;border:1px solid #26332B;border-radius:4px;overflow:hidden"><div style="height:56px;background:#101A14;border-bottom:1px solid #26332B"></div><div style="padding:8px 12px"><div style="font:700 13px/1.3 Manrope,sans-serif;color:#EDF2EE">Zebra</div><div style="font:500 11px/1.4 'JetBrains Mono',monospace;color:#8E9A91">#101A14</div></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;height:32px;border:1px solid var(--line);border-radius:2px;overflow:hidden">
+        <div style="flex:70;background:var(--paper);display:flex;align-items:center;padding-left:12px;font:600 11px/1 'JetBrains Mono',monospace;color:var(--slate)">70% WHITE / MIST</div>
+        <div style="flex:20;background:var(--forest);display:flex;align-items:center;padding-left:12px;font:600 11px/1 'JetBrains Mono',monospace;color:var(--forest-ink)">20% INK</div>
+        <div style="flex:10;background:var(--green);display:flex;align-items:center;padding-left:12px;font:600 11px/1 'JetBrains Mono',monospace;color:var(--on-green)">10%</div>
+      </div>
+      <p style="display:var(--note-d);margin:0;font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">Зелёный не должен превращаться в фон половины интерфейса.</p>
+    </div>
+  </section>
+
+  <!-- 02 СТАТУСЫ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">02</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Статусы</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Статус нельзя показывать только цветом: индикатор всегда идёт вместе с подписью.</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #9AA39C;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#9AA39C"></span>Черновик</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #E0A126;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#E0A126"></span>Согласование покупки</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #2E6FD9;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#2E6FD9"></span>У закупа</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #E0A126;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#E0A126"></span>Согласование суммы</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #2E6FD9;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#2E6FD9"></span>К оплате</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #22A74E;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#22A74E"></span>Оплачена</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #22A74E;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#22A74E"></span>Выдано со склада</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border:1px solid #B8382C;border-radius:0;font:600 13px/1 Manrope,sans-serif;color:var(--ink);background:var(--paper)"><span style="width:6px;height:6px;border-radius:50%;background:#B8382C"></span>Отклонена</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden">
+      <div style="background:var(--paper);padding:12px 16px"><div style="font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate);text-transform:uppercase">Grey #9AA39C</div><div style="font:400 14px/1.5 Manrope,sans-serif">Черновик</div></div>
+      <div style="background:var(--paper);padding:12px 16px"><div style="font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate);text-transform:uppercase">Yellow #E0A126</div><div style="font:400 14px/1.5 Manrope,sans-serif">Ожидает решения</div></div>
+      <div style="background:var(--paper);padding:12px 16px"><div style="font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate);text-transform:uppercase">Blue #2E6FD9</div><div style="font:400 14px/1.5 Manrope,sans-serif">В работе службы</div></div>
+      <div style="background:var(--paper);padding:12px 16px"><div style="font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate);text-transform:uppercase">Green #22A74E</div><div style="font:400 14px/1.5 Manrope,sans-serif">Завершено</div></div>
+      <div style="background:var(--paper);padding:12px 16px"><div style="font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate);text-transform:uppercase">Red #B8382C</div><div style="font:400 14px/1.5 Manrope,sans-serif">Отклонено / ошибка</div></div>
+    </div>
+  </section>
+
+  <!-- 03 ТИПОГРАФИКА -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">03</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Типографика · Manrope</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Noto Sans подключается только как fallback для таджикских символов и не является основным визуальным шрифтом.</p>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px">
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">H1 · 30/700/1.16</div><div style="font:700 30px/1.16 Manrope,sans-serif">Все заявки</div></div>
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">H2 · 24/700</div><div style="font:700 24px/1.25 Manrope,sans-serif">Позиции заявки</div></div>
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">H3 · 19/700</div><div style="font:700 19px/1.3 Manrope,sans-serif">Согласование суммы</div></div>
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">Body · 16/400/1.56</div><div style="font:400 16px/1.56 Manrope,sans-serif;max-width:52ch">Заявка передана в отдел закупа. После получения счёта сумма уходит на согласование руководителю.</div></div>
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">Small · 14/400</div><div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--ink)">Объект: Регар · Автор: Сотрудник отдела АХО</div></div>
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">Caption · 13/400</div><div style="font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">Обновлено 08.09.2026 в 14:20</div></div>
+      <div style="display:flex;align-items:baseline;gap:24px;padding:16px 24px;flex-wrap:wrap"><div style="width:150px;flex:none;font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--slate)">Rubric · 11/600</div><div style="font:600 11px/1 Manrope,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--slate)">Сейчас ждёт</div></div>
+    </div>
+  </section>
+
+  <!-- 04 MONO -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">04</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Данные · JetBrains Mono</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Всё, что пользователь сравнивает глазами: номера, суммы, даты, время, коды, KPI, заголовки таблиц.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Номер · 14/600</div><div style="font:600 14px/1.4 'JetBrains Mono',monospace">РЗ-0048</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Сумма · 14/600</div><div style="font:600 14px/1.4 'JetBrains Mono',monospace">3 355,00</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Дата · 14/600</div><div style="font:600 14px/1.4 'JetBrains Mono',monospace">08.09.2026</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">KPI · 30/600</div><div style="font:600 30px/1 'JetBrains Mono',monospace;letter-spacing:-.02em">128</div></div>
+    </div>
+  </section>
+
+  <!-- 05 ИКОНКИ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">05</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Иконки · Tabler outline</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">24 px, stroke 1.6, linecap butt, linejoin miter, цвет через currentColor. Без emoji, 3D, заливок и смешения библиотек.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden">
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M5 4h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1"></path><path d="M5 16h4a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1"></path><path d="M15 12h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1"></path><path d="M15 4h4a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Dashboard</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2"></path><path d="M9 9l1 0"></path><path d="M9 13l6 0"></path><path d="M9 17l6 0"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Заявки</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M9.615 20h-2.615a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8"></path><path d="M14 19l2 2l4 -4"></path><path d="M9 8h4"></path><path d="M9 12h2"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Согласование</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M4 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path><path d="M15 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path><path d="M17 17h-11v-14h-2"></path><path d="M6 5l14 1l-1 7h-13"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Закуп</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6"></path><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10"></path><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14"></path><path d="M4 20h14"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Отчёты</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"></path><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Команда</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12"></path><path d="M20 12v4h-4a2 2 0 0 1 0 -4h4"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Финансы</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"></path><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Сотрудники</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 21l18 0"></path><path d="M9 8l1 0"></path><path d="M9 12l1 0"></path><path d="M9 16l1 0"></path><path d="M14 8l1 0"></path><path d="M14 12l1 0"></path><path d="M14 16l1 0"></path><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Объекты</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M9 6l11 0"></path><path d="M9 12l11 0"></path><path d="M9 18l11 0"></path><path d="M5 6l0 .01"></path><path d="M5 12l0 .01"></path><path d="M5 18l0 .01"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Журнал</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065"></path><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Настройки</span></div>
+      <div style="background:var(--paper);padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"></path><path d="M12 16v.01"></path><path d="M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483"></path></svg><span style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate);text-align:center">Помощь</span></div>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:24px;background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px 24px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path><path d="M21 21l-6 -6"></path></svg><span style="font:400 11px/1 'JetBrains Mono',monospace;color:var(--slate)">14</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path><path d="M21 21l-6 -6"></path></svg><span style="font:400 11px/1 'JetBrains Mono',monospace;color:var(--slate)">18</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path><path d="M21 21l-6 -6"></path></svg><span style="font:400 11px/1 'JetBrains Mono',monospace;color:var(--slate)">20</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path><path d="M21 21l-6 -6"></path></svg><span style="font:400 11px/1 'JetBrains Mono',monospace;color:var(--slate)">24</span></div>
+      <p style="display:var(--note-d);margin:0;font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">Допустимые размеры: 14 / 18 / 20 / 24 px.</p>
+    </div>
+  </section>
+
+  <!-- 06 ГЕОМЕТРИЯ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">06</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Геометрия и сетка</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Радиусы только 0 / 2 / 4 px. Отступы только 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 px.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;gap:16px"><div style="width:56px;height:40px;border:1px solid var(--ink);border-radius:0"></div><div><div style="font:600 14px/1.3 'JetBrains Mono',monospace">0 px</div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">status · table header · labels</div></div></div>
+        <div style="display:flex;align-items:center;gap:16px"><div style="width:56px;height:40px;border:1px solid var(--ink);border-radius:2px"></div><div><div style="font:600 14px/1.3 'JetBrains Mono',monospace">2 px</div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">input · filters · chips · avatar</div></div></div>
+        <div style="display:flex;align-items:center;gap:16px"><div style="width:56px;height:40px;border:1px solid var(--ink);border-radius:4px"></div><div><div style="font:600 14px/1.3 'JetBrains Mono',monospace">4 px</div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">cards · buttons · modal · panels</div></div></div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <div style="width:4px;height:4px;background:var(--green)"></div><div style="width:8px;height:8px;background:var(--green)"></div><div style="width:12px;height:12px;background:var(--green)"></div><div style="width:16px;height:16px;background:var(--green)"></div><div style="width:24px;height:24px;background:var(--green)"></div><div style="width:32px;height:32px;background:var(--green)"></div><div style="width:48px;height:48px;background:var(--green)"></div><div style="width:64px;height:64px;background:var(--green)"></div>
+        </div>
+        <div style="font:600 11px/1.6 'JetBrains Mono',monospace;color:var(--slate)">4 · 8 · 12 · 16 · 24 · 32 · 48 · 64</div>
+        <div style="border-top:1px solid var(--line);padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">
+          <div>Content max-width</div><div style="font:600 13px/1.5 'JetBrains Mono',monospace;color:var(--ink);text-align:right">1240 px</div>
+          <div>Внешние поля</div><div style="font:600 13px/1.5 'JetBrains Mono',monospace;color:var(--ink);text-align:right">32 px</div>
+          <div>Grid gap</div><div style="font:600 13px/1.5 'JetBrains Mono',monospace;color:var(--ink);text-align:right">24 px</div>
+          <div>Sidebar</div><div style="font:600 13px/1.5 'JetBrains Mono',monospace;color:var(--ink);text-align:right">240 px</div>
+          <div>Mobile поля</div><div style="font:600 13px/1.5 'JetBrains Mono',monospace;color:var(--ink);text-align:right">16 px</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 КНОПКИ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">07</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Кнопки</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Desktop 44 px, mobile 48 px, radius 4 px. На одном экране — одно доминирующее primary-действие.</p>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:24px">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <button style="height:44px;padding:0 16px;display:inline-flex;align-items:center;gap:8px;background:var(--green);color:var(--on-green);border:1px solid var(--green);border-radius:4px;font:600 16px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:var(--green-dark);border-color:var(--green-dark)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M12 5l0 14"></path><path d="M5 12l14 0"></path></svg>Создать заявку</button>
+        <button style="height:44px;padding:0 16px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:4px;font:600 16px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="border-color:var(--slate);background:var(--zebra)">Сохранить черновиком</button>
+        <button style="height:44px;padding:0 16px;background:transparent;color:var(--slate);border:1px solid transparent;border-radius:4px;font:600 16px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:var(--mist);color:var(--ink)">Отмена</button>
+        <button style="height:44px;padding:0 16px;background:var(--paper);color:#B8382C;border:1px solid #B8382C;border-radius:4px;font:600 16px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:#B8382C;color:#FFFFFF">Отклонить</button>
+        <button style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:4px;transition:all 150ms ease-out" style-hover="border-color:var(--slate);background:var(--zebra)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"></path></svg></button>
+        <button disabled="{{ true }}" style="height:44px;padding:0 16px;background:var(--mist);color:var(--grey);border:1px solid var(--line);border-radius:4px;font:600 16px/1 Manrope,sans-serif;cursor:not-allowed">Недоступно</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:24px">
+        <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Mobile 48</span>
+        <button style="height:48px;padding:0 20px;background:var(--green);color:var(--on-green);border:1px solid var(--green);border-radius:4px;font:600 16px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:var(--green-dark);border-color:var(--green-dark)">Отправить на согласование</button>
+        <button style="height:48px;padding:0 20px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:4px;font:600 16px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="border-color:var(--slate);background:var(--zebra)">Сохранить черновиком</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 ПОЛЯ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">08</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Поля ввода</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Высота 44 px desktop / 48 px mobile, radius 2 px. Focus — граница 2 px Green. Placeholder заметно слабее введённого текста.</p>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px">
+      <div style="display:flex;flex-direction:column;gap:8px"><label style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Normal</label><input placeholder="Выберите объект" style="height:44px;padding:0 12px;background:var(--paper);border:1px solid var(--line);border-radius:2px;font:400 16px/1 Manrope,sans-serif;outline:none;transition:all 150ms ease-out;width:100%" style-hover="border-color:var(--slate)" style-focus="border:2px solid var(--green);padding:0 11px"></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><label style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Hover</label><div style="height:44px;padding:0 12px;display:flex;align-items:center;background:var(--paper);border:1px solid var(--slate);border-radius:2px;font:400 16px/1 Manrope,sans-serif;color:var(--grey)">Выберите объект</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><label style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Focus</label><div style="height:44px;padding:0 11px;display:flex;align-items:center;background:var(--paper);border:2px solid var(--green);border-radius:2px;font:400 16px/1 Manrope,sans-serif;color:var(--ink)">Регар<span style="width:1px;height:20px;background:var(--ink);margin-left:1px"></span></div></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><label style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Filled</label><div style="height:44px;padding:0 12px;display:flex;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:2px;font:400 16px/1 Manrope,sans-serif;color:var(--ink)">Кабель UTP Cat6</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><label style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Error</label><div style="height:44px;padding:0 12px;display:flex;align-items:center;background:var(--paper);border:1px solid #B8382C;border-radius:2px;font:400 16px/1 Manrope,sans-serif;color:var(--ink)">—</div><span style="font:400 13px/1.4 Manrope,sans-serif;color:#B8382C">Укажите объект: поле обязательное</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><label style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Disabled</label><div style="height:44px;padding:0 12px;display:flex;align-items:center;background:var(--mist);border:1px solid var(--line);border-radius:2px;font:400 16px/1 Manrope,sans-serif;color:var(--grey)">Недоступно для роли</div></div>
+    </div>
+  </section>
+
+  <!-- 09 КАРТОЧКИ И KPI -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">09</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Карточки и KPI</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Paper + 1 px Line + radius 4 px. KPI строится как label → value → secondary context, без массивных цветных фонов.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Всего заявок</div><div style="font:600 30px/1 'JetBrains Mono',monospace;letter-spacing:-.02em">128</div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">за текущий период</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Ждут решения</div><div style="display:flex;align-items:center;gap:8px"><span style="width:6px;height:6px;border-radius:50%;background:#E0A126"></span><div style="font:600 30px/1 'JetBrains Mono',monospace;letter-spacing:-.02em">14</div></div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">на согласовании</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">К оплате</div><div style="font:600 30px/1 'JetBrains Mono',monospace;letter-spacing:-.02em">42 180,00</div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">сомони, 9 заявок</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Средний цикл</div><div style="font:600 30px/1 'JetBrains Mono',monospace;letter-spacing:-.02em">6,4</div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">дня от заявки до оплаты</div></div>
+    </div>
+  </section>
+
+  <!-- 10 SIDEBAR -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">10</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Sidebar · 240 px</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Недоступные роли пункты полностью скрываются, а не показываются disabled. Активный пункт — green accent, radius 2 px.</p>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+      <div style="width:240px;flex:none;background:var(--forest);border-radius:4px;padding:16px 12px;display:flex;flex-direction:column;gap:4px">
+        <div style="height:44px;margin:0 4px 16px;border:1px dashed rgba(237,242,238,.28);border-radius:4px;display:flex;align-items:center;justify-content:center;font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--forest-slate);text-transform:uppercase">logo slot</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:2px;background:var(--green);color:var(--on-green);font:600 14px/1 Manrope,sans-serif"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M5 4h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1"></path><path d="M5 16h4a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1"></path><path d="M15 12h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1"></path><path d="M15 4h4a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-2a1 1 0 0 1 1 -1"></path></svg>Дашборд</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 14px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:rgba(237,242,238,.08)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2"></path><path d="M9 9l1 0"></path><path d="M9 13l6 0"></path><path d="M9 17l6 0"></path></svg>Заявки</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 14px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:rgba(237,242,238,.08)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M9.615 20h-2.615a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8"></path><path d="M14 19l2 2l4 -4"></path><path d="M9 8h4"></path><path d="M9 12h2"></path></svg>Согласование<span style="margin-left:auto;font:600 11px/1 'JetBrains Mono',monospace;color:var(--forest-slate)">14</span></div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 14px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:rgba(237,242,238,.08)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M4 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path><path d="M15 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path><path d="M17 17h-11v-14h-2"></path><path d="M6 5l14 1l-1 7h-13"></path></svg>Закуп</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 14px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:rgba(237,242,238,.08)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12"></path><path d="M20 12v4h-4a2 2 0 0 1 0 -4h4"></path></svg>Финансы</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 14px/1 Manrope,sans-serif;transition:all 150ms ease-out" style-hover="background:rgba(237,242,238,.08)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6"></path><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10"></path><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14"></path><path d="M4 20h14"></path></svg>Отчёты</div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(237,242,238,.14);display:flex;align-items:center;gap:12px;height:40px;padding-left:12px;padding-right:12px;color:var(--forest-slate);font:500 14px/1 Manrope,sans-serif"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065"></path><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"></path></svg>Настройки</div>
+      </div>
+      <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:12px">
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px 24px;display:flex;flex-direction:column;gap:4px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Active</div><div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">Зелёная плашка, radius 2 px, высокая контрастность текста.</div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px 24px;display:flex;flex-direction:column;gap:4px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Hover</div><div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">Подсветка 8% от Ink на Forest, переход 150 ms ease-out.</div></div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px 24px;display:flex;flex-direction:column;gap:4px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Role-based</div><div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">Сотрудник не видит «Финансы» и «Закуп» — пункты отсутствуют в DOM.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 MOBILE NAV -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">11</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Mobile navigation · drawer</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">На 390 px sidebar превращается в drawer до 320 px. Нижнего таб-бара нет. Touch target — минимум 44 × 44 px.</p>
+    </div>
+    <div ref="{{ phoneRef }}" style="width:390px;max-width:100%;height:560px;position:relative;overflow:hidden;background:var(--mist);border:1px solid var(--line);border-radius:4px;--drawer-x:-100%;--scrim-o:0;--scrim-pe:none">
+      <div style="height:56px;background:var(--paper);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 8px">
+        <button onClick="{{ openDrawer }}" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:2px;color:var(--ink)"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M4 6l16 0"></path><path d="M4 12l16 0"></path><path d="M4 18l16 0"></path></svg></button>
+        <div style="flex:1;height:28px;border:1px dashed var(--line);border-radius:2px;display:flex;align-items:center;justify-content:center;font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--grey);text-transform:uppercase">logo slot</div>
+        <button style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:2px;color:var(--ink)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"></path><path d="M21 21l-6 -6"></path></svg></button>
+        <button style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:2px;color:var(--ink)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"></path><path d="M9 17v1a3 3 0 0 0 6 0v-1"></path></svg></button>
+      </div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:8px">
+        <div style="font:700 24px/1.2 Manrope,sans-serif;margin-bottom:8px">Мои заявки</div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;gap:12px"><div style="font:600 16px/1.3 Manrope,sans-serif">Закуп кабеля UTP Cat6</div></div>
+          <div style="font:400 13px/1.3 'JetBrains Mono',monospace;color:var(--slate)">РЗ-0048 · 08.09.2026 · Регар</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #2E6FD9;font:600 13px/1 Manrope,sans-serif"><span style="width:6px;height:6px;border-radius:50%;background:#2E6FD9"></span>У закупа</span>
+            <span style="font:600 14px/1 'JetBrains Mono',monospace">3 355,00</span>
+          </div>
+        </div>
+        <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px">
+          <div style="font:600 16px/1.3 Manrope,sans-serif">Расходные материалы для серверной</div>
+          <div style="font:400 13px/1.3 'JetBrains Mono',monospace;color:var(--slate)">РЗ-0047 · 05.09.2026 · Душанбе</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #E0A126;font:600 13px/1 Manrope,sans-serif"><span style="width:6px;height:6px;border-radius:50%;background:#E0A126"></span>Согласование суммы</span>
+            <span style="font:600 14px/1 'JetBrains Mono',monospace">12 400,00</span>
+          </div>
+        </div>
+      </div>
+      <div onClick="{{ closeDrawer }}" style="position:absolute;inset:0;background:rgba(16,22,19,.4);opacity:var(--scrim-o);pointer-events:var(--scrim-pe);transition:opacity 150ms ease-out"></div>
+      <div style="position:absolute;top:0;bottom:0;left:0;width:320px;background:var(--forest);box-shadow:var(--shadow-2);transform:translateX(var(--drawer-x));transition:transform 150ms ease-out;padding:16px 12px;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+          <div style="flex:1;height:44px;border:1px dashed rgba(237,242,238,.28);border-radius:4px;display:flex;align-items:center;justify-content:center;font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--forest-slate);text-transform:uppercase">logo slot</div>
+          <button onClick="{{ closeDrawer }}" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:2px;color:var(--forest-ink)"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter"><path d="M18 6l-12 12"></path><path d="M6 6l12 12"></path></svg></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:48px;padding:0 12px;border-radius:2px;background:var(--green);color:var(--on-green);font:600 16px/1 Manrope,sans-serif">Мои заявки</div>
+        <div style="display:flex;align-items:center;gap:12px;height:48px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 16px/1 Manrope,sans-serif">Создать заявку</div>
+        <div style="display:flex;align-items:center;gap:12px;height:48px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 16px/1 Manrope,sans-serif">Согласование<span style="margin-left:auto;font:600 13px/1 'JetBrains Mono',monospace;color:var(--forest-slate)">14</span></div>
+        <div style="display:flex;align-items:center;gap:12px;height:48px;padding:0 12px;border-radius:2px;color:var(--forest-ink);font:500 16px/1 Manrope,sans-serif">Объекты</div>
+        <div style="margin-top:auto;display:flex;align-items:center;gap:12px;height:48px;padding:0 12px;border-radius:2px;color:var(--forest-slate);font:500 16px/1 Manrope,sans-serif">Настройки</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 ТАБЛИЦЫ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">12</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Таблицы</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Строка 44 px, header в Mono 11–12 px uppercase, суммы вправо, номера и даты в Mono, hover — очень лёгкий фон.</p>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:760px">
+        <thead>
+          <tr style="background:var(--zebra)">
+            <th style="text-align:left;padding:0 16px;height:36px;border-bottom:1px solid var(--line);font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase;white-space:nowrap">Номер</th>
+            <th style="text-align:left;padding:0 16px;height:36px;border-bottom:1px solid var(--line);font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Наименование</th>
+            <th style="text-align:left;padding:0 16px;height:36px;border-bottom:1px solid var(--line);font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Объект</th>
+            <th style="text-align:left;padding:0 16px;height:36px;border-bottom:1px solid var(--line);font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Статус</th>
+            <th style="text-align:left;padding:0 16px;height:36px;border-bottom:1px solid var(--line);font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase;white-space:nowrap">Дата</th>
+            <th style="text-align:right;padding:0 16px;height:36px;border-bottom:1px solid var(--line);font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase;white-space:nowrap">Сумма, TJS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;white-space:nowrap">РЗ-0048</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif">Закуп кабеля UTP Cat6</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif;color:var(--slate)">Регар</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line)"><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #2E6FD9;font:600 13px/1 Manrope,sans-serif;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:#2E6FD9"></span>У закупа</span></td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1 'JetBrains Mono',monospace;color:var(--slate);white-space:nowrap">08.09.2026</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;text-align:right;white-space:nowrap">3 355,00</td>
+          </tr>
+          <tr style="transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;white-space:nowrap">РЗ-0047</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif">Расходные материалы для серверной</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif;color:var(--slate)">Душанбе</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line)"><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #E0A126;font:600 13px/1 Manrope,sans-serif;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:#E0A126"></span>Согласование суммы</span></td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1 'JetBrains Mono',monospace;color:var(--slate);white-space:nowrap">05.09.2026</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;text-align:right;white-space:nowrap">12 400,00</td>
+          </tr>
+          <tr style="transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;white-space:nowrap">РЗ-0046</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif">Замена ИБП в узле связи</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif;color:var(--slate)">Худжанд</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line)"><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #22A74E;font:600 13px/1 Manrope,sans-serif;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:#22A74E"></span>Оплачена</span></td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1 'JetBrains Mono',monospace;color:var(--slate);white-space:nowrap">02.09.2026</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;text-align:right;white-space:nowrap">28 900,00</td>
+          </tr>
+          <tr style="transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:600 14px/1 'JetBrains Mono',monospace;white-space:nowrap">РЗ-0045</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif">Канцелярия на сентябрь</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1.4 Manrope,sans-serif;color:var(--slate)">Бохтар</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line)"><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #9AA39C;font:600 13px/1 Manrope,sans-serif;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:#9AA39C"></span>Черновик</span></td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1 'JetBrains Mono',monospace;color:var(--slate);white-space:nowrap">01.09.2026</td>
+            <td style="padding:0 16px;height:var(--row-h);border-bottom:1px solid var(--line);font:400 14px/1 'JetBrains Mono',monospace;text-align:right;color:var(--grey);white-space:nowrap">не оценена</td>
+          </tr>
+          <tr style="transition:background 150ms ease-out" style-hover="background:var(--zebra)">
+            <td style="padding:0 16px;height:var(--row-h);font:600 14px/1 'JetBrains Mono',monospace;white-space:nowrap">РЗ-0044</td>
+            <td style="padding:0 16px;height:var(--row-h);font:400 14px/1.4 Manrope,sans-serif">Аренда автовышки</td>
+            <td style="padding:0 16px;height:var(--row-h);font:400 14px/1.4 Manrope,sans-serif;color:var(--slate)">Регар</td>
+            <td style="padding:0 16px;height:var(--row-h)"><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #B8382C;font:600 13px/1 Manrope,sans-serif;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:#B8382C"></span>Отклонена</span></td>
+            <td style="padding:0 16px;height:var(--row-h);font:400 14px/1 'JetBrains Mono',monospace;color:var(--slate);white-space:nowrap">29.08.2026</td>
+            <td style="padding:0 16px;height:var(--row-h);font:600 14px/1 'JetBrains Mono',monospace;text-align:right;white-space:nowrap">4 100,00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 13 MOBILE КАРТОЧКА -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">13</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Mobile вместо таблиц</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Таблица шириной 800 px не переносится на 390 px. Строка становится карточкой примерно до 100 px высотой.</p>
+    </div>
+    <div style="width:358px;max-width:100%;display:flex;flex-direction:column;gap:8px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 16px/1.25 Manrope,sans-serif">Закуп кабеля UTP Cat6</div>
+        <div style="font:400 13px/1.3 'JetBrains Mono',monospace;color:var(--slate)">РЗ-0048 · 08.09.2026 · Регар</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <span style="display:inline-flex;align-items:center;gap:8px;font:600 13px/1 Manrope,sans-serif"><span style="width:6px;height:6px;border-radius:50%;background:#2E6FD9"></span>У закупа · 2 дня</span>
+          <span style="font:600 14px/1 'JetBrains Mono',monospace">3 355,00</span>
+        </div>
+      </div>
+      <div style="font:400 11px/1.4 'JetBrains Mono',monospace;color:var(--grey)">≈ 100 px · touch target 44 px</div>
+    </div>
+  </section>
+
+  <!-- 14 WORKFLOW -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">14</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Workflow заявки</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Completed — green, current — выраженный индикатор с подписью, future — grey, rejected — red.</p>
+    </div>
+    <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:24px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:stretch">
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:8px"><div style="height:4px;background:var(--green)"></div><div style="font:600 13px/1.3 Manrope,sans-serif;color:var(--ink)">Черновик</div><div style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate)">01.09</div></div>
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:8px"><div style="height:4px;background:var(--green)"></div><div style="font:600 13px/1.3 Manrope,sans-serif;color:var(--ink)">Согласование покупки</div><div style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--slate)">04.09</div></div>
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:8px"><div style="height:4px;background:#2E6FD9"></div><div style="display:flex;align-items:center;gap:8px;font:700 13px/1.3 Manrope,sans-serif;color:var(--ink)"><span style="width:6px;height:6px;border-radius:50%;background:#2E6FD9"></span>У закупа</div><div style="font:600 11px/1.3 'JetBrains Mono',monospace;color:#2E6FD9">СЕЙЧАС · 2 ДНЯ</div></div>
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:8px"><div style="height:4px;background:var(--line)"></div><div style="font:500 13px/1.3 Manrope,sans-serif;color:var(--grey)">Согласование суммы</div><div style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--grey)">—</div></div>
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:8px"><div style="height:4px;background:var(--line)"></div><div style="font:500 13px/1.3 Manrope,sans-serif;color:var(--grey)">К оплате</div><div style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--grey)">—</div></div>
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:8px"><div style="height:4px;background:var(--line)"></div><div style="font:500 13px/1.3 Manrope,sans-serif;color:var(--grey)">Оплачена</div><div style="font:400 11px/1.3 'JetBrains Mono',monospace;color:var(--grey)">—</div></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:24px;border-top:1px solid var(--line);padding-top:24px">
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:220px;flex:1"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Ветвь склада</div><div style="display:flex;gap:8px;align-items:center"><div style="height:4px;width:64px;background:var(--green)"></div><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #22A74E;font:600 13px/1 Manrope,sans-serif"><span style="width:6px;height:6px;border-radius:50%;background:#22A74E"></span>Выдано со склада</span></div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">Если товар полностью со склада — отдельная конечная ветвь.</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:220px;flex:1"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Rejected</div><div style="display:flex;gap:8px;align-items:center"><div style="height:4px;width:64px;background:#B8382C"></div><span style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border:1px solid #B8382C;font:600 13px/1 Manrope,sans-serif"><span style="width:6px;height:6px;border-radius:50%;background:#B8382C"></span>Отклонена</span></div><div style="font:400 13px/1.4 Manrope,sans-serif;color:var(--slate)">Причина отклонения показывается текстом рядом со статусом.</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;border-top:1px solid var(--line);padding-top:24px">
+        <div style="border:1px solid var(--line);border-left:2px solid #2E6FD9;border-radius:2px;padding:16px;display:flex;flex-direction:column;gap:4px;background:var(--zebra)">
+          <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Сейчас ждёт</div>
+          <div style="font:700 19px/1.3 Manrope,sans-serif">Отдел закупа</div>
+          <div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">На этапе 2 дня</div>
+        </div>
+        <div style="border:1px solid #E0A126;border-left:2px solid #E0A126;border-radius:2px;padding:16px;display:flex;flex-direction:column;gap:4px;background:var(--zebra)">
+          <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Сейчас ждёт · задержка</div>
+          <div style="font:700 19px/1.3 Manrope,sans-serif">Руководитель объекта</div>
+          <div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">На этапе 5 дней</div>
+        </div>
+      </div>
+      <p style="display:var(--note-d);margin:0;font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">После трёх дней блок становится заметнее, но не превращается в красную ошибку — заявка просто задерживается.</p>
+    </div>
+  </section>
+
+  <!-- 15 ДЕНЬГИ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">15</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Формат денег</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--green-dark);text-transform:uppercase"><span style="width:6px;height:6px;border-radius:50%;background:var(--green)"></span>Верно</div>
+        <div style="font:600 19px/1.4 'JetBrains Mono',monospace">3 355,00</div>
+        <div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">В интерфейсе: <span style="font:600 14px/1 'JetBrains Mono',monospace;color:var(--ink)">3 355,00 сомони</span></div>
+        <div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">В шапке таблицы: <span style="font:600 14px/1 'JetBrains Mono',monospace;color:var(--ink)">Сумма, TJS</span></div>
+        <div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">До оценки: <span style="font:600 14px/1 'JetBrains Mono',monospace;color:var(--ink)">не оценена</span></div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:#B8382C;text-transform:uppercase"><span style="width:6px;height:6px;border-radius:50%;background:#B8382C"></span>Неверно</div>
+        <div style="font:600 19px/1.4 'JetBrains Mono',monospace;color:var(--grey);text-decoration:line-through">3355</div>
+        <div style="font:600 19px/1.4 'JetBrains Mono',monospace;color:var(--grey);text-decoration:line-through">3,355.00</div>
+        <div style="font:600 19px/1.4 'JetBrains Mono',monospace;color:var(--grey);text-decoration:line-through">0,00</div>
+        <div style="font:400 14px/1.5 Manrope,sans-serif;color:var(--slate)">Ноль вместо «не оценена» недопустим: оценка ещё не проводилась.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16 ГРАФИКИ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">16</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Графики</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">Только horizontal и vertical bar. Pie и donut запрещены. Один график отвечает на один вопрос.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div style="font:700 19px/1.3 Manrope,sans-serif">Регар — крупнейший объект по расходам за сентябрь</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;font:400 14px/1.4 Manrope,sans-serif"><span>Регар</span><span style="font:600 14px/1.4 'JetBrains Mono',monospace">86 400,00</span></div><div style="height:12px;background:var(--mist)"><div style="width:100%;height:12px;background:#0E3B21"></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;font:400 14px/1.4 Manrope,sans-serif"><span>Душанбе</span><span style="font:600 14px/1.4 'JetBrains Mono',monospace">52 100,00</span></div><div style="height:12px;background:var(--mist)"><div style="width:60%;height:12px;background:#186B36"></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;font:400 14px/1.4 Manrope,sans-serif"><span>Худжанд</span><span style="font:600 14px/1.4 'JetBrains Mono',monospace">38 900,00</span></div><div style="height:12px;background:var(--mist)"><div style="width:45%;height:12px;background:#22A74E"></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;font:400 14px/1.4 Manrope,sans-serif"><span>Бохтар</span><span style="font:600 14px/1.4 'JetBrains Mono',monospace">21 300,00</span></div><div style="height:12px;background:var(--mist)"><div style="width:25%;height:12px;background:#7FBF95"></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;font:400 14px/1.4 Manrope,sans-serif"><span>Куляб</span><span style="font:600 14px/1.4 'JetBrains Mono',monospace">9 800,00</span></div><div style="height:12px;background:var(--mist)"><div style="width:11%;height:12px;background:#B7D6C2"></div></div></div>
+        </div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Зелёная шкала</div>
+        <div style="display:flex;height:64px;border:1px solid var(--line)">
+          <div style="flex:1;background:#0E3B21"></div><div style="flex:1;background:#186B36"></div><div style="flex:1;background:#22A74E"></div><div style="flex:1;background:#7FBF95"></div><div style="flex:1;background:#B7D6C2"></div><div style="flex:1;background:#DCEAE1"></div>
+        </div>
+        <div style="display:flex;gap:8px;font:400 11px/1.4 'JetBrains Mono',monospace;color:var(--slate);flex-wrap:wrap"><span>0E3B21</span><span>186B36</span><span>22A74E</span><span>7FBF95</span><span>B7D6C2</span><span>DCEAE1</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17 ТЕНИ И MOTION -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">17</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Тени и motion</h2>
+      <p style="display:var(--note-d);margin:0;font:400 14px/1.5 Manrope,sans-serif;color:var(--slate);max-width:62ch">shadow-2 только для modal, drawer, dropdown и overlay. Одна базовая анимация — 150 ms ease-out.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;box-shadow:var(--shadow-1);display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">shadow-1</div><div style="font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">0 1px 2px rgba(16,22,19,.06)</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;gap:8px"><div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">shadow-2</div><div style="font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">0 8px 24px rgba(16,22,19,.14)</div></div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">150 ms ease-out</div>
+        <div style="height:44px;border:1px solid var(--line);border-radius:4px;display:flex;align-items:center;padding:0 16px;font:600 14px/1 Manrope,sans-serif;color:var(--slate);transition:all 150ms ease-out;cursor:default" style-hover="background:var(--green);border-color:var(--green);color:var(--on-green)">Наведите курсор</div>
+        <div style="font:400 13px/1.5 Manrope,sans-serif;color:var(--slate)">Без parallax, scroll-анимаций, переходов страниц и «прыгающих» элементов.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 18 ЗАПРЕТЫ -->
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap">
+      <span style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--grey)">18</span>
+      <h2 style="margin:0;font:700 24px/1.2 Manrope,sans-serif">Границы системы</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px">
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Логотип</div>
+        <div style="font:400 14px/1.56 Manrope,sans-serif">Логотип не создаётся и не набирается текстом. Используются только официальные SVG/PNG assets проекта. Если asset отсутствует — остаётся logo-slot.</div>
+        <div style="height:44px;border:1px dashed var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--grey);text-transform:uppercase">logo slot</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Не переносить с референса</div>
+        <div style="font:400 14px/1.56 Manrope,sans-serif;color:var(--slate)">Фотографии кабеля и объектов, блок «Файлы», категории, комментарии, нижнее мобильное меню, произвольные KPI, действия, которых нет в API.</div>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--slate);text-transform:uppercase">Токены, а не хардкод</div>
+        <div style="font:600 13px/1.7 'JetBrains Mono',monospace;color:var(--green-dark)">background: var(--paper);<br>color: var(--ink);<br>border-color: var(--line);</div>
+        <div style="font:600 13px/1.7 'JetBrains Mono',monospace;color:var(--grey);text-decoration:line-through">background: #fff;<br>color: #111;</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;,&quot;section&quot;:&quot;Тема&quot;},&quot;iconStroke&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1.6,&quot;min&quot;:1.2,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Иконки&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;'comfortable'|'compact'&quot;,&quot;section&quot;:&quot;Таблицы&quot;},&quot;showRules&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Документация&quot;}}">
+class Component extends DCLogic {
+  state = { theme: 'light' };
+
+  componentDidMount() {
+    let saved = null;
+    try { saved = localStorage.getItem('hona-ui-theme'); } catch (e) {}
+    const t = saved || this.props.theme || 'light';
+    this.applyTheme(t);
+    this.setState({ theme: t });
+    this.syncVars();
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.theme !== this.props.theme && this.props.theme) this.applyTheme(this.props.theme);
+    if (prevProps.iconStroke !== this.props.iconStroke ||
+        prevProps.showRules !== this.props.showRules ||
+        prevProps.density !== this.props.density) this.syncVars();
+  }
+
+  applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('hona-ui-theme', t); } catch (e) {}
+    if (this.state.theme !== t) this.setState({ theme: t });
+  }
+
+  syncVars() {
+    const s = document.documentElement.style;
+    s.setProperty('--stroke', String(this.props.iconStroke ?? 1.6));
+    s.setProperty('--note-d', (this.props.showRules ?? true) ? 'block' : 'none');
+    s.setProperty('--row-h', this.props.density === 'compact' ? '36px' : '44px');
+  }
+
+  setDrawer(open) {
+    const el = this.phone;
+    if (!el) return;
+    el.style.setProperty('--drawer-x', open ? '0px' : '-100%');
+    el.style.setProperty('--scrim-o', open ? '1' : '0');
+    el.style.setProperty('--scrim-pe', open ? 'auto' : 'none');
+  }
+
+  renderVals() {
+    return {
+      setLight: () => this.applyTheme('light'),
+      setDark: () => this.applyTheme('dark'),
+      phoneRef: (el) => { this.phone = el; },
+      openDrawer: () => this.setDrawer(true),
+      closeDrawer: () => this.setDrawer(false)
+    };
+  }
+}
+</script>
+</body>
+</html>

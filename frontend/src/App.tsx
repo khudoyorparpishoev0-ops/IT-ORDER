@@ -14,6 +14,8 @@ import { NotFound } from '@/pages/NotFound';
 import { Projects } from '@/pages/Projects';
 import { Reports } from '@/pages/Reports';
 import { Requests } from '@/pages/Requests';
+import { RequestForm } from '@/pages/RequestForm';
+import { RequestPage } from '@/pages/RequestPage';
 import { Settings } from '@/pages/Settings';
 import { Sourcing } from '@/pages/Sourcing';
 import { Team } from '@/pages/Team';
@@ -70,6 +72,9 @@ export function App() {
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
         <Route path="requests" element={<Requests />} />
+        <Route path="requests/new" element={<RequestForm />} />
+        <Route path="requests/:id" element={<RequestPage />} />
+        <Route path="requests/:id/edit" element={<RequestForm />} />
         <Route
           path="approvals"
           element={

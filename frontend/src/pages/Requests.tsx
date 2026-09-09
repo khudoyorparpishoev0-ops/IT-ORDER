@@ -1,224 +1,169 @@
-import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
+import { Pager } from '@/components/Pager';
 import { QueryState } from '@/components/QueryState';
-import { NewRequestModal } from '@/components/NewRequestModal';
-import { RequestModal } from '@/components/RequestModal';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useDownload } from '@/hooks/useDownload';
-import { useSortedRequests } from '@/hooks/useSortedRequests';
-import { useRequests } from '@/api/hooks';
-import { monthAfterZa, periodLabel, plural } from '@/data/format';
+import { useProjects, useRequests } from '@/api/hooks';
+import { monthTitle, plural } from '@/data/format';
 import { STATUS, STATUS_ORDER } from '@/data/status';
-import type { RequestListItem, RequestStatus } from '@/api/types';
-
-type Filter = RequestStatus | 'all';
+import type { RequestStatus } from '@/api/types';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Все заявки. Фильтры живут в адресе: ссылку с фильтром можно переслать,
+ * а поиск из топбара приходит сюда параметром q.
+ */
 export function Requests() {
   const navigate = useNavigate();
-  // Статус читается из адреса: с «Финансов» сюда приходят по ссылке на
-  // одобренные заявки, и ссылку должно быть видно в адресной строке.
   const [params, setParams] = useSearchParams();
-  const fromUrl = params.get('status') as Filter | null;
-  const [filter, setFilter] = useState<Filter>(
-    fromUrl && (STATUS_ORDER as readonly string[]).includes(fromUrl) ? fromUrl : 'all',
-  );
-  const [page, setPage] = useState(0);
-  const [allPeriods, setAllPeriods] = useState(false);
-  const [modal, setModal] = useState<RequestListItem | null>(null);
-  // Ярлык приложения на телефоне ведёт на /requests?new=1 — форма
-  // открывается сразу, а параметр из адреса убирается, чтобы обновление
-  // страницы не открывало её повторно.
-  const [creating, setCreating] = useState(() => params.get('new') === '1');
-  const closeCreating = () => {
-    setCreating(false);
-    if (params.has('new')) {
-      const next = new URLSearchParams(params);
-      next.delete('new');
-      setParams(next, { replace: true });
+  const status = params.get('status') as RequestStatus | null;
+  const validStatus = status && (STATUS_ORDER as readonly string[]).includes(status) ? status : undefined;
+  const projectId = Number(params.get('project')) || undefined;
+  const q = params.get('q') ?? '';
+  const allPeriods = params.get('all') === '1' || Boolean(q);
+  const page = Math.max(0, Number(params.get('page')) || 0);
+
+  const set = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(params);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k);
+      else next.set(k, v);
     }
+    if (!('page' in patch)) next.delete('page');
+    setParams(next, { replace: true });
   };
-  const { download, busy } = useDownload();
 
   const list = useRequests({
-    status: filter === 'all' ? undefined : filter,
+    status: validStatus,
+    projectId,
+    search: q || undefined,
+    allPeriods,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
-    allPeriods,
   });
-  const { rows, sort, dir, onSort } = useSortedRequests(list.data?.items ?? []);
+  const projects = useProjects();
+  const { download, busy } = useDownload();
 
   const total = list.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  const chips: { key: Filter; label: string }[] = [
-    { key: 'all', label: 'Все' },
-    ...STATUS_ORDER.map((k) => ({ key: k as Filter, label: STATUS[k].label })),
-  ];
-
-  const setFilterAndReset = (key: Filter) => {
-    setFilter(key);
-    setPage(0);
-    setParams(key === 'all' ? {} : { status: key }, { replace: true });
-  };
+  const items = list.data?.items ?? [];
+  const filtered = Boolean(validStatus || projectId || q);
 
   return (
     <>
       <PageHeader
-        kicker={periodLabel()}
-        title="Заявки"
-        lead={`${total} ${plural(total, 'заявка', 'заявки', 'заявок')} ${
-          allPeriods ? 'за всё время' : `за ${monthAfterZa()}`
-        }`}
+        title="Все заявки"
+        lead={
+          list.data
+            ? `${total} ${plural(total, 'запись', 'записи', 'записей')} · ${allPeriods ? 'за всё время' : monthTitle()}`
+            : undefined
+        }
         actions={
-          <>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy !== null}
-              onClick={() =>
-                // Выгружается текущий фильтр, а не только открытая страница.
-                download('xlsx', '/api/exports/requests.xlsx', {
-                  status: filter === 'all' ? undefined : filter,
-                  all_periods: allPeriods,
-                })
-              }
-            >
-              <Icon name="ti-file-spreadsheet" />
-              {busy ? 'Готовим…' : 'Excel'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setCreating(true)}
-            >
-              <Icon name="ti-plus" />
-              Новая заявка
-            </button>
-          </>
+          <button type="button" className="btn btn-primary" onClick={() => navigate('/requests/new')}>
+            <Icon name="ti-plus" size={18} />
+            Создать заявку
+          </button>
         }
       />
 
-      <div className="filters">
-        <div className="chips">
-          {chips.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              className="chip"
-              aria-pressed={filter === c.key}
-              onClick={() => setFilterAndReset(c.key)}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-        <label className="period">
-          <span className="sr-only">Период</span>
-          <select
-            className="field"
-            value={allPeriods ? 'all' : 'current'}
-            onChange={(e) => {
-              setAllPeriods(e.target.value === 'all');
-              setPage(0);
-            }}
-          >
-            <option value="current">Текущий месяц</option>
-            <option value="all">Все периоды</option>
-          </select>
+      <div className="filter-row">
+        <label className="sr-only" htmlFor="f-status">
+          Статус
         </label>
+        <select
+          id="f-status"
+          className={`filter${validStatus ? ' is-active' : ''}`}
+          value={validStatus ?? ''}
+          onChange={(e) => set({ status: e.target.value || null })}
+        >
+          <option value="">Все статусы</option>
+          {STATUS_ORDER.map((s) => (
+            <option key={s} value={s}>
+              {STATUS[s].label}
+            </option>
+          ))}
+        </select>
+        <label className="sr-only" htmlFor="f-project">
+          Объект
+        </label>
+        <select
+          id="f-project"
+          className={`filter${projectId ? ' is-active' : ''}`}
+          value={projectId ?? ''}
+          onChange={(e) => set({ project: e.target.value || null })}
+        >
+          <option value="">Объект: все</option>
+          {(projects.data ?? []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <label className="sr-only" htmlFor="f-period">
+          Период
+        </label>
+        <select
+          id="f-period"
+          className="filter mono"
+          value={allPeriods ? 'all' : 'month'}
+          onChange={(e) => set({ all: e.target.value === 'all' ? '1' : null })}
+          disabled={Boolean(q)}
+        >
+          <option value="month">{monthTitle()}</option>
+          <option value="all">все периоды</option>
+        </select>
+        {q && (
+          <button type="button" className="filter is-active" onClick={() => set({ q: null, all: null })} aria-label={`Убрать поиск «${q}»`}>
+            <Icon name="ti-search" size={14} />
+            {q}
+            <Icon name="ti-x" size={14} />
+          </button>
+        )}
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={busy !== null}
+          onClick={() =>
+            download('xlsx', '/api/exports/requests.xlsx', {
+              status: validStatus,
+              project_id: projectId,
+              search: q || undefined,
+              all_periods: allPeriods || undefined,
+            })
+          }
+        >
+          <Icon name="ti-file-spreadsheet" size={18} />
+          {busy ? 'Готовим…' : 'Excel'}
+        </button>
       </div>
 
       <QueryState
         isLoading={list.isLoading}
         error={list.error}
-        isEmpty={rows.length === 0}
-        emptyTitle="По выбранному фильтру заявок нет"
-        emptyNote="Измените статус или период — или сбросьте фильтр и посмотрите все заявки."
+        isEmpty={!list.isLoading && items.length === 0}
+        emptyTitle={filtered ? 'По выбранному фильтру заявок нет' : 'Заявок пока нет'}
+        emptyNote={filtered ? 'Измените статус, объект или период — или сбросьте фильтр.' : 'Создайте первую заявку: объект и позиции, цены назовёт закуп.'}
         emptyAction={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setFilterAndReset('all')}
-          >
-            Сбросить фильтр
-          </button>
+          filtered ? (
+            <button type="button" className="btn btn-secondary" onClick={() => setParams({}, { replace: true })}>
+              Сбросить фильтр
+            </button>
+          ) : (
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/requests/new')}>
+              Создать заявку
+            </button>
+          )
         }
         onRetry={() => list.refetch()}
       >
         <div className="panel">
-          <RequestsTable
-            rows={rows}
-            sort={sort}
-            dir={dir}
-            onSort={onSort}
-            onOpen={setModal}
-            withRole
-          />
-          <nav
-            aria-label="Страницы"
-            style={{
-              padding: 'var(--pad)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-              flexWrap: 'wrap',
-            }}
-          >
-            <span className="label">
-              ПОКАЗАНО {rows.length} ИЗ {total}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn-icon"
-                aria-label="Предыдущая страница"
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-              >
-                <Icon name="ti-chevron-left" />
-              </button>
-              {Array.from({ length: pages }, (_, i) => i)
-                .slice(Math.max(0, page - 1), Math.max(0, page - 1) + 3)
-                .map((i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`btn btn-icon${i === page ? ' btn-primary' : ''}`}
-                    aria-current={i === page ? 'page' : undefined}
-                    onClick={() => setPage(i)}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              <button
-                type="button"
-                className="btn btn-icon"
-                aria-label="Следующая страница"
-                disabled={page >= pages - 1}
-                onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
-              >
-                <Icon name="ti-chevron-right" />
-              </button>
-            </div>
-          </nav>
+          <RequestsTable rows={items} />
         </div>
+        <Pager total={total} offset={page * PAGE_SIZE} limit={PAGE_SIZE} onChange={(offset) => set({ page: String(offset / PAGE_SIZE) })} />
       </QueryState>
-
-      {creating && <NewRequestModal onClose={closeCreating} />}
-
-      <RequestModal
-        request={modal}
-        onClose={() => setModal(null)}
-        onOpenApprovals={() => {
-          setModal(null);
-          navigate('/approvals');
-        }}
-      />
     </>
   );
 }

@@ -37,7 +37,12 @@ export type IconName =
   | 'ti-history'
   | 'ti-filter'
   | 'ti-server-2'
-  | 'ti-device-cctv';
+  | 'ti-device-cctv'
+  | 'ti-checklist'
+  | 'ti-shopping-cart'
+  | 'ti-bell'
+  | 'ti-logout'
+  | 'ti-arrow-left';
 
 /** Монтируется один раз в корне приложения. */
 export function IconSprite() {
@@ -174,6 +179,32 @@ export function IconSprite() {
       <symbol id="ti-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M12 8l0 4l2 2"></path>
       <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
+      </symbol>
+      <symbol id="ti-checklist" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M9.615 20h-2.615a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8"></path>
+      <path d="M14 19l2 2l4 -4"></path>
+      <path d="M9 8h4"></path>
+      <path d="M9 12h2"></path>
+      </symbol>
+      <symbol id="ti-shopping-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+      <path d="M17 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"></path>
+      <path d="M17 17h-11v-14h-2"></path>
+      <path d="M6 5l14 1l-1 7h-13"></path>
+      </symbol>
+      <symbol id="ti-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"></path>
+      <path d="M9 17v1a3 3 0 0 0 6 0v-1"></path>
+      </symbol>
+      <symbol id="ti-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2"></path>
+      <path d="M9 12h12l-3 -3"></path>
+      <path d="M18 15l3 -3"></path>
+      </symbol>
+      <symbol id="ti-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M5 12l14 0"></path>
+      <path d="M5 12l6 6"></path>
+      <path d="M5 12l6 -6"></path>
       </symbol>
       <symbol id="ti-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"></path>

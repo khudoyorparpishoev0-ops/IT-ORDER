@@ -25,8 +25,11 @@ import { setupPwa } from './pwa';
  */
 function onUnauthorized(error: unknown): void {
   if (error instanceof ApiError && error.status === 401) {
+    // «Сессия истекла» — только если сессия была: первый 401 на /me у
+    // гостя — это не истёкшая сессия, а её отсутствие.
+    const hadUser = Boolean(queryClient.getQueryData(['auth', 'me']));
     queryClient.setQueryData(['auth', 'me'], null);
-    markSessionExpired();
+    if (hadUser) markSessionExpired();
   }
 }
 

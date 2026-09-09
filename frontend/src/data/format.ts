@@ -108,3 +108,20 @@ export function plural(n: number, one: string, few: string, many: string): strin
 export function days(n: number): string {
   return `${n} ${plural(n, 'день', 'дня', 'дней')}`;
 }
+
+/** Месяц в именительном падеже строчными: «сентябрь 2026». */
+export function monthTitle(date = new Date()): string {
+  return `${MONTHS_NOMINATIVE[date.getMonth()].toLowerCase()} ${date.getFullYear()}`;
+}
+
+/** Период дашборда: «01.09.2026 — 08.09.2026» (с начала месяца по сегодня). */
+export function periodRange(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const mm = pad(date.getMonth() + 1);
+  return `01.${mm}.${date.getFullYear()} — ${pad(date.getDate())}.${mm}.${date.getFullYear()}`;
+}
+
+/** Сегодняшняя дата строкой 08.09.2026. */
+export function today(): string {
+  return formatDate(new Date().toISOString());
+}

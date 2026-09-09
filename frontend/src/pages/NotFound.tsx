@@ -1,20 +1,19 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
 
 export function NotFound() {
-  const navigate = useNavigate();
   return (
     <>
-      <PageHeader title="Раздел не найден" />
+      <PageHeader title="Раздел не найден" lead="Такого адреса в ORDER нет" />
       <EmptyState
-        kicker="НЕТ ДАННЫХ"
+        kicker="Нет данных"
         title="Такой страницы в ORDER нет"
-        note="Проверьте адрес или вернитесь на панель управления."
+        note="Проверьте адрес или вернитесь на дашборд."
         action={
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>
-            На панель
-          </button>
+          <Link to="/" className="btn btn-primary">
+            На дашборд
+          </Link>
         }
       />
     </>

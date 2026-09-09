@@ -88,6 +88,9 @@ class RequestListItem(BaseModel):
     employee_position: str
     project_id: int
     project_name: str
+    #: Наименование для списка: первая строка сметы (+ «и ещё N»).
+    title: str
+    lines_count: int
     amount: Decimal
     #: false — заявку ещё не оценил закуп, сумма пока ничего не значит.
     priced: bool
