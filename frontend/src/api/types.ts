@@ -69,6 +69,26 @@ export type Material = {
   uses: number;
 };
 
+/** Настроен ли помощник по материалам (ключ Claude API на сервере). */
+export type AssistantStatus = {
+  enabled: boolean;
+  model: string | null;
+};
+
+/** Совет помощника по одной строке заявки. Решение — за человеком. */
+export type MaterialAdvice = {
+  enabled: boolean;
+  /** false — модель не ответила; форма работает без подсказки. */
+  available: boolean;
+  title: string;
+  suggested: string | null;
+  changed: boolean;
+  unit: string | null;
+  /** Так это уже заказывали: предложено написание из каталога. */
+  matches_existing: boolean;
+  notes: string[];
+};
+
 /** Запуск фоновой задачи — строка в списке «Фоновые задачи». */
 export type JobRun = {
   id: number;

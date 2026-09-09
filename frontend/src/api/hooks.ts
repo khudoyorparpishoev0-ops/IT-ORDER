@@ -17,7 +17,9 @@ import type {
   Health,
   JobRun,
   JobRunResult,
+  AssistantStatus,
   Material,
+  MaterialAdvice,
   MonthFact,
   Overview,
   Page,
@@ -44,6 +46,7 @@ export const keys = {
   health: ['health'] as const,
   projects: ['projects'] as const,
   materials: ['materials'] as const,
+  assistant: ['materials', 'assistant'] as const,
   telegram: ['telegram'] as const,
   push: ['push'] as const,
   jobs: ['jobs'] as const,
@@ -192,6 +195,25 @@ export function useMaterials() {
     queryFn: () => api<Material[]>('/api/materials'),
     staleTime: 5 * 60_000,
     refetchOnMount: 'always',
+  });
+}
+
+/** Настроен ли помощник по материалам. Меняется только правкой .env,
+ *  поэтому держим долго. */
+export function useAssistantStatus() {
+  return useQuery({
+    queryKey: keys.assistant,
+    queryFn: () => api<AssistantStatus>('/api/materials/assistant'),
+    staleTime: 30 * 60_000,
+  });
+}
+
+/** Совет по написанию материала. Мутация, а не запрос: зовётся по
+ *  событию (поле потеряло фокус), а не при каждом рендере. */
+export function useMaterialAdvice() {
+  return useMutation({
+    mutationFn: (data: { title: string; unit: string | null }) =>
+      api<MaterialAdvice>('/api/materials/advice', { method: 'POST', body: JSON.stringify(data) }),
   });
 }
 

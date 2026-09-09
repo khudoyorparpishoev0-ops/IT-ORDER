@@ -135,6 +135,57 @@ def _no_outgoing_push():
     push.set_transport(None)
 
 
+@pytest.fixture(autouse=True)
+def _no_outgoing_assistant():
+    """Помощник по материалам в тестах не ходит к Claude API.
+
+    Транспорт-заглушка отвечает как выключенный помощник; фикстура
+    assistant_box подменяет его своим ответом.
+    """
+    from app.core import assistant
+    from app.services import material_assistant
+
+    class Silent:
+        def ask(self, *, system, prompt, schema):
+            raise assistant.AssistantError("помощник выключен в тестах")
+
+    assistant.set_transport(Silent())
+    material_assistant.clear_cache()
+    yield
+    assistant.set_transport(None)
+    material_assistant.clear_cache()
+
+
+@pytest.fixture
+def assistant_box(monkeypatch):
+    """Помощник включён, модель отвечает заранее заданным советом.
+
+    Возвращает список вопросов (prompt), заданных модели, и объект с
+    полем `answer`, которое тест выставляет перед запросом.
+    """
+    from app.config import get_settings
+    from app.core import assistant
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    get_settings.cache_clear()
+
+    class Box:
+        answer = None
+        prompts: list[str] = []
+
+        def ask(self, *, system, prompt, schema):
+            self.prompts.append(prompt)
+            if self.answer is None:
+                raise assistant.AssistantError("модель не отвечает")
+            return schema(**self.answer)
+
+    box = Box()
+    assistant.set_transport(box)
+    yield box
+    assistant.set_transport(None)
+    get_settings.cache_clear()
+
+
 @pytest.fixture
 def push_box(monkeypatch):
     """Перехватывает push-уведомления и включает push в настройках.

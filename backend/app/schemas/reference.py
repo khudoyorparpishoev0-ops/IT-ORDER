@@ -33,6 +33,35 @@ class ProjectUpdate(BaseModel):
     active: bool | None = None
 
 
+class MaterialAdviceIn(BaseModel):
+    """Что сотрудник написал в строке заявки."""
+
+    title: str = Field(min_length=1, max_length=200)
+    unit: str | None = Field(default=None, max_length=32)
+
+
+class MaterialAdviceOut(BaseModel):
+    """Совет помощника. Решение остаётся за человеком."""
+
+    #: Помощник настроен (задан ключ). False — карточку не показывать.
+    enabled: bool
+    #: Модель ответила. False — сбой, форма работает без подсказки.
+    available: bool
+    title: str
+    #: Грамотное написание; совпадает с title, если править нечего.
+    suggested: str | None = None
+    changed: bool = False
+    unit: str | None = None
+    #: Такое уже заказывали — предложено написание из каталога.
+    matches_existing: bool = False
+    notes: list[str] = []
+
+
+class AssistantStatus(BaseModel):
+    enabled: bool
+    model: str | None
+
+
 class MaterialOut(BaseModel):
     """Подсказка для поля «что нужно»: как это называли раньше."""
 

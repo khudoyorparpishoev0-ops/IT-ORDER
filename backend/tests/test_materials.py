@@ -90,3 +90,85 @@ def test_suggestions_require_login(client) -> None:
 
 def test_empty_catalog_is_not_an_error(as_employee) -> None:
     assert titles(as_employee) == []
+
+
+# --- Помощник по материалам ---------------------------------------------------
+
+
+def advice(client, title: str, unit: str | None = None) -> dict:
+    response = client.post("/api/materials/advice", json={"title": title, "unit": unit})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_assistant_is_off_without_key(as_employee) -> None:
+    """Без ключа помощник выключен, а форма работает как раньше."""
+    status = as_employee.get("/api/materials/assistant").json()
+    assert status == {"enabled": False, "model": None}
+    from app.core import assistant
+
+    assistant.set_transport(None)
+    body = advice(as_employee, "гофра16")
+    assert body["enabled"] is False and body["available"] is False
+
+
+def test_assistant_fixes_spelling_and_units(as_employee, assistant_box) -> None:
+    assistant_box.answer = {
+        "normalized": "Гофра 16 мм",
+        "unit": "м",
+        "matches_existing": False,
+        "notes": ["Укажите цвет и тип: ПВХ или металл"],
+    }
+    body = advice(as_employee, "гофра16")
+    assert body["enabled"] and body["available"]
+    assert body["suggested"] == "Гофра 16 мм"
+    assert body["changed"] is True
+    assert body["unit"] == "м"
+    assert body["notes"] == ["Укажите цвет и тип: ПВХ или металл"]
+
+
+def test_assistant_sees_the_catalog(as_employee, employee, project, assistant_box) -> None:
+    """Модель получает то, что уже заказывали, — иначе ей не знать, как
+    материал называют в компании."""
+    need(as_employee, employee, project, [{"title": "Гофра гибкая 16 мм", "quantity": 1, "unit": "м"}])
+    assistant_box.answer = {
+        "normalized": "Гофра гибкая 16 мм",
+        "unit": "м",
+        "matches_existing": True,
+        "notes": [],
+    }
+    body = advice(as_employee, "гофра16")
+    assert "Гофра гибкая 16 мм (м)" in assistant_box.prompts[-1]
+    assert body["matches_existing"] is True
+    assert body["suggested"] == "Гофра гибкая 16 мм"
+
+
+def test_assistant_answers_are_cached(as_employee, assistant_box) -> None:
+    """Одно и то же слово спрашивают десятки раз в день: платить за
+    каждый раз незачем."""
+    assistant_box.answer = {"normalized": "Кабель UTP", "unit": "м", "matches_existing": False, "notes": []}
+    advice(as_employee, "кабель utp")
+    advice(as_employee, "Кабель UTP ")
+    assert len(assistant_box.prompts) == 1
+
+
+def test_assistant_failure_is_not_an_error(as_employee, assistant_box) -> None:
+    """Модель не ответила — форма получает available=false, а не 500."""
+    body = advice(as_employee, "гофра16")
+    assert body["enabled"] is True and body["available"] is False
+    assert body["suggested"] is None
+
+
+def test_assistant_keeps_correct_spelling(as_employee, assistant_box) -> None:
+    assistant_box.answer = {"normalized": "Кабель UTP Cat6", "unit": None, "matches_existing": False, "notes": []}
+    body = advice(as_employee, "Кабель UTP Cat6")
+    assert body["changed"] is False
+
+
+def test_short_titles_are_not_sent(as_employee, assistant_box) -> None:
+    body = advice(as_employee, "ла")
+    assert assistant_box.prompts == [] and body["suggested"] is None
+
+
+def test_advice_requires_login(client) -> None:
+    assert client.post("/api/materials/advice", json={"title": "гофра"}).status_code == 401

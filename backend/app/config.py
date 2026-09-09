@@ -175,6 +175,21 @@ class Settings(BaseSettings):
     )
     push_timeout_seconds: int = Field(default=10, ge=1)
 
+    # --- Помощник по материалам (Claude) ---
+    anthropic_api_key: str = Field(
+        default="",
+        description=(
+            "Ключ Claude API (console.anthropic.com). Пусто — помощник "
+            "выключен: форма заявки подсказывает только то, что уже "
+            "заказывали, всё остальное работает как раньше."
+        ),
+    )
+    assistant_model: str = Field(
+        default="claude-opus-5",
+        description="Модель Claude для помощника по материалам.",
+    )
+    assistant_timeout_seconds: int = Field(default=20, ge=3, le=120)
+
     # --- Планировщик ---
     scheduler_enabled: bool = Field(
         default=True,
@@ -285,6 +300,12 @@ class Settings(BaseSettings):
     def push_enabled(self) -> bool:
         """Push в браузер настроен: есть закрытый ключ VAPID."""
         return bool(self.vapid_private_key)
+
+    @computed_field
+    @property
+    def assistant_enabled(self) -> bool:
+        """Помощник по материалам настроен: задан ключ Claude API."""
+        return bool(self.anthropic_api_key)
 
     @property
     def push_subject(self) -> str:
