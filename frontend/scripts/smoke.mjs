@@ -29,6 +29,7 @@ const COMMON = [
 ];
 
 const REPORTS = [
+  ['/intelligence', 'intelligence'],
   ['/reports', 'reports'],
   ['/team', 'team'],
   ['/finance', 'finance'],

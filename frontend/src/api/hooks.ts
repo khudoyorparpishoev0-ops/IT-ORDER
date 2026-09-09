@@ -19,8 +19,11 @@ import type {
   JobRunResult,
   AssistantContextLine,
   AssistantReply,
+  AnalyticsReply,
+  AnalyticsTurn,
   AssistantStatus,
   AssistantTurn,
+  Digest,
   Material,
   MaterialAdvice,
   MonthFact,
@@ -50,6 +53,7 @@ export const keys = {
   projects: ['projects'] as const,
   materials: ['materials'] as const,
   assistant: ['materials', 'assistant'] as const,
+  digest: ['analytics', 'digest'] as const,
   telegram: ['telegram'] as const,
   push: ['push'] as const,
   jobs: ['jobs'] as const,
@@ -198,6 +202,25 @@ export function useMaterials() {
     queryFn: () => api<Material[]>('/api/materials'),
     staleTime: 5 * 60_000,
     refetchOnMount: 'always',
+  });
+}
+
+/** Сводка для руководителя. Ответ модели занимает секунды, поэтому
+ *  держим его недолго и не перезапрашиваем на каждом возврате. */
+export function useDigest(enabled = true, withAi = true) {
+  return useQuery({
+    enabled,
+    queryKey: [...keys.digest, withAi] as const,
+    queryFn: () => api<Digest>(`/api/analytics/digest${withAi ? '' : '?ai=false'}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Вопрос AI-аналитику. Мутация: спрашивают по событию, а не при рендере. */
+export function useAnalyticsAsk() {
+  return useMutation({
+    mutationFn: (data: { question: string; history: AnalyticsTurn[] }) =>
+      api<AnalyticsReply>('/api/analytics/ask', { method: 'POST', body: JSON.stringify(data) }),
   });
 }
 

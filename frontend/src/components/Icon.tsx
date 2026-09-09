@@ -43,7 +43,8 @@ export type IconName =
   | 'ti-bell'
   | 'ti-logout'
   | 'ti-arrow-left'
-  | 'ti-home';
+  | 'ti-home'
+  | 'ti-sparkles';
 
 /** Монтируется один раз в корне приложения. */
 export function IconSprite() {
@@ -152,6 +153,11 @@ export function IconSprite() {
       <symbol id="ti-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter"><path d="M9 6l6 6l-6 6"></path></symbol>
       <symbol id="ti-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter"><path d="M6 9l6 6l6 -6"></path></symbol>
       <symbol id="ti-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter"><path d="M5 12l5 5l10 -10"></path></symbol>
+      <symbol id="ti-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z"></path>
+      <path d="M16 6a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z"></path>
+      <path d="M9 18a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"></path>
+      </symbol>
       <symbol id="ti-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M5 12l-2 0l9 -9l9 9l-2 0"></path>
       <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"></path>

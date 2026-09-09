@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useAuth } from '@/api/auth';
-import { useOverview, useRequests } from '@/api/hooks';
+import { useDigest, useOverview, useRequests } from '@/api/hooks';
 import { ROLE_LABEL } from '@/shell/config';
 import { DELAY_DAYS, STATUS } from '@/data/status';
 import { days, money, monthAfterZa, plural, today } from '@/data/format';
@@ -84,6 +84,9 @@ export function Dashboard() {
   const { user, can } = useAuth();
   const canDecide = can('decide_request');
   const overview = useOverview();
+  // Только цифры: платить за текст модели на каждом заходе на дашборд
+  // незачем — объяснения живут в разделе «Аналитика AI».
+  const digest = useDigest(can('view_reports'), false);
   const list = useRequests({ limit: 5 });
   const [decision, setDecision] = useState<RequestListItem | null>(null);
 
@@ -107,6 +110,27 @@ export function Dashboard() {
           </button>
         }
       />
+
+      {digest.data && (digest.data.totals.critical > 0 || digest.data.totals.attention > 0) && (
+        <section className="card card-accent" style={{ ['--accent' as string]: 'var(--dot-warn)' }}>
+          <div className="row-between" style={{ alignItems: 'center' }}>
+            <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+              <div className="label">Аналитика</div>
+              <div className="h3">
+                {digest.data.totals.critical > 0
+                  ? `${digest.data.totals.critical} ${plural(digest.data.totals.critical, 'заявка требует', 'заявки требуют', 'заявок требуют')} внимания срочно`
+                  : `${digest.data.totals.attention} ${plural(digest.data.totals.attention, 'заявка вышла', 'заявки вышли', 'заявок вышли')} за норматив`}
+              </div>
+              <div className="small" style={{ color: 'var(--slate)' }}>
+                {digest.data.attention.slice(0, 2).map((item) => `${item.number}: ${item.reasons[0]}`).join(' · ')}
+              </div>
+            </div>
+            <Link to="/intelligence" className="btn btn-secondary">
+              Разобрать
+            </Link>
+          </div>
+        </section>
+      )}
 
       <QueryState isLoading={overview.isLoading} error={overview.error} onRetry={() => overview.refetch()}>
         {d && (

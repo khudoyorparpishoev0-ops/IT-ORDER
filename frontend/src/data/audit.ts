@@ -10,6 +10,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   job: 'Фоновая задача',
   budget: 'Бюджет месяца',
   request: 'Заявка',
+  analytics: 'AI-аналитика',
 };
 
 export const ACTION_LABEL: Record<string, string> = {
@@ -31,6 +32,7 @@ export const ACTION_LABEL: Record<string, string> = {
   push_subscribed: 'Уведомления на телефон включены',
   push_unsubscribed: 'Уведомления на телефон отключены',
   bootstrap_admin: 'Создан стартовый администратор',
+  ai_question: 'Вопрос AI-аналитику',
   create: 'Создание',
   update: 'Изменение',
   delete: 'Удаление',
@@ -84,6 +86,7 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
     actions: ['submit', 'sourcing', 'priced', 'fulfilled', 'approve', 'auto_approve', 'reject', 'pay'],
   },
   { label: 'Справочники', actions: ['create', 'update', 'delete'] },
+  { label: 'AI', actions: ['ai_question'] },
 ];
 
 /** Тревожные события подсвечиваются: их ищут в журнале первым делом. */

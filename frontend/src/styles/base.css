@@ -1359,6 +1359,10 @@ select.filter {
   border-left: 2px solid var(--green);
   background: var(--mist);
 }
+.chat-line {
+  display: grid;
+  gap: 2px;
+}
 .chat-line + .chat-line {
   padding-top: 8px;
   border-top: 1px solid var(--line);
@@ -1370,4 +1374,13 @@ select.filter {
 .chat-ask .field {
   flex: 1;
   min-width: 0;
+}
+
+/* Список без маркеров: причины пометки, пункты сводки аналитика. */
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
 }
