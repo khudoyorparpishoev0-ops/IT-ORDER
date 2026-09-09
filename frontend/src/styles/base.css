@@ -1384,3 +1384,21 @@ select.filter {
   display: grid;
   gap: 4px;
 }
+
+/* Экраны вне шелла: вход, второй фактор, восстановление пароля.
+   Колонка центрируется `margin: auto` во flex, а не `place-items: center`:
+   центрирование гридом срезает верх, когда карточка выше экрана (настройка
+   второго фактора с QR на телефоне), и до заголовка уже не долистать. */
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  padding: 16px;
+  background: var(--mist);
+}
+.auth-column {
+  width: 100%;
+  margin: auto;
+  display: grid;
+  gap: 16px;
+}

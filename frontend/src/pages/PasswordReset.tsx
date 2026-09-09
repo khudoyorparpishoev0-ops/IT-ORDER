@@ -203,22 +203,17 @@ function SetNewPassword({ token, onBack }: { token: string; onBack: () => void }
 /**
  * Общая рамка экранов вне шелла: колонка по центру на фоне mist, сверху
  * фирменный логотип. Её же берёт экран входа (Login).
+ *
+ * Логотип центрируется по оси колонки: сам знак — блок шириной по
+ * содержимому, и без `margin: 0 auto` он прижимается к левому краю, хотя
+ * карточка под ним занимает всю ширину. Со стороны это выглядит как
+ * сбитая вёрстка, а не как замысел.
  */
 export function AuthScreen({ wide = false, children }: { wide?: boolean; children: React.ReactNode }) {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: 16,
-        background: 'var(--mist)',
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: wide ? 520 : 400, display: 'grid', gap: 16 }}>
-        <div style={{ marginBottom: 8 }}>
-          <OrderLogoStacked height={96} style={{ color: 'var(--logo)' }} />
-        </div>
+    <main className="auth-screen">
+      <div className="auth-column" style={{ maxWidth: wide ? 520 : 400 }}>
+        <OrderLogoStacked height={96} style={{ color: 'var(--logo)', margin: '0 auto 8px' }} />
         {children}
       </div>
     </main>
