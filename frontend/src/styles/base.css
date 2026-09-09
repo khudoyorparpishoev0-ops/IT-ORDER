@@ -1301,3 +1301,73 @@ select.filter {
     padding: 16px;
   }
 }
+
+/* ---------- Диалог с помощником ---------- */
+.chat {
+  display: grid;
+  gap: 8px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.chat-row {
+  display: flex;
+}
+.chat-row.own {
+  justify-content: flex-end;
+}
+/* Реплики различаются положением и фоном, а не «пузырями» с радиусом:
+   радиусы в системе только 0 / 2 / 4. */
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--mist);
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-row.own .chat-bubble {
+  background: var(--paper);
+  border-left: 2px solid var(--green);
+}
+.chat-bubble.muted {
+  color: var(--slate);
+}
+.chat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.chat-options {
+  display: grid;
+  gap: 8px;
+}
+.chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chat-lines {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-left: 2px solid var(--green);
+  background: var(--mist);
+}
+.chat-line + .chat-line {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.chat-ask {
+  display: flex;
+  gap: 8px;
+}
+.chat-ask .field {
+  flex: 1;
+  min-width: 0;
+}

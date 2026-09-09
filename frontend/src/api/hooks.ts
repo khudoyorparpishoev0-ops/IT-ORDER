@@ -17,7 +17,10 @@ import type {
   Health,
   JobRun,
   JobRunResult,
+  AssistantContextLine,
+  AssistantReply,
   AssistantStatus,
+  AssistantTurn,
   Material,
   MaterialAdvice,
   MonthFact,
@@ -207,6 +210,18 @@ export function useAssistantStatus() {
     queryFn: () => api<AssistantStatus>('/api/materials/assistant'),
     staleTime: 60_000,
     refetchOnMount: 'always',
+  });
+}
+
+/** Реплика диалога с помощником по заявке. Историю ведёт панель:
+ *  сервер состояние не хранит, каждый запрос самодостаточен. */
+export function useAssistantChat() {
+  return useMutation({
+    mutationFn: (data: {
+      text: string;
+      history: AssistantTurn[];
+      context: { project_name: string | null; lines: AssistantContextLine[] };
+    }) => api<AssistantReply>('/api/assistant/request', { method: 'POST', body: JSON.stringify(data) }),
   });
 }
 

@@ -4,6 +4,7 @@ import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
+import { RequestAssistant } from '@/components/RequestAssistant';
 import { useAuth } from '@/api/auth';
 import {
   useAssistantStatus,
@@ -16,7 +17,7 @@ import {
   useSubmitRequest,
   useUpdateRequest,
 } from '@/api/hooks';
-import type { ExpenseLineInput, MaterialAdvice, RequestDetail } from '@/api/types';
+import type { AssistantLine, ExpenseLineInput, MaterialAdvice, RequestDetail } from '@/api/types';
 import { plural } from '@/data/format';
 import { useShell } from '@/shell/ShellContext';
 
@@ -72,6 +73,8 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const [lines, setLines] = useState<Line[]>(edit ? fromDetail(edit) : [{ ...EMPTY }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<'send' | 'draft' | null>(null);
+  //  null — панель закрыта; строка — с чего начать разговор.
+  const [helper, setHelper] = useState<string | null>(null);
 
   const activeProjects = (projects.data ?? []).filter((p) => p.active);
   const projectsNote = projects.isLoading
@@ -140,6 +143,23 @@ function Form({ edit }: { edit?: RequestDetail }) {
           : row,
       ),
     );
+  };
+
+  // Помощник предлагает позиции, переносит их человек: заменяем пустые
+  // строки, остальное дописываем в конец.
+  const applyAssistant = (proposed: AssistantLine[]) => {
+    const rows = lines.filter((l) => l.title.trim());
+    setLines([
+      ...rows,
+      ...proposed.map((line) => ({
+        title: line.title,
+        quantity: String(line.quantity),
+        unit: line.unit ?? '',
+        checked: line.title,
+      })),
+    ]);
+    setHelper(null);
+    flash('Позиции добавлены — проверьте и отправьте заявку', 'var(--dot-ok)');
   };
 
   const filled = lines.filter((l) => l.title.trim());
@@ -238,9 +258,18 @@ function Form({ edit }: { edit?: RequestDetail }) {
         </section>
 
         <section className="card" style={{ display: 'grid', gap: 12 }}>
-          <div className="label">
-            Позиции заявки
-            <span aria-hidden="true" style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>
+          <div className="row-between" style={{ alignItems: 'center' }}>
+            <div className="label">
+              Позиции заявки
+              <span aria-hidden="true" style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>
+            </div>
+            {assistant.data?.enabled && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setHelper('open')}>
+                  {lines.some((l) => l.title.trim()) ? 'Проверить заявку' : 'Помощь AI'}
+                </button>
+              </div>
+            )}
           </div>
           <div aria-hidden="true" className="caption line-head" style={{ marginTop: 0 }}>
             <span className="line-title">Что нужно</span>
@@ -333,6 +362,15 @@ function Form({ edit }: { edit?: RequestDetail }) {
           Черновик виден только вам и в согласование не попадает. Отправленную заявку править уже нельзя.
         </p>
       </form>
+
+      {helper !== null && (
+        <RequestAssistant
+          projectName={activeProjects.find((p) => p.id === projectId)?.name ?? null}
+          lines={lines}
+          onApply={applyAssistant}
+          onClose={() => setHelper(null)}
+        />
+      )}
     </>
   );
 }

@@ -69,6 +69,35 @@ export type Material = {
   uses: number;
 };
 
+/** Строка формы, которую помощник видит как контекст. */
+export type AssistantContextLine = { title: string; quantity: number | null; unit: string | null };
+
+/** Реплика диалога с помощником: историю хранит панель. */
+export type AssistantTurn = { role: 'user' | 'assistant'; text: string };
+
+/** Уточняющий вопрос помощника; варианты рисуются кнопками. */
+export type AssistantQuestion = { field: string; question: string; options: string[] };
+
+/** Позиция, предложенная помощником. Применяет её человек. */
+export type AssistantLine = {
+  title: string;
+  quantity: number;
+  unit: string | null;
+  /** Назначение: «подключение наружных IP-камер». */
+  purpose: string | null;
+};
+
+export type AssistantReply = {
+  /** false — модель недоступна; панель показывает это словами. */
+  available: boolean;
+  status: 'need_clarification' | 'ready' | 'warning' | 'recommendation';
+  message: string;
+  questions: AssistantQuestion[];
+  lines: AssistantLine[];
+  warnings: string[];
+  recommendations: string[];
+};
+
 /** Настроен ли помощник по материалам (ключ Claude API на сервере). */
 export type AssistantStatus = {
   enabled: boolean;

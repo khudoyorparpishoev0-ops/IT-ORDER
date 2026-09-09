@@ -1,0 +1,199 @@
+import { useEffect, useRef, useState } from 'react';
+import { Icon } from '@/components/Icon';
+import { Modal } from '@/components/Modal';
+import { useAssistantChat } from '@/api/hooks';
+import type { AssistantLine, AssistantReply, AssistantTurn } from '@/api/types';
+
+/** Строка формы в том виде, в каком её видит помощник. */
+export type FormLine = { title: string; quantity: string; unit: string };
+
+type Props = {
+  /** Объект из формы: помощник о нём не спрашивает. */
+  projectName: string | null;
+  lines: FormLine[];
+  onApply: (lines: AssistantLine[]) => void;
+  onClose: () => void;
+};
+
+/** Подпись и цвет статуса ответа. Точка плюс слово, как у заявок. */
+const STATUS: Record<AssistantReply['status'], { label: string; color: string }> = {
+  need_clarification: { label: 'Нужно уточнить', color: 'var(--yellow)' },
+  ready: { label: 'Заявка готова', color: 'var(--green)' },
+  warning: { label: 'Есть замечание', color: 'var(--yellow)' },
+  recommendation: { label: 'Есть рекомендация', color: 'var(--blue)' },
+};
+
+/**
+ * Диалог с помощником по заявке. Помощник спрашивает то, чего не хватает
+ * закупу, и в конце показывает готовые позиции. Ничего не подставляется
+ * молча: позиции переносит в форму человек кнопкой «Применить».
+ */
+export function RequestAssistant({ projectName, lines, onApply, onClose }: Props) {
+  const chat = useAssistantChat();
+  const [history, setHistory] = useState<AssistantTurn[]>([]);
+  const [reply, setReply] = useState<AssistantReply | null>(null);
+  const [draft, setDraft] = useState('');
+  const [failed, setFailed] = useState(false);
+  const started = useRef(false);
+  const tail = useRef<HTMLDivElement>(null);
+
+  const context = {
+    project_name: projectName,
+    lines: lines
+      .filter((l) => l.title.trim())
+      .map((l) => ({ title: l.title.trim(), quantity: Number(l.quantity) || null, unit: l.unit.trim() || null })),
+  };
+
+  const send = async (text: string) => {
+    const asked: AssistantTurn[] = text.trim() ? [...history, { role: 'user', text: text.trim() }] : history;
+    setHistory(asked);
+    setDraft('');
+    setFailed(false);
+    try {
+      const answer = await chat.mutateAsync({ text, history, context });
+      setReply(answer);
+      if (answer.available && answer.message) {
+        setHistory([...asked, { role: 'assistant', text: answer.message }]);
+      }
+      if (!answer.available) setFailed(true);
+    } catch {
+      setFailed(true);
+    }
+  };
+
+  // Первый запрос уходит сам: человек уже нажал кнопку. Пустой текст
+  // сервер понимает как «посмотри, что в форме»: при пустой форме
+  // отвечает приглашением, при заполненной — проверяет заявку.
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    void send('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    tail.current?.scrollIntoView({ block: 'end' });
+  }, [history.length, chat.isPending]);
+
+  const status = reply && reply.available ? STATUS[reply.status] : null;
+  const canApply = Boolean(reply?.available && reply.lines.length);
+
+  return (
+    <Modal
+      title="Помощник по заявке"
+      onClose={onClose}
+      wide
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Закрыть
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!canApply}
+            onClick={() => reply && onApply(reply.lines)}
+          >
+            Применить в заявку
+          </button>
+        </>
+      }
+    >
+      <div className="chat">
+        {history.map((turn, i) => (
+          <div key={i} className={turn.role === 'user' ? 'chat-row own' : 'chat-row'}>
+            <div className="chat-bubble">{turn.text}</div>
+          </div>
+        ))}
+        {chat.isPending && (
+          <div className="chat-row">
+            <div className="chat-bubble muted" aria-live="polite">
+              Думаю…
+            </div>
+          </div>
+        )}
+        <div ref={tail} />
+      </div>
+
+      {failed && (
+        <p className="caption" style={{ margin: 0 }} role="alert">
+          Помощник сейчас недоступен. Заполните заявку сами — форма работает как обычно.
+        </p>
+      )}
+
+      {reply?.available && !chat.isPending && (
+        <>
+          {status && (
+            <div className="chat-status">
+              <span className="dot" style={{ ['--dot' as string]: status.color }} aria-hidden="true" />
+              {status.label}
+            </div>
+          )}
+
+          {reply.questions.map((q) => (
+            <div key={q.field} className="chat-options">
+              {q.options.length > 0 && <div className="caption">{q.question}</div>}
+              <div className="chat-chips">
+                {q.options.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => void send(option)}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {reply.lines.length > 0 && (
+            <div className="chat-lines">
+              <div className="rubric">Позиции заявки</div>
+              {reply.lines.map((line, i) => (
+                <div key={i} className="chat-line">
+                  <div style={{ fontWeight: 600 }}>{line.title}</div>
+                  <div className="caption">
+                    {line.quantity} {line.unit ?? ''}
+                    {line.purpose ? ` · ${line.purpose}` : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {[...reply.warnings, ...reply.recommendations].map((note) => (
+            <p key={note} className="caption" style={{ margin: 0 }}>
+              {note}
+            </p>
+          ))}
+        </>
+      )}
+
+      <form
+        className="chat-ask"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (draft.trim() && !chat.isPending) void send(draft);
+        }}
+      >
+        <label className="sr-only" htmlFor="assistant-input">
+          Ответ помощнику
+        </label>
+        <input
+          id="assistant-input"
+          className="field"
+          value={draft}
+          placeholder="Ответьте или уточните…"
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={chat.isPending}
+        />
+        <button type="submit" className="btn btn-secondary" disabled={!draft.trim() || chat.isPending}>
+          <Icon name="ti-chevron-right" size={18} />
+          <span className="sr-only">Отправить</span>
+        </button>
+      </form>
+    </Modal>
+  );
+}

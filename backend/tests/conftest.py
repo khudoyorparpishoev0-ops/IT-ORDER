@@ -146,7 +146,7 @@ def _no_outgoing_assistant():
     from app.services import material_assistant
 
     class Silent:
-        def ask(self, *, system, prompt, schema):
+        def ask(self, *, system, prompt, schema, history=None, effort="low"):
             raise assistant.AssistantError("помощник выключен в тестах")
 
     assistant.set_transport(Silent())
@@ -172,9 +172,13 @@ def assistant_box(monkeypatch):
     class Box:
         answer = None
         prompts: list[str] = []
+        histories: list[list] = []
+        systems: list[str] = []
 
-        def ask(self, *, system, prompt, schema):
+        def ask(self, *, system, prompt, schema, history=None, effort="low"):
             self.prompts.append(prompt)
+            self.histories.append(list(history or []))
+            self.systems.append(system)
             if self.answer is None:
                 raise assistant.AssistantError("модель не отвечает")
             return schema(**self.answer)

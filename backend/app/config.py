@@ -189,6 +189,14 @@ class Settings(BaseSettings):
         description="Модель Claude для помощника по материалам.",
     )
     assistant_timeout_seconds: int = Field(default=20, ge=3, le=120)
+    assistant_prompt_file: str = Field(
+        default="",
+        description=(
+            "Путь к файлу с системным промптом помощника. Пусто — берётся "
+            "встроенный текст. Файл позволяет править правила помощника на "
+            "сервере, не пересобирая образ."
+        ),
+    )
 
     # --- Планировщик ---
     scheduler_enabled: bool = Field(
