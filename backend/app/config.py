@@ -188,7 +188,16 @@ class Settings(BaseSettings):
         default="claude-opus-5",
         description="Модель Claude для помощника по материалам.",
     )
-    assistant_timeout_seconds: int = Field(default=20, ge=3, le=120)
+    assistant_timeout_seconds: int = Field(
+        default=90,
+        ge=5,
+        le=300,
+        description=(
+            "Сколько ждать ответа помощника. Разбор потребности в диалоге "
+            "занимает десятки секунд: 20 секунд не хватало, и подсказка "
+            "выглядела как «помощник недоступен»."
+        ),
+    )
     assistant_prompt_file: str = Field(
         default="",
         description=(
