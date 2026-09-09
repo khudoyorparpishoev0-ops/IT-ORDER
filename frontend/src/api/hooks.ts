@@ -28,6 +28,7 @@ import type {
   ProjectShare,
   RequestDetail,
   RequestInput,
+  RequestUpdateInput,
   RequestListItem,
   RequestStatus,
   SourcingInput,
@@ -418,6 +419,49 @@ export function useCreateRequest() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => invalidateRequests(qc),
+  });
+}
+
+/** Правка черновика. Поданную заявку сервер править не даст. */
+export function useUpdateRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: RequestUpdateInput & { id: number }) =>
+      api<RequestDetail>(`/api/requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data, variables) => {
+      invalidateRequests(qc);
+      qc.setQueryData(keys.request(variables.id), data);
+    },
+  });
+}
+
+/** Отправка черновика на согласование. */
+export function useSubmitRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<RequestDetail>(`/api/requests/${id}/submit`, { method: 'POST' }),
+    onSuccess: (data, id) => {
+      invalidateRequests(qc);
+      qc.setQueryData(keys.request(id), data);
+    },
+  });
+}
+
+/** Удаление черновика. Номер в оборот не возвращается. */
+export function useDeleteRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/requests/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, id) => {
+      // Сначала убрать карточку из кэша, потом сбрасывать списки: иначе
+      // сброс перезапросил бы уже удалённую заявку и получил 404.
+      qc.removeQueries({ queryKey: keys.request(id) });
+      invalidateRequests(qc);
+    },
   });
 }
 

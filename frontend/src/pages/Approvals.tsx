@@ -178,7 +178,15 @@ export function Approvals() {
                         <span style={{ fontWeight: isActive ? 700 : 400 }}>
                           {r.employee_name}
                         </span>
-                        <span className="num">{money(r.amount)}</span>
+                        {/* До оценки закупа суммы нет: ноль в очереди
+                            читался бы как «бесплатно». */}
+                        {r.status === 'fulfilled' ? (
+                          <span className="caption">со склада</span>
+                        ) : r.priced ? (
+                          <span className="num">{money(r.amount)}</span>
+                        ) : (
+                          <span className="caption">не оценена</span>
+                        )}
                       </div>
                       <div className="meta">
                         {r.number} · {r.date}
@@ -459,7 +467,9 @@ export function Approvals() {
             </section>
           )}
 
-          {active && active.status !== 'pending' && (
+          {/* Заявка, ждущая решения, показывает форму, а не итог:
+              во вкладке «Сумма» оба блока рядом сбивали с толку. */}
+          {active && !DECIDABLE.includes(active.status) && (
             <section
               className="card"
               style={{ flex: '1 1 300px', minWidth: 0, position: 'sticky', top: 88 }}

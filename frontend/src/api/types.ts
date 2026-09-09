@@ -232,6 +232,12 @@ export type RequestInput = {
   submit: boolean;
 };
 
+/** Правка черновика: что не передано — не меняется. */
+export type RequestUpdateInput = {
+  project_id?: number;
+  lines?: ExpenseLineInput[];
+};
+
 export type PaymentInput = {
   method: PaymentMethod;
   document: string;

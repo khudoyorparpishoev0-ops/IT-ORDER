@@ -3,8 +3,15 @@ import { Field } from './Field';
 import { Icon } from './Icon';
 import { Overlay } from './Overlay';
 import { useAuth } from '@/api/auth';
-import { useCreateRequest, useEmployees, useMaterials, useProjects } from '@/api/hooks';
-import type { ExpenseLineInput } from '@/api/types';
+import {
+  useCreateRequest,
+  useEmployees,
+  useMaterials,
+  useProjects,
+  useSubmitRequest,
+  useUpdateRequest,
+} from '@/api/hooks';
+import type { ExpenseLineInput, RequestDetail } from '@/api/types';
 import { plural } from '@/data/format';
 import { useShell } from '@/shell/ShellContext';
 
@@ -12,23 +19,45 @@ type Line = { title: string; quantity: string; unit: string };
 
 const EMPTY: Line = { title: '', quantity: '1', unit: '' };
 
+function fromDetail(edit: RequestDetail): Line[] {
+  return edit.lines.map((l) => ({
+    title: l.title,
+    quantity: String(l.quantity),
+    unit: l.unit ?? '',
+  }));
+}
+
 /**
- * Подача заявки. Сумму по строкам считаем и здесь — чтобы человек видел
- * итог до отправки, — но в базу идёт расчёт сервера: копейки в браузере
- * округляются иначе.
+ * Подача заявки и правка черновика — одна форма: у черновика те же поля,
+ * а «Отправить» из редактора значит «сохранить и подать». Поданную заявку
+ * сюда не откроют: сервер её править не даст, а кнопки в карточке есть
+ * только у черновика.
  */
-export function NewRequestModal({ onClose }: { onClose: () => void }) {
+export function NewRequestModal({
+  onClose,
+  edit,
+}: {
+  /** После сохранения передаётся заявка: вызывающий видит, стала ли она поданной. */
+  onClose: (saved?: RequestDetail) => void;
+  /** Черновик, который правим. Пусто — новая заявка. */
+  edit?: RequestDetail;
+}) {
   const { user, can } = useAuth();
   const { flash } = useShell();
   const projects = useProjects();
   const employees = useEmployees();
   const materials = useMaterials();
   const create = useCreateRequest();
+  const update = useUpdateRequest();
+  const send = useSubmitRequest();
 
-  const forOthers = can('create_request_for_others');
-  const [employeeId, setEmployeeId] = useState<number | null>(user?.id ?? null);
-  const [projectId, setProjectId] = useState<number | null>(null);
-  const [lines, setLines] = useState<Line[]>([{ ...EMPTY }]);
+  // Автора у черновика не меняют: заявка уже заведена от его имени.
+  const forOthers = can('create_request_for_others') && !edit;
+  const [employeeId, setEmployeeId] = useState<number | null>(
+    edit ? edit.employee_id : (user?.id ?? null),
+  );
+  const [projectId, setProjectId] = useState<number | null>(edit ? edit.project_id : null);
+  const [lines, setLines] = useState<Line[]>(edit ? fromDetail(edit) : [{ ...EMPTY }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -74,7 +103,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
 
   const filled = lines.filter((l) => l.title.trim());
 
-  const submit = async (send: boolean) => {
+  const submit = async (sendNow: boolean) => {
     if (!employeeId || !projectId) {
       setError('Выберите сотрудника и объект');
       return;
@@ -91,19 +120,25 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
         quantity: Number(l.quantity) || 1,
         unit: l.unit.trim() || null,
       }));
-      const created = await create.mutateAsync({
-        employee_id: employeeId,
-        project_id: projectId,
-        lines: payload,
-        submit: send,
-      });
+      let saved: RequestDetail;
+      if (edit) {
+        saved = await update.mutateAsync({ id: edit.id, project_id: projectId, lines: payload });
+        if (sendNow) saved = await send.mutateAsync(edit.id);
+      } else {
+        saved = await create.mutateAsync({
+          employee_id: employeeId,
+          project_id: projectId,
+          lines: payload,
+          submit: sendNow,
+        });
+      }
       flash(
-        created.status === 'draft'
-          ? `Черновик ${created.number} сохранён`
-          : `Заявка ${created.number} отправлена на согласование`,
+        saved.status === 'draft'
+          ? `Черновик ${saved.number} сохранён`
+          : `Заявка ${saved.number} отправлена на согласование`,
         'var(--dot-ok)',
       );
-      onClose();
+      onClose(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось сохранить заявку');
     } finally {
@@ -111,17 +146,20 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  // Что-то введено — окно не закроется молча по клику мимо или Escape.
-  const dirty =
-    projectId !== null ||
-    lines.some((l) => l.title.trim() || l.unit.trim() || l.quantity !== '1') ||
-    (forOthers && employeeId !== (user?.id ?? null));
+  // Что-то введено или изменено — окно не закроется молча по клику мимо
+  // или Escape.
+  const dirty = edit
+    ? projectId !== edit.project_id ||
+      JSON.stringify(lines) !== JSON.stringify(fromDetail(edit))
+    : projectId !== null ||
+      lines.some((l) => l.title.trim() || l.unit.trim() || l.quantity !== '1') ||
+      (forOthers && employeeId !== (user?.id ?? null));
 
   return (
-    <Overlay label="Новая заявка" onClose={onClose} dirty={dirty}>
+    <Overlay label={edit ? `Черновик ${edit.number}` : 'Новая заявка'} onClose={onClose} dirty={dirty}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <div className="label">НОВАЯ ЗАЯВКА</div>
+          <div className="label">{edit ? `ЧЕРНОВИК · ${edit.number}` : 'НОВАЯ ЗАЯВКА'}</div>
           <div className="h3" style={{ marginTop: 4 }}>
             Что нужно купить
           </div>
@@ -129,7 +167,7 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           className="btn btn-icon"
-          onClick={onClose}
+          onClick={() => onClose()}
           aria-label="Закрыть"
           style={{ border: 'none' }}
         >
@@ -166,7 +204,9 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
         ) : (
           <div>
             <div className="caption">Сотрудник</div>
-            <div style={{ fontWeight: 600, marginTop: 2 }}>{user?.full_name}</div>
+            <div style={{ fontWeight: 600, marginTop: 2 }}>
+              {edit ? edit.employee_name : user?.full_name}
+            </div>
           </div>
         )}
 
@@ -296,9 +336,9 @@ export function NewRequestModal({ onClose }: { onClose: () => void }) {
             disabled={saving}
             onClick={() => submit(false)}
           >
-            Сохранить черновиком
+            {edit ? 'Сохранить черновик' : 'Сохранить черновиком'}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-ghost" onClick={() => onClose()}>
             Отмена
           </button>
         </div>

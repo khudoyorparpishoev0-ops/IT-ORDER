@@ -3,7 +3,8 @@ import { Icon } from './Icon';
 import { StatusBadge } from './StatusBadge';
 import { Field } from './Field';
 import { useAuth } from '@/api/auth';
-import { usePayRequest, useRequest } from '@/api/hooks';
+import { useDeleteRequest, usePayRequest, useRequest, useSubmitRequest } from '@/api/hooks';
+import { NewRequestModal } from './NewRequestModal';
 import { useShell } from '@/shell/ShellContext';
 import type { PaymentMethod } from '@/api/types';
 import { useDownload } from '@/hooks/useDownload';
@@ -18,24 +19,61 @@ type Props = {
 
 export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const { flash } = useShell();
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const submitDraft = useSubmitRequest();
+  const deleteDraft = useDeleteRequest();
   // Сумма показывается числом только там, где она настоящая: заявка
   // оценена и закрыта не складом.
   const showAmount = Boolean(request?.priced) && request?.status !== 'fulfilled';
-  const { data: detail, isLoading } = useRequest(request?.id ?? null);
+  // После удаления карточку не перезапрашиваем: заявки уже нет, и запрос
+  // вернул бы 404 в тот миг, пока окно закрывается.
+  const gone = deleteDraft.isPending || deleteDraft.isSuccess;
+  const { data: detail, isLoading } = useRequest(request && !gone ? request.id : null);
   const { download, busy } = useDownload();
 
   useEffect(() => {
     if (!request) return;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // Пока открыт редактор черновика, Escape относится к нему: он сам
+      // спросит про несохранённое, а карточка под ним остаётся.
+      if (e.key === 'Escape' && !editing) onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [request, onClose]);
+  }, [request, onClose, editing]);
 
   if (!request) return null;
+
+  // Черновик двигает только автор (и администратор — за любого):
+  // остальные видят карточку без кнопок.
+  const ownDraft =
+    request.status === 'draft' &&
+    (request.employee_id === user?.id || can('create_request_for_others'));
+
+  const sendDraft = async () => {
+    try {
+      const saved = await submitDraft.mutateAsync(request.id);
+      flash(`Заявка ${saved.number} отправлена на согласование`, 'var(--dot-ok)');
+      onClose();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Не удалось отправить', 'var(--dot-err)');
+    }
+  };
+
+  const removeDraft = async () => {
+    try {
+      await deleteDraft.mutateAsync(request.id);
+      flash(`Черновик ${request.number} удалён`, 'var(--dot-off)');
+      onClose();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Не удалось удалить', 'var(--dot-err)');
+      setConfirmDelete(false);
+    }
+  };
 
   return (
     <div
@@ -235,6 +273,70 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
           </p>
         )}
 
+        {ownDraft && (
+          <div
+            style={{
+              marginTop: 24,
+              borderTop: '1px solid var(--line)',
+              paddingTop: 16,
+              display: 'grid',
+              gap: 12,
+            }}
+          >
+            <div className="label">ЧЕРНОВИК</div>
+            <p className="caption" style={{ margin: 0 }}>
+              Черновик виден только вам. Отправленную заявку править уже нельзя —
+              проверьте состав перед отправкой.
+            </p>
+            {confirmDelete ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className="caption">Удалить безвозвратно?</span>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={deleteDraft.isPending}
+                  onClick={removeDraft}
+                >
+                  {deleteDraft.isPending ? 'Удаляем…' : 'Да, удалить'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Отмена
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={submitDraft.isPending || !detail}
+                  onClick={sendDraft}
+                >
+                  {submitDraft.isPending ? 'Отправляем…' : 'Отправить на согласование'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!detail}
+                  onClick={() => setEditing(true)}
+                >
+                  Изменить
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  Удалить
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
           {/* Кнопка ведёт в раздел, закрытый правом: сотруднику её
               показывать нельзя — она отправила бы его на пустую страницу. */}
@@ -260,6 +362,22 @@ export function RequestModal({ request, onClose, onOpenApprovals }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Редактор лежит внутри подложки карточки: без stopPropagation клик
+          по его собственной подложке закрыл бы и карточку. */}
+      {editing && detail && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <NewRequestModal
+            edit={detail}
+            onClose={(saved) => {
+              setEditing(false);
+              // После «Отправить» из редактора заявка уже не черновик, и
+              // карточка со старым статусом только путала бы.
+              if (saved && saved.status !== 'draft') onClose();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

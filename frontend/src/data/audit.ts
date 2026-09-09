@@ -35,6 +35,9 @@ export const ACTION_LABEL: Record<string, string> = {
   update: 'Изменение',
   delete: 'Удаление',
   submit: 'Отправлена на согласование',
+  sourcing: 'Покупка согласована, передана в закуп',
+  priced: 'Оценена закупом',
+  fulfilled: 'Закрыта складом',
   approve: 'Одобрена',
   reject: 'Отклонена',
   auto_approve: 'Одобрена автоматически',
@@ -78,7 +81,7 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
   },
   {
     label: 'Заявки',
-    actions: ['submit', 'approve', 'auto_approve', 'reject', 'pay'],
+    actions: ['submit', 'sourcing', 'priced', 'fulfilled', 'approve', 'auto_approve', 'reject', 'pay'],
   },
   { label: 'Справочники', actions: ['create', 'update', 'delete'] },
 ];
