@@ -28,10 +28,13 @@ import type {
   ProjectShare,
   RequestDetail,
   RequestInput,
+  RequestUpdateInput,
   RequestListItem,
   RequestStatus,
   SourcingInput,
   TeamMember,
+  PushConfig,
+  PushSubscribeInput,
   TelegramLink,
   TelegramSetup,
   TelegramStatus,
@@ -42,6 +45,7 @@ export const keys = {
   projects: ['projects'] as const,
   materials: ['materials'] as const,
   telegram: ['telegram'] as const,
+  push: ['push'] as const,
   jobs: ['jobs'] as const,
   employees: ['employees'] as const,
   employeeAccess: ['employees', 'access'] as const,
@@ -226,6 +230,42 @@ export function useTelegramSetup() {
   });
 }
 
+/** Push на телефон: ключ сервера и число подписанных устройств. */
+export function usePushConfig() {
+  return useQuery({
+    queryKey: keys.push,
+    queryFn: () => api<PushConfig>('/api/push/config'),
+  });
+}
+
+export function usePushSubscribe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: PushSubscribeInput) =>
+      api<PushConfig>('/api/push/subscribe', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: (data) => qc.setQueryData(keys.push, data),
+  });
+}
+
+export function usePushUnsubscribe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (endpoint: string) =>
+      api<PushConfig>('/api/push/unsubscribe', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint }),
+      }),
+    onSuccess: (data) => qc.setQueryData(keys.push, data),
+  });
+}
+
+/** Проверочное уведомление на свои устройства. Ошибка идёт наружу. */
+export function usePushTest() {
+  return useMutation({
+    mutationFn: () => api<void>('/api/push/test', { method: 'POST' }),
+  });
+}
+
 /** Фоновые задачи: что и когда отработало. Только для администратора. */
 export function useJobRuns(enabled = true) {
   return useQuery({
@@ -379,6 +419,49 @@ export function useCreateRequest() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => invalidateRequests(qc),
+  });
+}
+
+/** Правка черновика. Поданную заявку сервер править не даст. */
+export function useUpdateRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: RequestUpdateInput & { id: number }) =>
+      api<RequestDetail>(`/api/requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data, variables) => {
+      invalidateRequests(qc);
+      qc.setQueryData(keys.request(variables.id), data);
+    },
+  });
+}
+
+/** Отправка черновика на согласование. */
+export function useSubmitRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<RequestDetail>(`/api/requests/${id}/submit`, { method: 'POST' }),
+    onSuccess: (data, id) => {
+      invalidateRequests(qc);
+      qc.setQueryData(keys.request(id), data);
+    },
+  });
+}
+
+/** Удаление черновика. Номер в оборот не возвращается. */
+export function useDeleteRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/requests/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, id) => {
+      // Сначала убрать карточку из кэша, потом сбрасывать списки: иначе
+      // сброс перезапросил бы уже удалённую заявку и получил 404.
+      qc.removeQueries({ queryKey: keys.request(id) });
+      invalidateRequests(qc);
+    },
   });
 }
 

@@ -21,6 +21,7 @@ from app.core.mail import send_quietly as mail_quietly
 from app.core.permissions import Permission, has_permission
 from app.core.telegram import Message
 from app.core.telegram import send_quietly as telegram_quietly
+from app.services.push_notify import notify_employee as push_employee
 from app.core.time import local_day_bounds, to_local, utcnow
 from app.db.models import Employee, ExpenseRequest, RequestStatus
 from app.services import mail_templates as templates
@@ -188,7 +189,15 @@ def send_stale_reminders(session: Session, *, now: datetime | None = None) -> st
                     button=("Открыть", url),
                 )
             )
-        if person.email or person.telegram_chat_id:
+        pushed = push_employee(
+            session,
+            person,
+            title="Заявки ждут вас",
+            body="\n".join(lines),
+            url=url,
+            tag="stale-requests",
+        )
+        if person.email or person.telegram_chat_id or pushed:
             sent += 1
 
     log.info("Напоминания о залежавшихся заявках: %s получателей", sent)
@@ -288,11 +297,38 @@ def send_weekly_summary(session: Session, *, now: datetime | None = None) -> str
                     button=("Открыть отчёты", url),
                 )
             )
-        if person.email or person.telegram_chat_id:
+        pushed = push_employee(
+            session,
+            person,
+            title=f"Итоги недели {summary.start:%d.%m}—{summary.end:%d.%m}",
+            body=push_summary_text(summary),
+            url=url,
+            tag="weekly-summary",
+        )
+        if person.email or person.telegram_chat_id or pushed:
             sent += 1
 
     log.info("Недельная сводка отправлена %s получателям", sent)
     return f"{sent} получателей"
+
+
+def push_summary_text(summary: WeekSummary) -> str:
+    """Короткий текст для уведомления на телефоне: три строки, без разметки."""
+    from app.core.money import money
+    from app.core.text import plural
+
+    parts = [
+        f"Подано: {summary.submitted}",
+        f"Выплачено: {summary.paid_count} на {money(summary.paid_amount)} сомони",
+    ]
+    if summary.budget_pct is not None:
+        parts.append(f"Бюджет: использовано {summary.budget_pct}%")
+    if summary.stale_count:
+        parts.append(
+            f"Без движения: {summary.stale_count} "
+            f"{plural(summary.stale_count, 'заявка', 'заявки', 'заявок')}"
+        )
+    return "\n".join(parts)
 
 
 def telegram_summary_text(summary: WeekSummary) -> str:

@@ -33,6 +33,8 @@ ACTION_LABEL: dict[str, str] = {
     "recovery_codes_reissued": "Коды восстановления перевыпущены",
     "telegram_linked": "Telegram подключён",
     "telegram_unlinked": "Telegram отключён",
+    "push_subscribed": "Уведомления на телефон включены",
+    "push_unsubscribed": "Уведомления на телефон отключены",
     "bootstrap_admin": "Создан стартовый администратор",
     # Справочники
     "create": "Создание",
@@ -40,6 +42,9 @@ ACTION_LABEL: dict[str, str] = {
     "delete": "Удаление",
     # Заявки
     "submit": "Отправлена на согласование",
+    "sourcing": "Покупка согласована, передана в закуп",
+    "priced": "Оценена закупом",
+    "fulfilled": "Закрыта складом",
     "approve": "Одобрена",
     "reject": "Отклонена",
     "auto_approve": "Одобрена автоматически",

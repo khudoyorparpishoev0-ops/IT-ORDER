@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     # разбирается вслепую: по логам не видно даже, дошёл ли токен до
     # контейнера, а переменные окружения в логи писать нельзя.
     log.info(
-        "Почта: %s. Telegram: %s",
+        "Почта: %s. Telegram: %s. Push на телефон: %s",
         "настроена" if settings.mail_enabled else "не настроена (SMTP_*)",
         (
             f"бот @{settings.telegram_bot_username}"
@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
             if settings.telegram_enabled
             else "не настроен (TELEGRAM_BOT_TOKEN)"
         ),
+        "настроен" if settings.push_enabled else "не настроен (VAPID_PRIVATE_KEY)",
     )
 
     # Свежую систему некому настроить: войти нельзя, а завести пользователя

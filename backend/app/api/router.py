@@ -9,6 +9,7 @@ from app.api.routes import (
     health,
     jobs,
     reference,
+    push,
     reports,
     requests,
     telegram,
@@ -24,3 +25,4 @@ api_router.include_router(exports.router)
 api_router.include_router(audit.router)
 api_router.include_router(jobs.router)
 api_router.include_router(telegram.router)
+api_router.include_router(push.router)

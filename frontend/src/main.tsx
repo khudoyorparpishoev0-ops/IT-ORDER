@@ -12,6 +12,7 @@ import { AuthProvider } from './api/auth';
 import { ApiError } from './api/client';
 import { markSessionExpired } from './api/session';
 import { ShellProvider } from './shell/ShellContext';
+import { setupPwa } from './pwa';
 
 /**
  * Сессия может истечь между запросами, и тогда 401 приходит в любой хук.
@@ -47,6 +48,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+setupPwa();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Не найден корневой элемент #root');

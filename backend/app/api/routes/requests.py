@@ -213,10 +213,16 @@ def _notify_priced_later(request_id: int) -> None:
 
 
 def _notify_telegram_later(request_id: int) -> None:
-    """Автору — что стало с заявкой, следующему — что она пришла к нему."""
+    """Автору — что стало с заявкой, следующему — что она пришла к нему.
+
+    Telegram и push на телефон идут вместе: это одно и то же сообщение
+    в два канала, и вызывающему незачем помнить про оба.
+    """
+    from app.services.push_notify import notify_request_state as push_state
     from app.services.telegram_notify import notify_request_state
 
     _in_own_session(notify_request_state, request_id)
+    _in_own_session(push_state, request_id)
 
 
 def _notify_later(request_id: int) -> None:

@@ -121,6 +121,42 @@ def _no_outgoing_telegram():
     telegram.set_transport(None)
 
 
+@pytest.fixture(autouse=True)
+def _no_outgoing_push():
+    """Push в тестах молчит. Фикстура push_box подменяет транспорт своим."""
+    from app.core import push
+
+    class Silent:
+        def send(self, notification) -> None:
+            pass
+
+    push.set_transport(Silent())
+    yield
+    push.set_transport(None)
+
+
+@pytest.fixture
+def push_box(monkeypatch):
+    """Перехватывает push-уведомления и включает push в настройках.
+
+    Ключ VAPID — настоящий, сгенерированный на месте: маршрут /config
+    выводит из него открытый ключ, и заглушкой его не заменить.
+    """
+    from app.core import push
+
+    sent: list[push.Notification] = []
+
+    class Collecting:
+        def send(self, notification: push.Notification) -> None:
+            sent.append(notification)
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "vapid_private_key", push.generate_private_key())
+    push.set_transport(Collecting())
+    yield sent
+    push.set_transport(None)
+
+
 @pytest.fixture
 def telegram_box(monkeypatch):
     """Перехватывает сообщения бота и включает Telegram в настройках.

@@ -149,6 +149,32 @@ class Settings(BaseSettings):
     )
     telegram_timeout_seconds: int = Field(default=10, ge=1)
 
+    # --- Push-уведомления в браузер (телефон с панелью на экране) ---
+    vapid_private_key: str = Field(
+        default="",
+        description=(
+            "Закрытый ключ VAPID (base64url, 43 символа). Сгенерировать: "
+            "python -m app.push_setup. Пусто — push выключен, всё остальное "
+            "работает как раньше. Смена ключа обнуляет все подписки: "
+            "телефоны перестанут получать уведомления, пока люди не включат "
+            "их заново."
+        ),
+    )
+    vapid_subject: str = Field(
+        default="",
+        description=(
+            "Контакт для push-служб браузеров: mailto:адрес или https://адрес. "
+            "По нему Google или Apple напишут, если сервер шлёт мусор. "
+            "Пусто — берётся MAIL_FROM или ACME_EMAIL."
+        ),
+    )
+    push_ttl_seconds: int = Field(
+        default=86400,
+        ge=60,
+        description="Сколько push-служба хранит уведомление для выключенного телефона.",
+    )
+    push_timeout_seconds: int = Field(default=10, ge=1)
+
     # --- Планировщик ---
     scheduler_enabled: bool = Field(
         default=True,
@@ -253,6 +279,25 @@ class Settings(BaseSettings):
         """Уведомления в Telegram настроены. Без токена бот молчит, но
         ничего не ломает: почта и панель работают сами по себе."""
         return bool(self.telegram_bot_token)
+
+    @computed_field
+    @property
+    def push_enabled(self) -> bool:
+        """Push в браузер настроен: есть закрытый ключ VAPID."""
+        return bool(self.vapid_private_key)
+
+    @property
+    def push_subject(self) -> str:
+        """Контакт в подписи VAPID. Обязателен по стандарту — без него
+        push-службы отвечают 400 или 403."""
+        if self.vapid_subject:
+            return self.vapid_subject
+        contact = self.mail_from or self.smtp_user
+        if contact:
+            return f"mailto:{contact}"
+        if self.public_base_url:
+            return self.public_base_url
+        return "mailto:admin@example.com"
 
     @property
     def telegram_webhook_secret(self) -> str:
