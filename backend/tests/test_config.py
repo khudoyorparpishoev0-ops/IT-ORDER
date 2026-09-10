@@ -91,3 +91,27 @@ def test_windows_line_endings_do_not_leak_into_values() -> None:
     assert settings.telegram_bot_token == "123456:AAHtest"
     assert settings.smtp_password == "пароль-приложения"
     assert settings.public_base_url == "https://order.ithona.tj"
+
+
+def test_api_docs_are_closed_in_production(monkeypatch) -> None:
+    """Карта API не отдаётся наружу на боевом сервере.
+
+    Данных документация не раскрывает — каждый эндпоинт закрыт правом, —
+    но избавляет нападающего от разведки: все адреса, параметры и схемы
+    одним файлом. В разработке она нужна, поэтому выключается только
+    по `APP_ENV`.
+    """
+    from app.config import get_settings
+    from app.main import create_app
+
+    monkeypatch.setenv("APP_ENV", "production")
+    get_settings.cache_clear()
+    app = create_app()
+    assert app.docs_url is None
+    assert app.openapi_url is None
+
+    monkeypatch.setenv("APP_ENV", "development")
+    get_settings.cache_clear()
+    app = create_app()
+    assert app.docs_url == "/api/docs"
+    get_settings.cache_clear()

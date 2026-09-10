@@ -374,6 +374,9 @@ class ExpenseRequest(Base):
         Index("ix_requests_status_created", "status", "created_at"),
         Index("ix_requests_employee_created", "employee_id", "created_at"),
         Index("ix_requests_category_created", "category", "created_at"),
+        # Внешний ключ без индекса: отчёты по объекту и проверка «есть
+        # ли заявки у объекта» перед отключением идут перебором таблицы.
+        Index("ix_requests_project", "project_id"),
     )
 
 
@@ -586,6 +589,10 @@ class AiFeedback(Base):
     __table_args__ = (
         UniqueConstraint("interaction_id", "employee_id", name="uq_ai_feedback_once"),
         Index("ix_ai_feedback_created", "created_at"),
+        # В уникальном ключе выше employee_id стоит вторым, а по второй
+        # позиции поиск не идёт: удаление сотрудника обнуляло бы ссылку
+        # перебором таблицы.
+        Index("ix_ai_feedback_employee", "employee_id"),
     )
 
 
@@ -629,6 +636,7 @@ class RequestTemplate(Base):
     __table_args__ = (
         UniqueConstraint("employee_id", "name", name="uq_template_name_per_employee"),
         Index("ix_templates_employee", "employee_id"),
+        Index("ix_templates_project", "project_id"),
     )
 
 
@@ -706,6 +714,7 @@ class IntelligenceDelivery(Base):
         Index("ix_intel_employee_kind", "employee_id", "kind"),
         Index("ix_intel_created", "created_at"),
         Index("ix_intel_unresolved", "resolved_at"),
+        Index("ix_intel_request", "request_id"),
     )
 
 

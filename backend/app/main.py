@@ -82,9 +82,15 @@ def create_app() -> FastAPI:
         summary="Заявки сотрудников на расходы: подача, согласование, выплата",
         lifespan=lifespan,
         # CORS не нужен: панель отдаётся тем же origin через nginx.
-        docs_url="/api/docs",
+        #
+        # Документация открыта только в разработке. На боевом сервере она
+        # отдавала бы любому прохожему полную карту API: все эндпоинты,
+        # все параметры, все схемы. Данных это не раскрывает — каждый
+        # эндпоинт закрыт правом, — но избавляет нападающего от разведки,
+        # а нас лишает возможности заметить её по логам.
+        docs_url="/api/docs" if settings.is_development else None,
         redoc_url=None,
-        openapi_url="/api/openapi.json",
+        openapi_url="/api/openapi.json" if settings.is_development else None,
     )
     register_error_handlers(app)
 

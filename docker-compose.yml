@@ -95,5 +95,14 @@ services:
       # (docker-compose.prod.yml). Так порт 8080 не смотрит в интернет,
       # даже если в фаерволе его случайно откроют.
       - '127.0.0.1:${WEB_PORT:-8080}:80'
+    # Зависший nginx отвечает на TCP, но не отдаёт страницу, и без проверки
+    # Docker считает такой контейнер живым. У db и api проверка есть, у web
+    # не было — а именно он смотрит наружу через Caddy.
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1/index.html >/dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       - api

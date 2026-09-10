@@ -289,3 +289,36 @@ def test_overview_for_employee_has_no_queue(client, login, employee, manager, pr
     # Своя заявка в очередь руководителя не попадает.
     assert body["decisions"] == 1
     assert body["queue"][0]["employee_name"] == employee.full_name
+
+
+def test_every_foreign_key_has_an_index() -> None:
+    """Ссылка на другую таблицу без индекса — перебор всей таблицы.
+
+    Проверяется по модели, а не по базе: так забытый индекс виден до
+    выката, а не после того, как отчёт по объекту начал думать секунду.
+    """
+    from app.db.models import Base
+
+    from sqlalchemy import UniqueConstraint
+
+    missing = []
+    for table in Base.metadata.tables.values():
+        # Индекс покрывает колонку, если она в нём первая: по остальным
+        # позициям составного индекса поиск не идёт.
+        leading = {next(iter(i.columns)).name for i in table.indexes if len(i.columns)}
+        # Уникальное ограничение — это тоже индекс, PostgreSQL строит его
+        # сам. И на уровне колонки (`unique=True`), и в `__table_args__`.
+        leading |= {c.name for c in table.columns if c.unique}
+        leading |= {
+            next(iter(c.columns)).name
+            for c in table.constraints
+            if isinstance(c, UniqueConstraint) and len(c.columns)
+        }
+        if table.primary_key:
+            leading |= {next(iter(table.primary_key.columns)).name}
+
+        for fk in table.foreign_keys:
+            if fk.parent.name not in leading:
+                missing.append(f"{table.name}.{fk.parent.name}")
+
+    assert not missing, "внешние ключи без индекса: " + ", ".join(sorted(missing))
