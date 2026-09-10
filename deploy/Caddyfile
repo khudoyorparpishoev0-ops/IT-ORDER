@@ -25,6 +25,13 @@
 		X-Frame-Options "DENY"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "same-origin"
+		# Откуда странице разрешено что-либо грузить. Панель самодостаточна:
+		# шрифты и стили свои, CDN проект не использует, API живёт на том же
+		# origin. Поэтому список короткий, и любая посторонняя вставка —
+		# чужой скрипт, чужая картинка, отправка данных наружу — не
+		# выполнится. Это последний рубеж на случай XSS: остальные заголовки
+		# от него не защищают.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		# Заголовок с версией сервера убираем.
 		-Server
 	}
