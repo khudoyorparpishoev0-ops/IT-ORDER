@@ -1426,6 +1426,18 @@ select.filter {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+/* Длинное название не должно распирать экран: кнопка ужимается и
+   переносит текст. Названия приходят из заявок, и «Кабель UTP Cat6
+   Outdoor, бухта 305 м» там встречается. */
+.chip-row .btn {
+  max-width: 100%;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 .chip-row-label {
   margin: 0;
@@ -1618,4 +1630,46 @@ select.filter {
     grid-template-columns: 1fr;
     gap: 0;
   }
+}
+
+/* Поля категории расхода. Один столбец: это форма, которую заполняют с
+   телефона на объекте, а не таблица. На широком экране числа и деньги
+   встают парами — они короткие, и растягивать их на всю ширину значит
+   гнать взгляд туда-обратно. */
+.cat-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.cat-field.wide {
+  grid-column: 1 / -1;
+}
+@media (max-width: 720px) {
+  .cat-fields {
+    grid-template-columns: 1fr;
+  }
+}
+/* Единица рядом с числом: «20 л», «120 кг», «150 TJS». */
+.cat-num {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.cat-num .field {
+  padding-right: 56px;
+}
+.cat-suffix {
+  position: absolute;
+  right: 12px;
+  font-size: 13px;
+  color: var(--slate);
+  pointer-events: none;
+}
+.cat-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }

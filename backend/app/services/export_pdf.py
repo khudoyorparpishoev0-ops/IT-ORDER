@@ -275,6 +275,15 @@ def request_pdf(detail) -> bytes:
         Spacer(1, 6 * mm),
     ]
 
+    # Поля категории — до сметы: у питания и командировки это и есть
+    # содержание заявки, а смета под ними — одна выведенная строка.
+    if getattr(detail, "details_summary", None):
+        story.append(Paragraph("ПОДРОБНОСТИ РАСХОДА", st["kicker"]))
+        story.append(Spacer(1, 2 * mm))
+        for label, value in detail.details_summary:
+            story.append(Paragraph(f"{label}: {value}", st["source"]))
+        story.append(Spacer(1, 5 * mm))
+
     head = [
         Paragraph("ОПИСАНИЕ", st["th"]),
         Paragraph("КОЛ-ВО", st["th_right"]),

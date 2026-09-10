@@ -52,6 +52,7 @@ from app.db.models import (
     RequestStatus,
     RequestView,
 )
+from app.services import categories
 from app.schemas.request import (
     DecisionIn,
     ExpenseLineIn,
@@ -235,6 +236,64 @@ def spent_by_employee(
 # --------------------------------------------------------------------------
 # Запись
 # --------------------------------------------------------------------------
+def _fill(
+    request: ExpenseRequest,
+    *,
+    lines: list[ExpenseLineIn] | None,
+    details: dict | None,
+) -> None:
+    """Наполняет заявку тем, чем её положено наполнять.
+
+    Что именно — решает категория, а не клиент: у сметы строками это
+    позиции, у остальных — поля категории. Иначе достаточно было бы
+    прислать питание сметой «Обед · 1 шт.» и обойти проверку людей и
+    дней, ради которой всё и затевалось.
+    """
+    if categories.is_lines_form(request.category):
+        if not lines:
+            raise ValidationError("В заявке нет ни одной строки")
+        _apply_lines(request, lines)
+        request.details = {}
+        return
+    _apply_details(request, details or {})
+
+
+def _apply_details(request: ExpenseRequest, details: dict) -> None:
+    """Кладёт поля категории и собирает по ним смету.
+
+    У заявки любого вида остаётся хотя бы одна строка: их читают отчёты,
+    аналитика, поиск, выгрузки, память помощника и наименование заявки.
+    Питание на четверых два дня становится строкой «Обед и ужин, 8
+    чел.-дн. по 50» — и всё остальное продолжает работать как раньше.
+
+    Сумму считает сервер по тем же полям. Панель показывает свой итог,
+    но он справочный: в базу идёт этот.
+    """
+    problems = categories.validate(request.category, details)
+    if problems:
+        raise ValidationError("; ".join(problems))
+
+    request.details = details
+    derived = categories.derive_line(request.category, details)
+    if derived is None:
+        return
+
+    request.lines.clear()
+    request.lines.append(
+        ExpenseLine(
+            title=derived.title[:200],
+            original_text=derived.title[:200],
+            normalized_text=normalize(derived.title)[:200],
+            quantity=derived.quantity,
+            unit=derived.unit,
+            price=derived.price,
+            total=derived.total,
+            from_stock=False,
+        )
+    )
+    request.amount = derived.total or Decimal("0.00")
+
+
 def _apply_lines(request: ExpenseRequest, lines: list[ExpenseLineIn]) -> None:
     """Заменяет состав заявки. Цен здесь нет — их проставит закуп."""
     request.lines.clear()
@@ -275,7 +334,16 @@ def recalculate_amount(request: ExpenseRequest) -> Decimal:
 
 
 def is_priced(request: ExpenseRequest) -> bool:
-    """Прошла ли заявка оценку закупа. До этого сумма ничего не значит."""
+    """Известна ли сумма заявки. Нет — вместо числа стоит «не оценена».
+
+    Известна она в двух случаях. Заявка прошла оценку закупа — так у
+    материалов, где цену знает только он. Или сумму назвал сам автор:
+    у питания, заправки и хостинга счёт уже выставлен, и показывать
+    «не оценена» рядом со строкой на 1 900,00 значит спорить с самим
+    собой на одном экране.
+    """
+    if request.amount > 0:
+        return True
     return request.status in (
         RequestStatus.PRICED,
         RequestStatus.APPROVED,
@@ -414,7 +482,7 @@ def create_request(session: Session, data: RequestCreate) -> ExpenseRequest:
         category=data.category,
         status=RequestStatus.DRAFT,
     )
-    _apply_lines(request, data.lines)
+    _fill(request, lines=data.lines, details=data.details)
     # Кто создал — берём из сессии, а не из карточки автора: администратор
     # заводит заявку за другого, и «создал Иванов» было бы неправдой.
     # Автор в этом случае уходит в подробности отдельной строкой.
@@ -465,13 +533,34 @@ def update_request(
         request.project = project
     if data.category is not None:
         request.category = data.category
-    if data.lines is not None:
-        _apply_lines(request, data.lines)
+    # Смена категории переписывает состав: у питания и у сметы строками
+    # разные поля, и оставить старые значило бы показать в карточке
+    # позиции, которых человек в этой форме не вводил.
+    if data.lines is not None or data.details is not None or data.category is not None:
+        _fill(
+            request,
+            lines=data.lines if data.lines is not None else _lines_as_input(request),
+            details=data.details if data.details is not None else request.details,
+        )
 
     session.flush()
     _record_edit(request, before_project, before_lines)
     write_audit(session, entity="request", entity_id=request.number, action="update")
     return request
+
+
+def _lines_as_input(request: ExpenseRequest) -> list[ExpenseLineIn]:
+    """Нынешние строки в том виде, в каком их присылает форма. Нужно,
+    когда правят только объект: состав должен остаться прежним."""
+    return [
+        ExpenseLineIn(
+            title=line.title,
+            original_text=line.original_text or line.title,
+            quantity=line.quantity,
+            unit=line.unit,
+        )
+        for line in request.lines
+    ]
 
 
 def _lines_snapshot(request: ExpenseRequest) -> dict[str, str]:
@@ -597,6 +686,59 @@ def start_sourcing(
         waiting=awaiting_people(session, request),
     )
     write_audit(session, entity="request", entity_id=request.number, action="sourcing")
+
+
+def approve_without_sourcing(
+    session: Session,
+    request: ExpenseRequest,
+    *,
+    actor: str | None = None,
+    comment: str | None = None,
+) -> None:
+    """Одобрено и сразу в бухгалтерию — без шага закупа.
+
+    Так идут расходы, где цену называет сам автор: питание, заправка,
+    такси, хостинг. Закупу там нечего делать — склад не проверишь и
+    цену не найдёшь, счёт уже выставлен.
+
+    Сумма при этом обязана быть: сюда попадают только заявки, где её
+    назвали (`categories.needs_procurement`). Проверку повторяем здесь —
+    это последняя точка перед деньгами, и полагаться на то, что выше по
+    коду всё правильно, тут нельзя.
+    """
+    if request.amount <= 0:
+        raise ConflictError(
+            f"У заявки {request.number} не названа сумма — её нельзя "
+            f"отправить в бухгалтерию, минуя оценку"
+        )
+
+    before = request.status
+    _add_event(
+        request,
+        EventKind.APPROVED,
+        f"Одобрение расхода: {somoni(request.amount)}",
+        actor,
+        details={
+            "status": {"from": before.value, "to": RequestStatus.APPROVED.value},
+            "amount_total": somoni(request.amount),
+        },
+    )
+    _comment_event(request, comment, actor, AWAITING[before][1])
+    request.status = RequestStatus.APPROVED
+    request.decided_at = utcnow()
+    request.decided_by = actor
+    _move_event(
+        request,
+        "Передала заявку в бухгалтерию на оплату",
+        waiting=awaiting_people(session, request),
+    )
+    write_audit(
+        session,
+        entity="request",
+        entity_id=request.number,
+        action="approve",
+        username=actor,
+    )
 
 
 def apply_sourcing(
@@ -808,9 +950,18 @@ def decide_request(
             username=data.actor,
         )
     else:
-        # Согласована потребность, не деньги: суммы ещё нет.
+        # Согласована потребность. Куда заявка пойдёт дальше, решает
+        # категория, а не клиент: материалы и карго оценивает закуп, а
+        # питание с известной суммой оценивать нечем — его сразу в
+        # бухгалтерию. Заявка без названной суммы идёт через закуп в
+        # любом случае: платить по нулю нельзя.
         request.decision_comment = comment
-        start_sourcing(session, request, actor=data.actor, comment=comment)
+        if categories.needs_procurement(request.category, request.amount):
+            start_sourcing(session, request, actor=data.actor, comment=comment)
+        else:
+            approve_without_sourcing(
+                session, request, actor=data.actor, comment=comment
+            )
 
     session.flush()
     return request

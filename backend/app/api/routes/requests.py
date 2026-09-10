@@ -30,6 +30,8 @@ from app.db.models import Employee, ExpenseRequest, RequestStatus
 from app.schemas.common import Page
 from app.schemas.report import Overview
 from app.schemas.request import (
+    CategoryFieldOut,
+    CategoryOut,
     DecisionIn,
     ExpenseLineOut,
     PaymentIn,
@@ -44,6 +46,7 @@ from app.schemas.request import (
     StayOut,
     WatcherOut,
 )
+from app.services import categories as categories_svc
 from app.services import reports as reports_svc
 from app.services import requests as svc
 from app.services.notifications import notify_new_request
@@ -128,6 +131,8 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
         decided_by=request.decided_by,
         sourced_by=request.sourced_by,
         sourcing_comment=request.sourcing_comment,
+        details=request.details or {},
+        details_summary=categories_svc.summary(request.category, request.details or {}),
         awaiting_people=svc.awaiting_people(session, request),
         viewers=[
             RequestViewerOut(
@@ -210,6 +215,58 @@ def overview(session: DbSession, user: CurrentUser, period: PeriodDep):
         data.decisions = total
         data.delayed_decisions = delayed
     return data
+
+
+#: Маршрут заявки словами — по флагам категории, а не отдельным списком:
+#: два описания одного маршрута однажды разошлись бы.
+def _route_of(spec) -> list[str]:
+    steps = ["Автор", "Руководитель"]
+    if spec.requires_procurement:
+        steps.append("Отдел закупа")
+        if spec.requires_amount_approval:
+            steps.append("Согласование суммы")
+    steps += ["Бухгалтерия", "Оплачено"]
+    return steps
+
+
+@router.get("/categories", response_model=list[CategoryOut])
+def categories(user: CurrentUser) -> list[CategoryOut]:
+    """Категории расхода с их формами и маршрутами.
+
+    Панель рисует форму по этому ответу, а не по своему списку: иначе
+    поля на экране и поля, которые проверяет сервер, однажды разойдутся,
+    и человек не сможет подать заявку, не понимая почему.
+
+    Открыт любому вошедшему: без него не заполнить заявку.
+    """
+    return [
+        CategoryOut(
+            code=spec.code,
+            name=spec.name,
+            form_type=spec.form_type,
+            requires_procurement=spec.requires_procurement,
+            requires_amount_approval=spec.requires_amount_approval,
+            allows_initial_amount=spec.allows_initial_amount,
+            requires_unit=spec.requires_unit,
+            requires_quantity=spec.requires_quantity,
+            workflow_type=spec.workflow_type,
+            route=_route_of(spec),
+            fields=[
+                CategoryFieldOut(
+                    key=item.key,
+                    label=item.label,
+                    kind=item.kind,
+                    required=item.required,
+                    options=list(item.options),
+                    note=item.note,
+                    suffix=item.suffix,
+                )
+                for item in spec.fields
+            ],
+        )
+        for spec in categories_svc.SPECS.values()
+        if spec.active
+    ]
 
 
 @router.get("/{request_id}", response_model=RequestDetail)

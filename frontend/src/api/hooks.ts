@@ -43,6 +43,7 @@ import type {
   ProjectInput,
   ProjectShare,
   RequestDetail,
+  ExpenseCategory,
   RequestInput,
   RequestUpdateInput,
   RequestListItem,
@@ -700,6 +701,21 @@ function invalidateRequests(qc: ReturnType<typeof useQueryClient>) {
   ]) {
     qc.invalidateQueries({ queryKey: key });
   }
+}
+
+/**
+ * Категории расхода со своими формами и маршрутами.
+ *
+ * Список приходит с сервера, а не лежит в панели: поля формы и поля,
+ * которые проверяет сервер, обязаны быть одним набором. Разойдись они —
+ * и человек не сможет подать заявку, не понимая почему.
+ */
+export function useCategories() {
+  return useQuery({
+    queryKey: ['categories'] as const,
+    queryFn: () => api<ExpenseCategory[]>('/api/requests/categories'),
+    staleTime: 5 * 60_000,
+  });
 }
 
 export function useCreateRequest() {

@@ -450,7 +450,11 @@ export type RequestInput = {
   project_id: number;
   /** null — категория не указана, и это честнее, чем «Другое». */
   category?: RequestCategory | null;
-  lines: ExpenseLineInput[];
+  /** Смета строками — у категорий со сметой и у заявки без категории.
+   *  У остальных строку собирает сервер по полям категории. */
+  lines?: ExpenseLineInput[];
+  /** Поля категории: люди и дни, маршрут и даты, вес и таможня. */
+  details?: Record<string, unknown>;
   /** true — сразу на согласование, false — оставить черновиком. */
   submit: boolean;
 };
@@ -460,6 +464,7 @@ export type RequestUpdateInput = {
   project_id?: number;
   category?: RequestCategory | null;
   lines?: ExpenseLineInput[];
+  details?: Record<string, unknown>;
 };
 
 export type PaymentInput = {
@@ -587,6 +592,10 @@ export type RequestDetail = RequestListItem & {
   sourcing_comment: string | null;
   /** Кто именно может сделать следующий шаг. */
   awaiting_people: string[];
+  /** Поля категории как их ввёл человек — для формы правки черновика. */
+  details: Record<string, unknown>;
+  /** Они же словами, только заполненные: «Человек — 4», «Дней — 2». */
+  details_summary: [string, string][];
   /** Кто открывал карточку. Пусто — заявку ещё никто не смотрел. */
   viewers: RequestViewer[];
   /** Кто может сделать следующий шаг и открывал ли он заявку. */
@@ -986,9 +995,52 @@ export type RequestCategory =
   | 'DELIVERY'
   | 'SERVICES'
   | 'HOUSEHOLD'
+  | 'CARGO'
+  | 'CONNECTIVITY'
   | 'OTHER';
 
 /** Подписи категорий. Порядок — от частого к редкому. */
+/** Вид формы категории. Совпадает с `services/categories.py`. */
+export type FormType =
+  | 'lines'
+  | 'people_days'
+  | 'nights'
+  | 'trip'
+  | 'route'
+  | 'cargo'
+  | 'vehicle'
+  | 'service'
+  | 'subscription'
+  | 'freeform';
+
+export type CategoryField = {
+  key: string;
+  label: string;
+  /** text · textarea · number · money · date · select */
+  kind: string;
+  required: boolean;
+  options: string[];
+  note: string | null;
+  suffix: string | null;
+};
+
+/** Категория расхода со своей формой и маршрутом — приходит с сервера.
+ *  Свой список полей панель не держит: он однажды разошёлся бы с тем,
+ *  что проверяет сервер, и человек не смог бы подать заявку. */
+export type ExpenseCategory = {
+  code: RequestCategory;
+  name: string;
+  form_type: FormType;
+  requires_procurement: boolean;
+  requires_amount_approval: boolean;
+  allows_initial_amount: boolean;
+  requires_unit: boolean;
+  requires_quantity: boolean;
+  workflow_type: string;
+  route: string[];
+  fields: CategoryField[];
+};
+
 export const CATEGORY_LABEL: Record<RequestCategory, string> = {
   MATERIALS: 'Материалы',
   EQUIPMENT: 'Оборудование',
@@ -1000,6 +1052,8 @@ export const CATEGORY_LABEL: Record<RequestCategory, string> = {
   DELIVERY: 'Доставка',
   SERVICES: 'Услуги',
   HOUSEHOLD: 'Хозяйственные расходы',
+  CARGO: 'Карго',
+  CONNECTIVITY: 'Интернет, хостинг, связь',
   OTHER: 'Другое',
 };
 

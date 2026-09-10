@@ -259,6 +259,23 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
             </section>
           )}
 
+          {detail.details_summary.length > 0 && (
+            <section className="card" style={{ display: 'grid', gap: 12 }}>
+              {/* Поля категории словами. Показываем в широкой колонке
+                  рядом со сметой: для питания и командировки это и есть
+                  содержание заявки, а смета — одна выведенная строка. */}
+              <div className="label">Подробности расхода</div>
+              <dl className="tl-details" style={{ margin: 0, background: 'transparent', borderLeft: 0, padding: 0 }}>
+                {detail.details_summary.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+
           {(detail.sourcing_comment || detail.decision_comment) && (
             <section className="card" style={{ display: 'grid', gap: 12 }}>
               <h2 className="h3">Комментарии</h2>

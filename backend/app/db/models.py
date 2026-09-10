@@ -73,6 +73,12 @@ class RequestCategory(str, enum.Enum):
     DELIVERY = "DELIVERY"
     SERVICES = "SERVICES"
     HOUSEHOLD = "HOUSEHOLD"
+    #: Международная перевозка: вес, объём, таможня. Отдельно от доставки
+    #: по городу — там нет ни страны отправления, ни растаможки.
+    CARGO = "CARGO"
+    #: Хостинг, домен, интернет, телефония. Расход повторяющийся и
+    #: привязан к сроку, а не к количеству.
+    CONNECTIVITY = "CONNECTIVITY"
     OTHER = "OTHER"
 
 
@@ -347,9 +353,16 @@ class ExpenseRequest(Base):
     #: Бизнес-категория: транспорт, топливо, питание. NULL — не указана;
     #: старые заявки её не знают, и это честнее, чем свалить их в «Другое».
     #: Помощник предлагает, человек подтверждает — сама не проставляется.
+    #: С фазы «категории расхода» она же решает, какие поля показать и
+    #: нужен ли отдел закупа (`services/categories.py`).
     category: Mapped[RequestCategory | None] = mapped_column(
         Enum(RequestCategory, name="request_category", native_enum=False, length=16)
     )
+    #: Поля, которых нет у сметы строками: люди и дни у питания, маршрут
+    #: и даты у командировки, вес и таможня у карго. Набор задаёт
+    #: категория, проверяет его сервер. Пусто у заявок, поданных до
+    #: появления категорийных форм, и у обычной сметы материалами.
+    details: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     created_at: Mapped[CreatedAt]
     submitted_at: Mapped[Timestamp | None]
