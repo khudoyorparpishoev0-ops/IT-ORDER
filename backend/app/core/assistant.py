@@ -143,7 +143,11 @@ class ClaudeTransport:
         usage = getattr(response, "usage", None)
         _last_usage.set(
             Usage(
-                model=settings.assistant_model,
+                # Что ответило на самом деле. В настройке может стоять
+                # алиас, а Anthropic разворачивает его в конкретный
+                # снимок — по счёту платят за снимок, и в журнале должен
+                # стоять он же.
+                model=getattr(response, "model", None) or settings.assistant_model,
                 input_tokens=getattr(usage, "input_tokens", None),
                 output_tokens=getattr(usage, "output_tokens", None),
             )

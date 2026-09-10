@@ -26,6 +26,7 @@ export const NAV: NavItem[] = [
   { to: '/finance', label: 'Финансы', icon: 'ti-wallet', need: 'view_reports' },
   { to: '/employees', label: 'Сотрудники', icon: 'ti-user-plus', need: 'manage_reference' },
   { to: '/projects', label: 'Объекты', icon: 'ti-building', need: 'manage_reference' },
+  { to: '/ai-usage', label: 'Расход AI', icon: 'ti-coin', need: 'manage_reference' },
   { to: '/journal', label: 'Журнал', icon: 'ti-history', need: 'view_audit' },
   { to: '/settings', label: 'Параметры', icon: 'ti-settings' },
   { to: '/help', label: 'Справка', icon: 'ti-help-circle' },

@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, query } from './client';
 import type {
   AiSettings,
+  AiUsageReport,
   IntelligenceSubscription,
   IntelligenceSubscriptionIn,
   ExecutiveOverview,
@@ -65,6 +66,7 @@ export const keys = {
   materials: ['materials'] as const,
   assistant: ['materials', 'assistant'] as const,
   aiSettings: ['ai', 'settings'] as const,
+  aiUsage: ['ai', 'usage'] as const,
   executive: ['analytics', 'executive'] as const,
   intelligence: (ai: boolean) => ['analytics', 'intelligence', ai] as const,
   templates: ['templates'] as const,
@@ -434,6 +436,21 @@ export function useSaveSubscription() {
         body: JSON.stringify(data),
       }),
     onSuccess: (data) => qc.setQueryData(keys.subscription, data),
+  });
+}
+
+/**
+ * Расход на AI: стоимость, модели, типы использования, оценки, бюджет.
+ *
+ * Раздел администратора, поэтому запрос не отправляется без права —
+ * иначе панель стучится в закрытый эндпоинт и получает 403.
+ */
+export function useAiUsage(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.aiUsage,
+    queryFn: () => api<AiUsageReport>('/api/ai/usage'),
+    enabled,
+    refetchOnMount: 'always',
   });
 }
 

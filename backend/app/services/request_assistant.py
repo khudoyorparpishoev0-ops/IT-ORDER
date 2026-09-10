@@ -212,6 +212,10 @@ def converse(
         duration_ms=int((time.monotonic() - started) * 1000),
         source=source,
         usage=assistant.last_usage(),
+        # Кнопка «Применить в заявку» появляется только там, где помощник
+        # действительно предложил позиции. Уточняющий вопрос применять
+        # нечем, и в долю применённых он попадать не должен.
+        offers_apply=bool(out.lines),
     )
     return out.model_copy(update={"interaction_id": entry_id})
 

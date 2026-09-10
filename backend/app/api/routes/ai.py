@@ -14,9 +14,21 @@ from app.core.errors import NotFoundError
 from app.core.permissions import Permission
 from app.core.time import to_local
 from app.db.models import AiKind
-from app.schemas.ai import AiEntry, AiFeedbackIn, AiSettingsOut, AiUsage
+from app.schemas.ai import (
+    AiBudgetOut,
+    AiEmployeeCostOut,
+    AiEntry,
+    AiFeedbackIn,
+    AiFeedbackSummaryOut,
+    AiModelOut,
+    AiPeriodOut,
+    AiSettingsOut,
+    AiUsage,
+    AiUsageOut,
+    AiUsageTypeOut,
+)
 from app.schemas.analytics import DeliveryStatsOut
-from app.services import ai_feedback, ai_log, ai_memory
+from app.services import ai_feedback, ai_log, ai_memory, ai_usage
 from app.services.notifications import intelligence as intel_notify
 
 router = APIRouter(prefix="/api/ai", tags=["ai"], dependencies=[Depends(bind_audit_actor)])
@@ -121,3 +133,33 @@ def rate(session: DbSession, user: CurrentUser, data: AiFeedbackIn) -> Response:
         comment=data.comment,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/usage",
+    response_model=AiUsageOut,
+    dependencies=[Depends(RequirePermission(Permission.MANAGE_REFERENCE))],
+)
+def usage(session: DbSession, _: CurrentUser):
+    """Расход на AI и польза от него: раздел администратора.
+
+    Закрыт тем же правом, что справочники и карточка помощника: расход по
+    сотрудникам — это данные обо всей компании, и рядовому сотруднику их
+    видеть незачем. Считает всё сервер, панель показывает готовое.
+
+    От доступности Anthropic раздел не зависит вовсе: он читает журнал
+    обращений, а не спрашивает модель.
+    """
+    data = ai_usage.collect(session)
+    return AiUsageOut(
+        periods=[AiPeriodOut(**vars(p)) for p in data.periods],
+        models=[AiModelOut(**vars(m)) for m in data.models],
+        usage_types=[AiUsageTypeOut(**vars(u)) for u in data.usage_types],
+        employees=[AiEmployeeCostOut(**vars(e)) for e in data.employees],
+        feedback=AiFeedbackSummaryOut(**data.feedback),
+        budget=AiBudgetOut(**vars(data.budget)),
+        apply_rate_pct=data.apply_rate_pct,
+        applied=data.applied,
+        offered=data.offered,
+        prices_checked=data.prices_checked,
+    )

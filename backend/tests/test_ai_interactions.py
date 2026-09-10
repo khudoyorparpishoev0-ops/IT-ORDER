@@ -45,7 +45,10 @@ def test_material_advice_is_recorded(client, login, employee, session, assistant
     assert entry.question == "гофра16"
     assert entry.answer == "Гофра гибкая 16 мм"
     assert entry.ok is True
-    assert entry.applied is None
+    # False, а не None: кнопка «Применить» у совета есть, её пока не
+    # нажали. None означало бы, что применять было нечего, и такой ответ
+    # не должен попадать в знаменатель доли применённых.
+    assert entry.applied is False
     # Имя берётся из сессии, а не из тела запроса.
     assert entry.username == employee.full_name
     assert entry.employee_id == employee.id

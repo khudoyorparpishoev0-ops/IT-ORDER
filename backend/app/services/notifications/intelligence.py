@@ -203,9 +203,12 @@ def _ai_summary(session: Session, data, queue) -> tuple[list[str], bool]:
     они нужнее объяснения. Модель получает компактный набор фактов, а не
     сотни заявок.
     """
+    from app.db.models import AiSource
     from app.services import intelligence as brain
 
-    text = brain.explain_overview(session, data, queue[:AI_CONTEXT_LIMIT], [])
+    text = brain.explain_overview(
+        session, data, queue[:AI_CONTEXT_LIMIT], [], source=AiSource.SCHEDULER
+    )
     if not text.available:
         return [], False
     lines = [line for line in ([text.headline] + list(text.summary)) if line]

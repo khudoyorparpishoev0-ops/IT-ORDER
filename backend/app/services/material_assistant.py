@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import assistant
-from app.db.models import AiKind
+from app.db.models import AiKind, AiResolvedBy
 from app.schemas.reference import MaterialAdviceOut
 from app.services import ai_log, ai_memory
 from app.services.reference import materials_catalog
@@ -112,6 +112,7 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
             ),
             question=clean,
             duration_ms=None,
+            resolved_by=AiResolvedBy.ALIAS,
         )
 
     key = (clean.lower(), (unit or "").strip().lower())
@@ -121,7 +122,10 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
         # Ответ из кэша человек всё равно увидел и может применить, поэтому
         # обращение пишем. Время не пишем: модель мы не ждали, и средняя
         # задержка не должна выглядеть лучше, чем она есть.
-        return _logged(session, cached, question=clean, duration_ms=None)
+        return _logged(
+            session, cached, question=clean, duration_ms=None,
+            resolved_by=AiResolvedBy.CACHE,
+        )
 
     started = time.monotonic()
     try:
@@ -156,7 +160,10 @@ def advise(session: Session, *, title: str, unit: str | None = None) -> Material
     _cache[key] = result
     if len(_cache) > _CACHE_LIMIT:
         _cache.popitem(last=False)
-    return _logged(session, result, question=clean, duration_ms=_ms(started))
+    return _logged(
+        session, result, question=clean, duration_ms=_ms(started),
+        resolved_by=AiResolvedBy.MODEL,
+    )
 
 
 def _ms(started: float) -> int:
@@ -169,6 +176,7 @@ def _logged(
     *,
     question: str,
     duration_ms: int | None,
+    resolved_by: AiResolvedBy,
 ) -> MaterialAdviceOut:
     """Пишет обращение и возвращает совет с номером записи.
 
@@ -181,6 +189,9 @@ def _logged(
         question=question,
         answer=advice.suggested or advice.title,
         duration_ms=duration_ms,
-        usage=assistant.last_usage() if duration_ms is not None else None,
+        usage=assistant.last_usage() if resolved_by is AiResolvedBy.MODEL else None,
+        resolved_by=resolved_by,
+        # У совета по материалу кнопка «Применить» есть всегда.
+        offers_apply=True,
     )
     return advice.model_copy(update={"interaction_id": entry_id})

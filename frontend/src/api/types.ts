@@ -142,6 +142,81 @@ export type AiUsage = {
   top_reasons: AiReasonCount[];
 };
 
+/** Показатели расхода на AI за отрезок времени. */
+export type AiPeriod = {
+  label: string;
+  days: number;
+  requests: number;
+  /** Доллары строкой: перевод в number теряет доли цента. */
+  cost_usd: string;
+  /** Сумма посчитана по нынешней цене, а не по снимку (старые записи). */
+  estimated: boolean;
+  input_tokens: number;
+  output_tokens: number;
+  avg_seconds: number | null;
+  error_pct: number | null;
+  /** Обращений, на которые ответили без модели. */
+  avoided: number;
+  avoided_pct: number | null;
+};
+
+export type AiModelCost = {
+  model: string | null;
+  requests: number;
+  cost_usd: string;
+  avg_seconds: number | null;
+  /** Цена модели известна. false — сумма занижена. */
+  price_known: boolean;
+};
+
+export type AiUsageType = {
+  key: string;
+  label: string;
+  requests: number;
+  cost_usd: string;
+  avg_tokens: number | null;
+  apply_rate_pct: number | null;
+  offered: number;
+};
+
+export type AiEmployeeCost = {
+  employee: string;
+  requests: number;
+  tokens: number;
+  cost_usd: string;
+};
+
+/** Бюджет месяца. Помощник по нему не выключается. */
+export type AiBudget = {
+  limit_usd: string | null;
+  spent_usd: string;
+  used_pct: number | null;
+  warning_percent: number;
+  warning: boolean;
+};
+
+export type AiFeedbackSummary = {
+  useful: number;
+  useless: number;
+  feedback_rate_pct: number | null;
+  useless_pct: number | null;
+  top_reasons: AiReasonCount[];
+};
+
+/** Раздел «Расход AI» целиком. */
+export type AiUsageReport = {
+  periods: AiPeriod[];
+  models: AiModelCost[];
+  usage_types: AiUsageType[];
+  employees: AiEmployeeCost[];
+  feedback: AiFeedbackSummary;
+  budget: AiBudget;
+  apply_rate_pct: number | null;
+  applied: number;
+  offered: number;
+  prices_checked: string;
+};
+
 /** Строка журнала обращений к AI. */
 export type AiEntry = {
   id: number;
