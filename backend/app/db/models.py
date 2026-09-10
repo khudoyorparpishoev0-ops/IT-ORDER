@@ -115,6 +115,10 @@ class EventKind(str, enum.Enum):
     AUTO_APPROVED = "auto_approved"
     REJECTED = "rejected"
     PAID = "paid"
+    #: Черновик отредактирован автором: состав, количества, объект.
+    #: После подачи заявка неизменяема, поэтому событие бывает только у
+    #: черновика — и это правильное место, чтобы это увидеть.
+    EDITED = "edited"
 
 
 #: Счётчик номеров заявок. Последовательность, а не max(number): она не
@@ -468,13 +472,31 @@ class RequestEvent(Base):
         Enum(EventKind, name="event_kind", native_enum=False, length=24), nullable=False
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    #: Кто совершил действие. До фазы 3 — имя сотрудника или «СИСТЕМА».
+    #: Кто совершил действие. Имя на момент действия: сотрудника могли
+    #: переименовать или удалить, а история должна читаться и потом.
     actor: Mapped[Name] = mapped_column(default="СИСТЕМА")
+    #: Ссылка на сотрудника — для блока «кто видел» и разбора «а кто это».
+    #: Запись удалили — ссылка обнуляется, имя выше остаётся.
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    #: Человек это сделал или система. Переход «заявка ушла в закуп» —
+    #: следствие чужого решения, и подписывать его именем руководителя
+    #: значит утверждать, что он сделал два действия вместо одного.
+    actor_type: Mapped[str] = mapped_column(String(8), default="human", nullable=False)
+    #: Подробности события: {"status": {"from": ..., "to": ...}}, сумма
+    #: «было → стало», состав правки, у кого заявка теперь. Панель рисует
+    #: ленту отсюда, а не разбирает `text` обратно в данные: текст пишут
+    #: для человека, и менять его должно быть безопасно.
+    details: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     created_at: Mapped[CreatedAt]
 
     request: Mapped[ExpenseRequest] = relationship(back_populates="events")
 
-    __table_args__ = (Index("ix_events_request_created", "request_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_events_request_created", "request_id", "created_at"),
+        Index("ix_request_events_employee", "employee_id"),
+    )
 
 
 class Payment(Base):
@@ -593,6 +615,40 @@ class AiFeedback(Base):
         # позиции поиск не идёт: удаление сотрудника обнуляло бы ссылку
         # перебором таблицы.
         Index("ix_ai_feedback_employee", "employee_id"),
+    )
+
+
+class RequestView(Base):
+    """Кто открывал заявку: впервые, в последний раз и сколько всего.
+
+    Отдельная таблица, а не события в истории: человек открывает карточку
+    по двадцать раз за день, и лента из просмотров перестаёт читаться —
+    вместе с теми событиями, ради которых её открыли. Здесь на пару
+    «заявка + сотрудник» одна строка, которая обновляется.
+
+    Отвечает на вопрос, которого раньше не было ни у кого: заявка просто
+    лежит у человека или он её действительно открыл.
+    """
+
+    __tablename__ = "request_views"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_id: Mapped[int] = mapped_column(
+        ForeignKey("expense_requests.id", ondelete="CASCADE"), nullable=False
+    )
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    first_viewed_at: Mapped[CreatedAt]
+    last_viewed_at: Mapped[CreatedAt]
+    times: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    employee: Mapped[Employee] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("request_id", "employee_id", name="uq_request_view_once"),
+        Index("ix_request_views_request", "request_id"),
+        Index("ix_request_views_employee", "employee_id"),
     )
 
 

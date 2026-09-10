@@ -68,9 +68,9 @@ const SAMPLE: RequestDetail = {
     { id: 2, title: 'Коннектор RJ-45', original_text: 'Коннектор RJ-45', quantity: 100, unit: 'шт.', price: null, total: null, from_stock: false },
   ],
   events: [
-    { kind: 'created', text: 'Черновик создан', actor: 'Иван Петров', meta: 'ИВАН ПЕТРОВ · 01.09.2026, 09:40', created_at: '2026-09-01T04:40:00Z' },
-    { kind: 'submitted', text: 'Отправлена на согласование', actor: 'Иван Петров', meta: 'ИВАН ПЕТРОВ · 01.09.2026, 09:52', created_at: '2026-09-01T04:52:00Z' },
-    { kind: 'sourcing', text: 'Покупка согласована, передана в закуп', actor: 'Мария Сидорова', meta: 'МАРИЯ СИДОРОВА · 04.09.2026, 18:12', created_at: '2026-09-04T13:12:00Z' },
+    { kind: 'created', text: 'Черновик создан', actor: 'Иван Петров', actor_type: 'human', details: {}, meta: 'ИВАН ПЕТРОВ · 01.09.2026, 09:40', created_at: '2026-09-01T04:40:00Z' },
+    { kind: 'submitted', text: 'Отправлена на согласование', actor: 'Иван Петров', actor_type: 'human', details: { status: { from: 'draft', to: 'pending' }, holder: 'У руководителя: согласовать покупку' }, meta: 'ИВАН ПЕТРОВ · 01.09.2026, 09:52', created_at: '2026-09-01T04:52:00Z' },
+    { kind: 'sourcing', text: 'Покупка согласована, передана в закуп', actor: 'Мария Сидорова', actor_type: 'human', details: { status: { from: 'pending', to: 'sourcing' }, holder: 'У отдела закупа: склад и цены' }, meta: 'МАРИЯ СИДОРОВА · 04.09.2026, 18:12', created_at: '2026-09-04T13:12:00Z' },
   ],
   payment: null,
   decision_comment: null,
@@ -78,6 +78,9 @@ const SAMPLE: RequestDetail = {
   sourced_by: null,
   sourcing_comment: null,
   awaiting_people: ['Отдел закупа'],
+  viewers: [
+    { employee_id: 2, employee_name: 'Мария Сидорова', first_viewed_at: '04.09.2026, 18:10', last_viewed_at: '05.09.2026, 09:20', times: 3 },
+  ],
 };
 
 /** Та же заявка, но задержавшаяся на согласовании суммы. */
@@ -103,7 +106,7 @@ const REJECTED: RequestDetail = {
   decision_comment: 'Превышение бюджета объекта',
   events: [
     ...SAMPLE.events.slice(0, 2),
-    { kind: 'rejected', text: 'Отклонена — превышение бюджета объекта', actor: 'Мария Сидорова', meta: 'МАРИЯ СИДОРОВА · 05.09.2026, 10:02', created_at: '2026-09-05T05:02:00Z' },
+    { kind: 'rejected', text: 'Отклонена — превышение бюджета объекта', actor: 'Мария Сидорова', actor_type: 'human', details: { status: { from: 'pending', to: 'rejected' }, comment: 'Превышение бюджета объекта' }, meta: 'МАРИЯ СИДОРОВА · 05.09.2026, 10:02', created_at: '2026-09-05T05:02:00Z' },
   ],
 };
 

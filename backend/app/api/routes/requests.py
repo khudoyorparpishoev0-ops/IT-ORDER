@@ -25,6 +25,7 @@ from app.api.deps import (
     bind_audit_actor,
 )
 from app.core.permissions import Permission, has_permission
+from app.core.time import format_local_datetime
 from app.db.models import Employee, ExpenseRequest, RequestStatus
 from app.schemas.common import Page
 from app.schemas.report import Overview
@@ -38,6 +39,7 @@ from app.schemas.request import (
     RequestEventOut,
     RequestListItem,
     RequestUpdate,
+    RequestViewerOut,
     SourcingIn,
 )
 from app.services import reports as reports_svc
@@ -111,6 +113,8 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
                 text=e.text,
                 actor=e.actor,
                 meta=svc.event_meta(e),
+                actor_type=e.actor_type,
+                details=e.details or {},
                 created_at=e.created_at,
             )
             for e in request.events
@@ -121,6 +125,16 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
         sourced_by=request.sourced_by,
         sourcing_comment=request.sourcing_comment,
         awaiting_people=svc.awaiting_people(session, request),
+        viewers=[
+            RequestViewerOut(
+                employee_id=v.employee_id,
+                employee_name=v.employee.full_name,
+                first_viewed_at=format_local_datetime(v.first_viewed_at),
+                last_viewed_at=format_local_datetime(v.last_viewed_at),
+                times=v.times,
+            )
+            for v in svc.viewers(session, request)
+        ],
     )
 
 
@@ -176,6 +190,31 @@ def get_request(session: DbSession, user: CurrentUser, request_id: int):
     request = svc.get_request(session, request_id, full=True)
     _ensure_can_view(user, request)
     return to_detail(session, request)
+
+
+@router.post(
+    "/{request_id}/viewed",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+def mark_viewed(
+    session: DbSession, user: CurrentUser, request_id: int
+) -> Response:
+    """Отмечает, что человек открыл карточку заявки.
+
+    Тела у запроса нет намеренно: кто открыл — решает сессия, а не
+    клиент. Иначе достаточно было бы подменить одно поле, чтобы «увидеть»
+    заявку чужими глазами. Чужую заявку отметить нельзя — та же проверка
+    видимости, что и на чтении, и тот же 404.
+
+    Отдельным запросом, а не побочным действием GET: тот же ответ
+    возвращается после решения, выгрузки и уведомления, и просмотры
+    насчитывались бы там, где карточку никто не открывал.
+    """
+    request = svc.get_request(session, request_id)
+    _ensure_can_view(user, request)
+    svc.record_view(session, request, user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("", response_model=RequestDetail, status_code=status.HTTP_201_CREATED)

@@ -29,6 +29,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
+from app.core.audit_context import current_actor
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.money import somoni, to_decimal
 from app.core.time import (
@@ -48,6 +49,7 @@ from app.db.models import (
     Project,
     RequestEvent,
     RequestStatus,
+    RequestView,
 )
 from app.schemas.request import (
     DecisionIn,
@@ -284,11 +286,59 @@ def is_priced(request: ExpenseRequest) -> bool:
 
 
 def _add_event(
-    request: ExpenseRequest, kind: EventKind, text: str, actor: str | None = None
+    request: ExpenseRequest,
+    kind: EventKind,
+    text: str,
+    actor: str | None = None,
+    *,
+    details: dict | None = None,
+    system: bool = False,
 ) -> None:
+    """Одна запись истории. Неизменяема: только добавляется.
+
+    Сотрудник берётся из контекста запроса, а не из аргумента: имя от
+    клиента подделывается, id действующего лица — нет. Имя всё равно
+    сохраняем строкой: сотрудника переименуют или удалят, а история
+    должна читаться и через год.
+    """
+    who = current_actor()
     request.events.append(
-        RequestEvent(kind=kind, text=text, actor=(actor or SYSTEM_ACTOR).upper())
+        RequestEvent(
+            kind=kind,
+            text=text,
+            actor=(actor or (who.name if who else None) or SYSTEM_ACTOR).upper(),
+            employee_id=None if system else (who.id if who else None),
+            actor_type="system" if system else "human",
+            details=details or {},
+        )
     )
+
+
+def _step_details(
+    before: RequestStatus,
+    request: ExpenseRequest,
+    *,
+    amount_from: Decimal | None = None,
+    **extra: object,
+) -> dict:
+    """Что изменилось на этом шаге: статус, сумма и у кого заявка теперь.
+
+    Панель рисует «было → стало» отсюда, а не разбирает текст события
+    обратно в данные: текст пишется для человека и меняется свободно,
+    а на этих ключах держится лента истории.
+    """
+    # Ключ `amount` — всегда пара «было → стало». Итоговую сумму шага
+    # вызывающий передаёт как `amount_total`: одно имя для двух разных
+    # форм заставило бы панель гадать, что ей пришло.
+    details: dict = {"status": {"from": before.value, "to": request.status.value}}
+    if amount_from is not None and amount_from != request.amount:
+        details["amount"] = {
+            "from": somoni(amount_from),
+            "to": somoni(request.amount),
+        }
+    details["holder"] = awaiting_label(request)
+    details.update(extra)
+    return details
 
 
 def create_request(session: Session, data: RequestCreate) -> ExpenseRequest:
@@ -333,6 +383,10 @@ def update_request(
             f"Заявка {request.number} уже подана, её состав менять нельзя"
         )
 
+    # Снимок «до» — по нему считается, что именно человек изменил.
+    before_project = request.project.name if request.project else None
+    before_lines = _lines_snapshot(request)
+
     if data.project_id is not None:
         project = session.get(Project, data.project_id)
         if project is None:
@@ -341,14 +395,75 @@ def update_request(
         # не подать ни новой, ни правкой черновика.
         if not project.active:
             raise ValidationError(f"Объект «{project.name}» отключён")
-        request.project_id = project.id
+        # Через связь, а не через `project_id`: иначе `request.project`
+        # остаётся прежним до конца транзакции, и «было → стало» по
+        # объекту показало бы одно и то же название дважды.
+        request.project = project
     if data.category is not None:
         request.category = data.category
     if data.lines is not None:
         _apply_lines(request, data.lines)
 
+    session.flush()
+    _record_edit(request, before_project, before_lines)
     write_audit(session, entity="request", entity_id=request.number, action="update")
     return request
+
+
+def _lines_snapshot(request: ExpenseRequest) -> dict[str, str]:
+    """Состав заявки как «что → сколько». Ключ — название, потому что
+    сравниваем именно вещи: строку могли удалить и добавить заново, id
+    сменится, а для человека это та же позиция."""
+    return {
+        line.title: f"{line.quantity:g} {line.unit}".strip()
+        for line in request.lines
+    }
+
+
+def _record_edit(
+    request: ExpenseRequest, before_project: str | None, before_lines: dict[str, str]
+) -> None:
+    """Пишет, что именно изменилось в черновике. Ничего — молчит.
+
+    Правка возможна только у черновика, поэтому это единственное место,
+    где состав заявки меняется по воле человека. После подачи заявка
+    неизменяема, и события «изменил сумму» у поданной не бывает — сумму
+    там впервые проставляет закуп, и это отдельное событие.
+    """
+    after_project = request.project.name if request.project else None
+    after_lines = _lines_snapshot(request)
+
+    changes: dict = {}
+    if before_project != after_project:
+        changes["project"] = {"from": before_project, "to": after_project}
+
+    added = [t for t in after_lines if t not in before_lines]
+    removed = [t for t in before_lines if t not in after_lines]
+    changed = [
+        {"title": t, "from": before_lines[t], "to": after_lines[t]}
+        for t in after_lines
+        if t in before_lines and before_lines[t] != after_lines[t]
+    ]
+    if added:
+        changes["added"] = [{"title": t, "amount": after_lines[t]} for t in added]
+    if removed:
+        changes["removed"] = [{"title": t, "amount": before_lines[t]} for t in removed]
+    if changed:
+        changes["changed"] = changed
+
+    if not changes:
+        return
+
+    parts = []
+    if "project" in changes:
+        parts.append("объект")
+    if added:
+        parts.append(f"добавлено позиций: {len(added)}")
+    if removed:
+        parts.append(f"удалено позиций: {len(removed)}")
+    if changed:
+        parts.append(f"изменено позиций: {len(changed)}")
+    _add_event(request, EventKind.EDITED, "Черновик изменён: " + ", ".join(parts), details=changes)
 
 
 def submit_request(
@@ -364,10 +479,15 @@ def submit_request(
     if not request.lines:
         raise ValidationError("В заявке нет ни одной строки")
 
+    before = request.status
     request.status = RequestStatus.PENDING
     request.submitted_at = utcnow()
     _add_event(
-        request, EventKind.SUBMITTED, "Заявка отправлена на согласование", actor
+        request,
+        EventKind.SUBMITTED,
+        "Заявка отправлена на согласование",
+        actor,
+        details=_step_details(before, request),
     )
     write_audit(session, entity="request", entity_id=request.number, action="submit")
     session.flush()
@@ -378,6 +498,7 @@ def start_sourcing(
     session: Session, request: ExpenseRequest, *, actor: str | None = None
 ) -> None:
     """Потребность одобрена — заявка уходит в отдел закупа."""
+    before = request.status
     request.status = RequestStatus.SOURCING
     request.sourcing_started_at = utcnow()
     _add_event(
@@ -385,6 +506,7 @@ def start_sourcing(
         EventKind.SOURCING,
         "Потребность одобрена, заявка передана в отдел закупа",
         actor,
+        details=_step_details(before, request),
     )
     write_audit(session, entity="request", entity_id=request.number, action="sourcing")
 
@@ -422,6 +544,8 @@ def apply_sourcing(
             line.price = to_decimal(decision.price)
             line.total = to_decimal(line.price * line.quantity)
 
+    before = request.status
+    amount_before = request.amount
     recalculate_amount(request)
     now = utcnow()
     request.sourced_at = now
@@ -437,6 +561,7 @@ def apply_sourcing(
             EventKind.FULFILLED,
             "Со склада: " + ", ".join(line.title for line in from_stock),
             actor,
+            details={"from_stock": [line.title for line in from_stock]},
         )
 
     if to_buy:
@@ -447,6 +572,15 @@ def apply_sourcing(
             f"Закуп оценил заявку на {somoni(request.amount)}"
             + (f", {len(from_stock)} поз. закрыто складом" if from_stock else ""),
             actor,
+            details=_step_details(
+                before,
+                request,
+                amount_from=amount_before,
+                lines=[
+                    {"title": line.title, "total": somoni(line.total)}
+                    for line in to_buy
+                ],
+            ),
         )
         action = "priced"
     else:
@@ -458,6 +592,7 @@ def apply_sourcing(
             EventKind.FULFILLED,
             "Всё нашлось на складе, покупка не требуется",
             actor,
+            details=_step_details(before, request),
         )
         action = "fulfilled"
 
@@ -502,6 +637,7 @@ def decide_request(
         raise ValidationError("Комментарий обязателен при отклонении заявки")
 
     deciding_amount = request.status is RequestStatus.PRICED
+    before = request.status
 
     if not data.approve:
         request.status = RequestStatus.REJECTED
@@ -509,7 +645,11 @@ def decide_request(
         request.decided_by = data.actor
         request.decision_comment = comment
         _add_event(
-            request, EventKind.REJECTED, f"Заявка отклонена: {comment}", data.actor
+            request,
+            EventKind.REJECTED,
+            f"Заявка отклонена: {comment}",
+            data.actor,
+            details=_step_details(before, request, comment=comment),
         )
         write_audit(
             session,
@@ -531,6 +671,9 @@ def decide_request(
             EventKind.APPROVED,
             f"Сумма утверждена: {somoni(request.amount)}",
             data.actor,
+            details=_step_details(
+                before, request, amount_total=somoni(request.amount)
+            ),
         )
         write_audit(
             session,
@@ -575,6 +718,7 @@ def pay_request(session: Session, request_id: int, data: PaymentIn) -> ExpenseRe
             "Дата выплаты раньше решения по заявке — проверьте, что вводите"
         )
 
+    before = request.status
     request.payment = Payment(
         amount=request.amount,
         method=data.method,
@@ -588,6 +732,13 @@ def pay_request(session: Session, request_id: int, data: PaymentIn) -> ExpenseRe
         EventKind.PAID,
         f"Выплачено {somoni(request.amount)}, документ {data.document}",
         data.actor or "ФИНАНСЫ",
+        details=_step_details(
+            before,
+            request,
+            amount_total=somoni(request.amount),
+            method=data.method,
+            document=data.document,
+        ),
     )
     write_audit(
         session,
@@ -717,3 +868,60 @@ def pending_age_days(request: ExpenseRequest, *, now: datetime | None = None) ->
     started = request.submitted_at or request.created_at
     reference = now or utcnow()
     return max(0, (to_local(reference).date() - to_local(started).date()).days)
+
+
+#: Сколько ждать, прежде чем считать открытие карточки новым просмотром.
+#: Человек возвращается в заявку по десять раз за час — обновил страницу,
+#: ушёл в соседнюю вкладку, вернулся. Считать это десятью просмотрами
+#: значит превратить «кто видел» в бессмысленный счётчик.
+VIEW_WINDOW = timedelta(minutes=30)
+
+
+def record_view(
+    session: Session, request: ExpenseRequest, employee: Employee
+) -> RequestView:
+    """Отмечает, что человек открыл карточку заявки.
+
+    Одна строка на пару «заявка + сотрудник»: первый раз, последний раз и
+    сколько всего. Событием в ленту это не пишется — просмотров у активной
+    заявки десятки, и они вытеснили бы из ленты то, ради чего её открыли.
+
+    Кто именно открыл, решает не клиент, а сессия: `employee` приходит из
+    зависимости `CurrentUser`, тела запроса у эндпоинта нет вовсе.
+    """
+    now = utcnow()
+    view = session.scalar(
+        select(RequestView).where(
+            RequestView.request_id == request.id,
+            RequestView.employee_id == employee.id,
+        )
+    )
+    if view is None:
+        view = RequestView(
+            request_id=request.id,
+            employee_id=employee.id,
+            first_viewed_at=now,
+            last_viewed_at=now,
+            times=1,
+        )
+        session.add(view)
+        session.flush()
+        return view
+
+    if now - view.last_viewed_at >= VIEW_WINDOW:
+        view.times += 1
+    view.last_viewed_at = now
+    session.flush()
+    return view
+
+
+def viewers(session: Session, request: ExpenseRequest) -> list[RequestView]:
+    """Кто открывал заявку, недавние сверху."""
+    return list(
+        session.scalars(
+            select(RequestView)
+            .where(RequestView.request_id == request.id)
+            .options(selectinload(RequestView.employee))
+            .order_by(RequestView.last_viewed_at.desc())
+        )
+    )

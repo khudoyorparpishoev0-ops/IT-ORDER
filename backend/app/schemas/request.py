@@ -75,7 +75,28 @@ class RequestEventOut(BaseModel):
     actor: str
     #: Метка для интерфейса: «ИВАН ПЕТРОВ · 04.09.2026, 18:12».
     meta: str
+    #: Кто это сделал: `human` — человек, `system` — переход как следствие
+    #: чужого решения. Подписывать такой переход именем значит утверждать,
+    #: что человек сделал два действия вместо одного.
+    actor_type: str = "human"
+    #: Подробности: «было → стало» по статусу и сумме, состав правки,
+    #: у кого заявка теперь. Пусто у событий до появления истории.
+    details: dict = Field(default_factory=dict)
     created_at: datetime
+
+
+class RequestViewerOut(BaseModel):
+    """Кто открывал заявку. IP и user-agent сюда не попадают: обычному
+    сотруднику они ничего не объясняют, а хранить и показывать их «на
+    всякий случай» — это следить за людьми, а не вести историю."""
+
+    employee_id: int
+    employee_name: str
+    #: Дата и время в местном поясе, строкой: «04.09.2026, 18:12».
+    first_viewed_at: str
+    last_viewed_at: str
+    #: Сколько раз открывал. Возвращения в пределах получаса — один раз.
+    times: int
 
 
 class PaymentOut(ORMModel):
@@ -127,6 +148,9 @@ class RequestDetail(RequestListItem):
     #: Кто именно может сделать следующий шаг. Персональных назначений нет:
     #: заявку берёт любой, у кого есть право.
     awaiting_people: list[str]
+    #: Кто открывал карточку. Автору видно, дошла ли заявка до глаз, а не
+    #: только до очереди.
+    viewers: list[RequestViewerOut] = Field(default_factory=list)
 
 
 class RequestCreate(BaseModel):

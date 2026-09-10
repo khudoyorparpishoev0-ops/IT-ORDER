@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { DecisionModal } from '@/components/DecisionModal';
@@ -8,13 +8,20 @@ import { PaymentModal } from '@/components/PaymentModal';
 import { QueryState } from '@/components/QueryState';
 import { SourcingForm } from '@/components/SourcingForm';
 import { StatusBadge } from '@/components/StatusBadge';
+import { Timeline } from '@/components/Timeline';
 import { Waiting } from '@/components/Waiting';
 import { Workflow } from '@/components/Workflow';
 import { useAuth } from '@/api/auth';
-import { useDeleteRequest, useRequest, useSubmitRequest } from '@/api/hooks';
+import {
+  useDeleteRequest,
+  useHealth,
+  useMarkViewed,
+  useRequest,
+  useSubmitRequest,
+} from '@/api/hooks';
 import { useDownload } from '@/hooks/useDownload';
 import { PAYMENT_METHOD } from '@/data/status';
-import { money } from '@/data/format';
+import { formatDateTime, money } from '@/data/format';
 import { useShell } from '@/shell/ShellContext';
 import type { RequestDetail } from '@/api/types';
 
@@ -34,9 +41,19 @@ export function RequestPage() {
   const { download, busy } = useDownload();
   const submitDraft = useSubmitRequest();
   const deleteDraft = useDeleteRequest();
+  const markViewed = useMarkViewed();
   const [modal, setModal] = useState<'approve' | 'reject' | 'pay' | 'delete' | null>(null);
 
   const detail = query.data;
+
+  // Отмечаем открытие один раз на заявку: кто открыл — решает сервер по
+  // сессии, панель сообщает только сам факт. Ошибку глотаем молча —
+  // человек пришёл читать заявку, а не разбираться с учётом просмотров.
+  const seen = detail?.id;
+  const mark = markViewed.mutate;
+  useEffect(() => {
+    if (seen) mark(seen, { onError: () => undefined });
+  }, [seen, mark]);
 
   return (
     <QueryState
@@ -105,6 +122,9 @@ type BodyProps = {
 
 function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onSend, sending, onDelete, deleting }: BodyProps) {
   const navigate = useNavigate();
+  // Пояс компании: расчёты идут в нём, и браузер бухгалтера в другом
+  // часовом поясе не должен показывать другое время выплаты.
+  const health = useHealth();
   const own = detail.employee_id === userId;
   const decidable = detail.status === 'pending' || detail.status === 'priced';
   const canDecide = decidable && can('decide_request');
@@ -259,6 +279,10 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
               )}
             </section>
           )}
+
+          {/* История — в широкой колонке: «было → стало» в узком
+              столбце переносится по слогам и перестаёт читаться. */}
+          <Timeline events={detail.events} viewers={detail.viewers} />
         </div>
 
         <div className="stack">
@@ -272,22 +296,20 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
             <Row k="Сумма" v={amountCell} />
             {detail.payment && (
               <>
-                <Row k="Выплата" v={<span className="num">{detail.payment.paid_at}</span>} />
+                <Row
+                  k="Выплата"
+                  v={
+                    <span className="num">
+                      {formatDateTime(detail.payment.paid_at, health.data?.timezone)}
+                    </span>
+                  }
+                />
                 <Row k="Способ" v={PAYMENT_METHOD[detail.payment.method]} />
                 <Row k="Документ" v={<span className="num">{detail.payment.document}</span>} />
               </>
             )}
           </section>
 
-          <section className="card" style={{ display: 'grid', gap: 12 }}>
-            <div className="label">Журнал</div>
-            {[...detail.events].reverse().map((e, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '84px 1fr', gap: 12, alignItems: 'start' }}>
-                <span className="meta">{eventTime(e.meta)}</span>
-                <span className="small">{e.text}</span>
-              </div>
-            ))}
-          </section>
         </div>
       </div>
 
@@ -323,9 +345,5 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-/** «ИВАН ПЕТРОВ · 04.09.2026, 18:12» → «04.09 18:12». */
-function eventTime(meta: string): string {
-  const m = /(\d{2})\.(\d{2})\.\d{4},\s*(\d{2}:\d{2})/.exec(meta);
-  return m ? `${m[1]}.${m[2]} ${m[3]}` : meta;
-}
+
 
