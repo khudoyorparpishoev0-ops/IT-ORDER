@@ -259,6 +259,47 @@ def _try_recovery(session: Session, employee: Employee, code: str) -> bool:
     return True
 
 
+def confirm_identity(session: Session, actor: Employee, code: str | None) -> None:
+    """Требует у действующего человека код второго фактора. Иначе — отказ.
+
+    Зачем это отдельно от входа. Сессия живёт часами: незакрытый ноутбук,
+    украденная cookie, чужой человек за столом — и права администратора у
+    того, кто не вводил ни одного пароля. Смена чужого пароля и сброс
+    чужого второго фактора — это захват учётной записи, в том числе
+    бухгалтерии, поэтому здесь мы спрашиваем ещё раз и требуем то, что
+    нельзя украсть вместе с сессией: код из приложения на телефоне.
+
+    Годится и код восстановления: телефон теряют, а доступ администратору
+    нужен и в этот день.
+
+    Без настроенного второго фактора действие не выполняется вовсе. Иначе
+    подтверждение обходилось бы простым «а у меня 2FA не включён» — то
+    есть не существовало бы.
+    """
+    if not actor.totp_enabled or not actor.totp_secret:
+        raise ValidationError(
+            "Включите двухфакторный вход в «Параметрах»: без него менять "
+            "чужой доступ нельзя."
+        )
+    if _is_locked(actor):
+        raise ValidationError(_lockout_message(actor))
+
+    value = (code or "").strip().replace(" ", "")
+    if not value:
+        raise ValidationError("Введите код из приложения")
+
+    if _try_totp(session, actor, value) or _try_recovery(session, actor, value):
+        _reset_failures(actor)
+        session.flush()
+        return
+
+    # Считаем неудачу тем же счётчиком, что и вход: шестизначный код
+    # перебирается за миллион попыток, и без ограничения открытая сессия
+    # администратора стала бы стендом для перебора его же кода.
+    _register_failure(session, actor)
+    raise ValidationError("Неверный код. Проверьте приложение на телефоне.")
+
+
 def start_totp_setup(session: Session, employee: Employee) -> dict[str, str]:
     """Готовит секрет и QR. Второй фактор включится только после
     подтверждения кодом — иначе ошибка настройки заперла бы человека."""
@@ -427,6 +468,8 @@ def set_password(
     *,
     actor: str | None = None,
     action: str = "set_password",
+    temporary: bool = True,
+    details: str | None = None,
 ) -> Employee:
     employee = session.get(Employee, employee_id)
     if employee is None:
@@ -441,6 +484,10 @@ def set_password(
         raise ValidationError(str(exc)) from exc
 
     employee.password_hash = hash_password(password)
+    # Пароль, выданный администратором, — временный: его знают двое.
+    # Свой собственный человек уже выбрал сам, и требовать смены снова
+    # незачем.
+    employee.must_change_password = temporary
     _reset_failures(employee)
     write_audit(
         session,
@@ -449,8 +496,73 @@ def set_password(
         action=action,
         username=actor,
         employee=employee,
+        details=details,
     )
     return employee
+
+
+def admin_reset_password(
+    session: Session,
+    *,
+    admin: Employee,
+    employee_id: int,
+    password: str,
+    code: str | None,
+) -> Employee:
+    """Административный сброс пароля сотрудника. Критичное действие.
+
+    Собрано в одну функцию, потому что порядок проверок здесь и есть
+    защита, а разложенный по роутеру он однажды разъедется:
+
+    1. подтверждение личности администратора кодом второго фактора —
+       одной открытой сессии недостаточно;
+    2. цель существует и работает в компании: сброс уволенному только
+       открывает ему дверь обратно;
+    3. пароль назначается временным (`must_change_password`);
+    4. все прежние сессии сотрудника гаснут — это делает смена отпечатка
+       пароля в токене, отдельного шага не требуется;
+    5. событие пишется в журнал с обоими именами.
+
+    Неудачное подтверждение тоже попадает в журнал: попытка сбросить
+    чужой пароль — это то, о чём владелец должен узнать, даже если она
+    не удалась.
+    """
+    target = session.get(Employee, employee_id)
+    if target is None:
+        raise NotFoundError(f"Сотрудник {employee_id} не найден")
+
+    try:
+        confirm_identity(session, admin, code)
+    except ValidationError as exc:
+        write_audit(
+            session,
+            entity="employee",
+            entity_id=target.id,
+            action="admin_password_reset_failed",
+            username=admin.full_name,
+            employee=target,
+            # Ни кода, ни пароля здесь нет и быть не может: в журнал идёт
+            # только причина отказа.
+            details=f"{target.full_name}: {exc}",
+        )
+        session.commit()
+        raise
+
+    if not target.active:
+        raise ValidationError(
+            "Сотрудник не работает в компании. Сначала верните ему доступ "
+            "отметкой «Работает в компании»."
+        )
+
+    return set_password(
+        session,
+        target.id,
+        password,
+        actor=admin.full_name,
+        action="admin_password_reset",
+        temporary=True,
+        details=f"{target.full_name}: выдан временный пароль, сеансы завершены",
+    )
 
 
 def change_own_password(
@@ -463,7 +575,12 @@ def change_own_password(
     # Отдельное действие: в журнале «сменил себе» и «выдал администратор» —
     # разные события, и разбирают их по-разному.
     return set_password(
-        session, employee.id, new, actor=employee.full_name, action="password_changed"
+        session,
+        employee.id,
+        new,
+        actor=employee.full_name,
+        action="password_changed",
+        temporary=False,
     )
 
 
@@ -593,7 +710,15 @@ def apply_password_reset(session: Session, token: str, new_password: str) -> Emp
             "Ссылка уже использована. Запросите восстановление заново."
         )
 
-    set_password(session, employee.id, new_password, actor=employee.full_name)
+    # Пароль по ссылке человек выбрал сам — требовать сменить его ещё раз
+    # не за чем: временным он не является.
+    set_password(
+        session,
+        employee.id,
+        new_password,
+        actor=employee.full_name,
+        temporary=False,
+    )
     # Блокировку снимаем: человек подтвердил доступ к почте.
     _reset_failures(employee)
     write_audit(

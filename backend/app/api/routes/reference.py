@@ -19,7 +19,7 @@ from app.config import get_settings
 from app.core.errors import ValidationError
 from app.core.mail import MailError, send
 from app.core.permissions import Permission
-from app.schemas.auth import PasswordSetIn
+from app.schemas.auth import ConfirmIn, PasswordSetIn
 from app.schemas.reference import (
     AssistantStatus,
     MaterialAdviceIn,
@@ -184,9 +184,17 @@ def set_employee_password(
     session: DbSession, user: CurrentUser, employee_id: int, data: PasswordSetIn
 ):
     """Назначение пароля администратором — так заводят доступ новому
-    сотруднику и восстанавливают забытый."""
-    return auth_svc.set_password(
-        session, employee_id, data.password, actor=user.full_name
+    сотруднику и восстанавливают забытый.
+
+    Подтверждается кодом второго фактора самого администратора: одной
+    открытой сессии для смены чужого пароля недостаточно.
+    """
+    return auth_svc.admin_reset_password(
+        session,
+        admin=user,
+        employee_id=employee_id,
+        password=data.password,
+        code=data.totp_code,
     )
 
 
@@ -220,9 +228,17 @@ def send_test_mail(user: CurrentUser, response: Response) -> Response:
 @router.post(
     "/employees/{employee_id}/reset-2fa", response_model=EmployeeOut, dependencies=[manage]
 )
-def reset_employee_2fa(session: DbSession, user: CurrentUser, employee_id: int):
+def reset_employee_2fa(
+    session: DbSession, user: CurrentUser, employee_id: int, data: ConfirmIn
+):
     """Сброс второго фактора: сотрудник потерял телефон и коды
-    восстановления. После сброса он настраивает всё заново."""
+    восстановления. После сброса он настраивает всё заново.
+
+    Подтверждается так же, как смена пароля. Оставить это действие без
+    подтверждения значило бы не закрыть ничего: пароль сменить нельзя,
+    зато второй фактор можно снести и войти по одному паролю.
+    """
+    auth_svc.confirm_identity(session, user, data.totp_code)
     return auth_svc.reset_totp(session, employee_id, actor=user.full_name)
 
 

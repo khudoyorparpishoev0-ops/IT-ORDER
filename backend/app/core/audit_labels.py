@@ -26,6 +26,8 @@ ACTION_LABEL: dict[str, str] = {
     "login_locked": "Вход заблокирован",
     "password_changed": "Сменил себе пароль",
     "set_password": "Пароль выдан администратором",
+    "admin_password_reset": "Сброс пароля администратором",
+    "admin_password_reset_failed": "Сброс пароля: неверный код",
     "password_reset_requested": "Запрошено восстановление пароля",
     "password_reset_applied": "Пароль восстановлен по ссылке",
     "totp_enabled": "Второй фактор включён",
