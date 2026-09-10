@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from pydantic import BaseModel, Field
 
 from app.schemas.analytics import DeliveryStatsOut
@@ -96,3 +98,91 @@ class AiFeedbackIn(BaseModel):
     #: Причина отказа из закрытого списка. У «полезно» её нет.
     reason: str | None = Field(default=None, max_length=64)
     comment: str | None = Field(default=None, max_length=1000)
+
+
+class AiPeriodOut(BaseModel):
+    """Показатели за отрезок времени."""
+
+    label: str
+    days: int
+    requests: int
+    #: Доллары. Строкой, как и суммы в сомони: перевод в число теряет
+    #: доли цента, а из них и складывается месячный расход.
+    cost_usd: Decimal
+    #: Сумма посчитана по нынешней цене, а не по снимку (старые записи).
+    estimated: bool
+    input_tokens: int
+    output_tokens: int
+    avg_seconds: float | None
+    error_pct: int | None
+    avoided: int
+    avoided_pct: int | None
+
+
+class AiModelOut(BaseModel):
+    model: str | None
+    requests: int
+    cost_usd: Decimal
+    avg_seconds: float | None
+    #: Цена модели известна. False — сумма занижена, и это видно.
+    price_known: bool
+
+    # `model` — служебное имя в pydantic; поле ниже разрешает его как
+    # обычное. Без этого pydantic ругается на «model_» на старте.
+    model_config = {"protected_namespaces": ()}
+
+
+class AiUsageTypeOut(BaseModel):
+    key: str
+    label: str
+    requests: int
+    cost_usd: Decimal
+    avg_tokens: int | None
+    apply_rate_pct: int | None
+    #: Скольким ответам предлагали кнопку «Применить».
+    offered: int
+
+
+class AiEmployeeCostOut(BaseModel):
+    """Расход по сотрудникам. Метрика использования, не оценка людей."""
+
+    employee: str
+    requests: int
+    tokens: int
+    cost_usd: Decimal
+
+
+class AiBudgetOut(BaseModel):
+    """Бюджет месяца. Помощник по нему не выключается."""
+
+    limit_usd: Decimal | None
+    spent_usd: Decimal
+    used_pct: int | None
+    warning_percent: int
+    warning: bool
+
+
+class AiFeedbackSummaryOut(BaseModel):
+    useful: int
+    useless: int
+    #: Доля отвеченных обращений, которые вообще оценили.
+    feedback_rate_pct: int | None
+    useless_pct: int | None
+    top_reasons: list[AiReasonCount] = []
+
+
+class AiUsageOut(BaseModel):
+    """Раздел «Расход AI» целиком."""
+
+    periods: list[AiPeriodOut] = []
+    models: list[AiModelOut] = []
+    usage_types: list[AiUsageTypeOut] = []
+    employees: list[AiEmployeeCostOut] = []
+    feedback: AiFeedbackSummaryOut
+    budget: AiBudgetOut
+    #: Доля применённых среди ответов, где кнопка была.
+    apply_rate_pct: int | None
+    applied: int
+    offered: int
+    #: На какую дату сверялся прайс Anthropic.
+    prices_checked: str

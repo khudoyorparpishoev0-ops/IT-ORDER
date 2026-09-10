@@ -347,12 +347,19 @@ def overview_facts(data, queue, deviations) -> str:
     return "\n".join(lines)
 
 
-def explain_overview(session: Session, data, queue, deviations) -> AiText:
+def explain_overview(
+    session: Session, data, queue, deviations, *, source: AiSource = AiSource.WEB
+) -> AiText:
     """Слова поверх готовых чисел. Сбой модели цифры не отменяет.
 
     Обращение пишется в журнал наравне с остальными: сводка стоит денег
     на каждом заходе в раздел, и счётчик расхода не должен об этом
     умалчивать.
+
+    `source` отличает автоматическую рассылку от человека, открывшего
+    раздел. Расход у них разной природы: одна идёт каждое утро сама, и
+    считать её вместе с обращениями людей — значит не понять, за что
+    платим.
     """
     if not (get_settings().assistant_enabled or assistant._transport is not None):
         return no_ai()
@@ -380,6 +387,7 @@ def explain_overview(session: Session, data, queue, deviations) -> AiText:
             ok=False,
             error=str(exc),
             duration_ms=_ms(started),
+            source=source,
         )
         return AiText(enabled=True, available=False)
 
@@ -390,6 +398,7 @@ def explain_overview(session: Session, data, queue, deviations) -> AiText:
         answer=text.headline,
         duration_ms=_ms(started),
         usage=assistant.last_usage(),
+        source=source,
     )
     return AiText(
         enabled=True,

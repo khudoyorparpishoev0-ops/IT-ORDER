@@ -26,7 +26,8 @@ from app.core.audit_context import current_actor
 from app.config import get_settings
 from app.core.text import plural
 from app.core.time import utcnow
-from app.db.models import AiInteraction, AiKind, AiSource
+from app.db.models import AiInteraction, AiKind, AiResolvedBy, AiSource
+from app.services import ai_pricing
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,8 @@ def record(
     duration_ms: int | None = None,
     source: AiSource = AiSource.WEB,
     usage: assistant.Usage | None = None,
+    resolved_by: AiResolvedBy | None = None,
+    offers_apply: bool = False,
 ) -> int | None:
     """Пишет обращение и возвращает его id.
 
@@ -62,6 +65,12 @@ def record(
     а без коммита запись пропала бы вместе с сессией.
     """
     actor = current_actor()
+    model = usage.model if usage else None
+    tokens_in = usage.input_tokens if usage else None
+    tokens_out = usage.output_tokens if usage else None
+    if resolved_by is None and ok and usage is not None:
+        resolved_by = AiResolvedBy.MODEL
+
     entry = AiInteraction(
         kind=kind,
         source=source,
@@ -72,9 +81,18 @@ def record(
         ok=ok,
         error=_cut(error),
         duration_ms=duration_ms,
-        model=usage.model if usage else None,
-        input_tokens=usage.input_tokens if usage else None,
-        output_tokens=usage.output_tokens if usage else None,
+        model=model,
+        input_tokens=tokens_in,
+        output_tokens=tokens_out,
+        # Цена берётся сейчас и больше не пересчитывается: прайс
+        # Anthropic меняется, а расход за прошлый месяц должен остаться
+        # тем, что мы за него заплатили.
+        cost_usd=ai_pricing.cost(model, tokens_in, tokens_out),
+        resolved_by=resolved_by,
+        # False, а не NULL: кнопка «Применить» была и её пока не нажали.
+        # Без этой разницы доля применённых делится и на те ответы, где
+        # кнопки нет вовсе, и выходит заниженной.
+        applied=False if offers_apply else None,
     )
     try:
         session.add(entry)
@@ -112,9 +130,13 @@ def stats(session: Session, *, days: int = 30) -> dict[str, object]:
             func.count().filter(AiInteraction.ok.is_(False)),
             func.count().filter(AiInteraction.applied.is_(True)),
             func.avg(AiInteraction.duration_ms).filter(AiInteraction.ok.is_(True)),
+            # Знаменатель доли применённых — только те ответы, где кнопка
+            # «Применить» была. У вопроса аналитику её нет, и делить на
+            # него значит занижать долю у всех остальных.
+            func.count().filter(AiInteraction.applied.is_not(None)),
         ).where(AiInteraction.created_at >= since)
     ).one()
-    total, failed, applied, avg_ms = row
+    total, failed, applied, avg_ms, offered = row
 
     by_kind = session.execute(
         select(AiInteraction.kind, func.count())
@@ -135,7 +157,6 @@ def stats(session: Session, *, days: int = 30) -> dict[str, object]:
 
     total = int(total or 0)
     failed = int(failed or 0)
-    answered = total - failed
     return {
         "days": days,
         "total": total,
@@ -143,7 +164,7 @@ def stats(session: Session, *, days: int = 30) -> dict[str, object]:
         "error_pct": round(failed * 100 / total) if total else None,
         "applied": int(applied or 0),
         "apply_rate_pct": (
-            round(int(applied or 0) * 100 / answered) if answered else None
+            round(int(applied or 0) * 100 / int(offered)) if offered else None
         ),
         "avg_seconds": round(float(avg_ms) / 1000, 1) if avg_ms else None,
         "by_kind": {kind.value: int(count) for kind, count in by_kind},

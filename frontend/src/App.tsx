@@ -8,6 +8,7 @@ import { Employees } from '@/pages/Employees';
 import { DesignSystem } from '@/pages/DesignSystem';
 import { Finance } from '@/pages/Finance';
 import { Help } from '@/pages/Help';
+import { AiUsage } from '@/pages/AiUsage';
 import { Journal } from '@/pages/Journal';
 import { Login } from '@/pages/Login';
 import { NotFound } from '@/pages/NotFound';
@@ -137,6 +138,14 @@ export function App() {
           element={
             <Guarded need="manage_reference">
               <Projects />
+            </Guarded>
+          }
+        />
+        <Route
+          path="ai-usage"
+          element={
+            <Guarded need="manage_reference">
+              <AiUsage />
             </Guarded>
           }
         />

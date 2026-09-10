@@ -44,7 +44,8 @@ export type IconName =
   | 'ti-logout'
   | 'ti-arrow-left'
   | 'ti-home'
-  | 'ti-sparkles';
+  | 'ti-sparkles'
+  | 'ti-coin';
 
 /** Монтируется один раз в корне приложения. */
 export function IconSprite() {
@@ -153,6 +154,11 @@ export function IconSprite() {
       <symbol id="ti-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter"><path d="M9 6l6 6l-6 6"></path></symbol>
       <symbol id="ti-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter"><path d="M6 9l6 6l6 -6"></path></symbol>
       <symbol id="ti-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter"><path d="M5 12l5 5l10 -10"></path></symbol>
+      <symbol id="ti-coin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
+      <path d="M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-2a2 2 0 0 1 -1.8 -1"></path>
+      <path d="M12 7v10"></path>
+      </symbol>
       <symbol id="ti-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z"></path>
       <path d="M16 6a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z"></path>

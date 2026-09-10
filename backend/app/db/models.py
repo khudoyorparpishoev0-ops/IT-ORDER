@@ -754,6 +754,26 @@ class AiSource(str, enum.Enum):
 
     WEB = "WEB"
     TELEGRAM = "TELEGRAM"
+    #: Фоновая задача: автоматическая сводка руководителю. Отдельно от
+    #: WEB, потому что расход у неё другой природы — она идёт каждый
+    #: день сама, и её нельзя спутать с человеком, открывшим раздел.
+    SCHEDULER = "SCHEDULER"
+
+
+class AiResolvedBy(str, enum.Enum):
+    """Кто на самом деле ответил.
+
+    Главная метрика раздела «Расход AI»: сколько обращений ORDER закрыл
+    сам. Признак явный, а не выведенный из пустого `model` — пустая
+    модель бывает и когда Anthropic ответил, но не отдал статистику.
+    """
+
+    #: Ответила модель, за это заплачено.
+    MODEL = "MODEL"
+    #: Ответил принятый людьми алиас — мгновенно и бесплатно.
+    ALIAS = "ALIAS"
+    #: Ответ достали из кэша: этот же вопрос уже задавали.
+    CACHE = "CACHE"
 
 
 class AiInteraction(Base):
@@ -795,8 +815,10 @@ class AiInteraction(Base):
     error: Mapped[str | None] = mapped_column(Text)
     #: Сколько ждали ответа. По нему видно, растёт ли задержка.
     duration_ms: Mapped[int | None] = mapped_column(Integer)
-    #: Человек воспользовался ответом: нажал «Применить». NULL — ответ
-    #: такой кнопки не предполагал (вопрос аналитику).
+    #: Человек воспользовался ответом: нажал «Применить». False — кнопка
+    #: была и её не нажали; NULL — кнопки не было вовсе (вопрос
+    #: аналитику, сводка). Различать обязательно: иначе доля применённых
+    #: делится на всё подряд и выходит заниженной.
     applied: Mapped[bool | None] = mapped_column()
     #: Какой моделью отвечали. Модель меняют в `.env`, и сравнивать
     #: качество ответов имеет смысл только внутри одной.
@@ -805,12 +827,22 @@ class AiInteraction(Base):
     #: стоимость ORDER AI: без них она известна только из счёта.
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
+    #: Во что обошлось это обращение, доллары. Снимок на момент запроса:
+    #: цены Anthropic меняются, а расход за март не должен пересчитаться
+    #: апрельским прайсом — то же правило, что «история неизменяема» у
+    #: заявок. NULL — цена модели неизвестна или токенов не прислали.
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    #: Кто ответил: модель, алиас или кэш.
+    resolved_by: Mapped[AiResolvedBy | None] = mapped_column(
+        Enum(AiResolvedBy, name="ai_resolved_by", native_enum=False, length=16)
+    )
     created_at: Mapped[CreatedAt]
 
     __table_args__ = (
         Index("ix_ai_created_at", "created_at"),
         Index("ix_ai_employee", "employee_id"),
         Index("ix_ai_kind_created", "kind", "created_at"),
+        Index("ix_ai_model_created", "model", "created_at"),
     )
 
 

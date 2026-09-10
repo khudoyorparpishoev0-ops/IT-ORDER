@@ -1,5 +1,6 @@
 """Единственная точка чтения переменных окружения."""
 
+from decimal import Decimal
 from functools import lru_cache
 from urllib.parse import quote
 
@@ -228,6 +229,30 @@ class Settings(BaseSettings):
             "норматив закупа и всё равно стоять сутки — руководителю это "
             "стоит увидеть."
         ),
+    )
+
+    # --- Расход на AI ---
+    ai_prices_file: str = Field(
+        default="",
+        description=(
+            "Файл с ценами моделей (JSON). Пусто — встроенная таблица. "
+            "Anthropic меняет прайс чаще, чем мы выкатываем релизы."
+        ),
+    )
+    ai_monthly_budget_usd: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        description=(
+            "Ожидаемый расход на AI за месяц, доллары. 0 — бюджет не задан "
+            "и предупреждать не о чем. Помощник по достижении бюджета НЕ "
+            "выключается: это решение человека, а не порога."
+        ),
+    )
+    ai_budget_warning_percent: int = Field(
+        default=80,
+        ge=1,
+        le=100,
+        description="При какой доле бюджета предупреждать администратора.",
     )
 
     # --- Автоматические сводки ORDER Intelligence ---

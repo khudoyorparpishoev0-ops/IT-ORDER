@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { Field } from '@/components/Field';
 import { PageHeader } from '@/components/PageHeader';
@@ -867,6 +868,13 @@ function AiCard() {
 
       {data && (
         <>
+          {/* Стоимость и польза живут отдельной страницей: здесь нужно
+              знать, что помощник работает, а разбор расхода — это шесть
+              карточек и три таблицы, им в карточке настроек не место. */}
+          <Link className="btn btn-secondary" to="/ai-usage">
+            Расход на AI и польза от него
+          </Link>
+
           {/* Рассылка сводок: сколько ушло и сколько не дошло. Без этого
               «работает ли она» выясняется только жалобой руководителя. */}
           <div className="rubric">
