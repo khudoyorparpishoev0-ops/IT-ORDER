@@ -590,7 +590,7 @@ function AccessSection({
       {confirming === 'password' && (
         <CodeConfirm
           title="Подтвердите смену пароля"
-          text={`Пароль сотрудника «${employee.full_name}» будет заменён. Прежний перестанет работать сразу.`}
+          text={`Пароль сотрудника «${employee.full_name}» будет заменён на временный. Прежний перестанет работать сразу, открытые сеансы сотрудника завершатся, а при следующем входе он обязан задать свой пароль.`}
           confirmLabel="Заменить пароль"
           busy={busy}
           error={codeError}
@@ -602,7 +602,10 @@ function AccessSection({
               await setPassword.mutateAsync({ id: employee.id, password, code });
               setConfirming(null);
               setPasswordValue('');
-              onFlash('Пароль назначен', 'var(--dot-ok)');
+              onFlash(
+                'Пароль сброшен. Сотрудник задаст свой при следующем входе.',
+                'var(--dot-ok)',
+              );
             } catch (err) {
               // Ошибка остаётся в окне: неверный код исправляют здесь же,
               // не набирая пароль заново.

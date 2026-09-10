@@ -114,7 +114,7 @@ def test_pending_token_cannot_open_session() -> None:
 
 
 def test_session_token_is_not_accepted_as_pending() -> None:
-    session_token = create_token(7, role="admin")
+    session_token = create_token(7, role="admin", password_hash="хэш")
     with pytest.raises(TokenError):
         token_subject(session_token, expected_type=TOKEN_PENDING_2FA)
 

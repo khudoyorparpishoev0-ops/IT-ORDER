@@ -189,9 +189,12 @@ def set_employee_password(
     Подтверждается кодом второго фактора самого администратора: одной
     открытой сессии для смены чужого пароля недостаточно.
     """
-    auth_svc.confirm_identity(session, user, data.totp_code)
-    return auth_svc.set_password(
-        session, employee_id, data.password, actor=user.full_name
+    return auth_svc.admin_reset_password(
+        session,
+        admin=user,
+        employee_id=employee_id,
+        password=data.password,
+        code=data.totp_code,
     )
 
 

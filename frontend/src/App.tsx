@@ -10,6 +10,7 @@ import { Finance } from '@/pages/Finance';
 import { Help } from '@/pages/Help';
 import { AiUsage } from '@/pages/AiUsage';
 import { Journal } from '@/pages/Journal';
+import { ChangeTemporaryPassword } from '@/pages/ChangeTemporaryPassword';
 import { Login } from '@/pages/Login';
 import { NotFound } from '@/pages/NotFound';
 import { Projects } from '@/pages/Projects';
@@ -67,6 +68,13 @@ export function App() {
 
   if (!user) {
     return <Login />;
+  }
+
+  // Временный пароль знают двое. Пока человек не задал свой, сервер
+  // закрывает всё, кроме смены пароля, — панель и не показывает ничего
+  // другого, чтобы он не искал, где это сделать.
+  if (user.must_change_password) {
+    return <ChangeTemporaryPassword />;
   }
 
   return (

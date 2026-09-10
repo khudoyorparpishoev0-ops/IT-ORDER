@@ -64,7 +64,7 @@ def test_session_token_is_not_a_reset_link() -> None:
     from app.core.security import create_token
 
     with pytest.raises(TokenError):
-        read_password_reset_token(create_token(7, role="admin"))
+        read_password_reset_token(create_token(7, role="admin", password_hash="хэш"))
 
 
 # --------------------------------------------------------------------------
