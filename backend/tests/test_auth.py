@@ -51,13 +51,13 @@ def test_long_passphrase_accepted() -> None:
 
 
 def test_token_roundtrip() -> None:
-    token = create_token(42, role="manager")
+    token = create_token(42, role="manager", password_hash="хэш")
     assert token_subject(token) == 42
     assert decode_token(token)["role"] == "manager"
 
 
 def test_tampered_token_rejected() -> None:
-    token = create_token(42, role="employee")
+    token = create_token(42, role="employee", password_hash="хэш")
     # Меняем один символ подписи — токен должен перестать проходить
     broken = token[:-2] + ("aa" if not token.endswith("aa") else "bb")
     with pytest.raises(TokenError):

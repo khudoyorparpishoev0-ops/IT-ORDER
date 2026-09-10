@@ -190,6 +190,11 @@ class Employee(Base):
     #: Еженедельная сводка по бюджету.
     notify_weekly_budget: Mapped[bool] = mapped_column(default=False, nullable=False)
 
+    #: Пароль выдан администратором и человек его ещё не менял. До смены
+    #: система не даёт работать: временный пароль знают двое, и заявка,
+    #: поданная под ним, не доказывает ничего.
+    must_change_password: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     # --- ORDER Intelligence: автоматические сводки руководителю ---
     #: Главный выключатель. Отдельного «доставлять в Telegram» нет: канал
     #: один, и его выключатель уже есть — отвязка чата. Второй флаг,

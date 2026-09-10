@@ -72,15 +72,26 @@ TOKEN_PASSWORD_RESET = "password_reset"
 PENDING_2FA_MINUTES = 10
 
 
-def create_token(subject: int, *, role: str) -> str:
+def create_token(subject: int, *, role: str, password_hash: str | None) -> str:
     """Токен сессии. `sub` — id сотрудника, `role` — для быстрой проверки
-    на фронтенде; сервер всё равно перечитывает роль из базы."""
+    на фронтенде; сервер всё равно перечитывает роль из базы.
+
+    `password_hash` нужен для отпечатка: по нему сессия гаснет, как только
+    пароль сменили. Параметр обязателен намеренно — забыть его нельзя.
+    """
     settings = get_settings()
     now = utcnow()
     payload: dict[str, Any] = {
         "sub": str(subject),
         "role": role,
         "typ": TOKEN_SESSION,
+        # Отпечаток пароля, действующего на момент выдачи. Сервер сверяет
+        # его на каждом запросе, поэтому смена пароля гасит все выданные
+        # сессии разом: и свои, и те, что открыты на чужом устройстве.
+        # Тот же приём уже работает у ссылок восстановления — второго
+        # механизма не заводим, и таблицы сессий тоже: она потребовала бы
+        # чистки, блокировок и своей истории.
+        "pwd": password_fingerprint(password_hash),
         "iat": now,
         "exp": now + timedelta(minutes=settings.session_lifetime_minutes),
     }
@@ -160,6 +171,23 @@ def token_subject(token: str, *, expected_type: str = TOKEN_SESSION) -> int:
         return int(payload["sub"])
     except (KeyError, TypeError, ValueError) as exc:
         raise TokenError("В токене нет идентификатора пользователя") from exc
+
+
+def session_claims(token: str) -> tuple[int, str | None]:
+    """Из токена сессии: id сотрудника и отпечаток пароля.
+
+    Отпечаток может отсутствовать у токенов, выданных до появления этой
+    проверки. Такой токен считаем недействительным: после обновления все
+    входят заново — один раз и осознанно.
+    """
+    payload = decode_token(token)
+    if payload.get("typ") != TOKEN_SESSION:
+        raise TokenError("Токен не подходит для этого действия")
+    try:
+        subject = int(payload["sub"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise TokenError("В токене нет идентификатора пользователя") from exc
+    return subject, payload.get("pwd")
 
 
 def validate_password_strength(password: str) -> None:

@@ -48,6 +48,9 @@ class CurrentUserOut(BaseModel):
     two_factor_enabled: bool
     two_factor_required: bool
     recovery_codes_left: int
+    #: Пароль выдан администратором и ещё не сменён. До смены сервер
+    #: закрывает работу — панель показывает экран смены пароля.
+    must_change_password: bool = False
     notifications: NotificationPrefsOut
 
 

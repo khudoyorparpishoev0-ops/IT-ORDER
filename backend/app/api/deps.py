@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.core.audit_context import Actor, set_actor
 from app.core.permissions import Permission, has_permission, permissions_for
-from app.core.security import TokenError, token_subject
+from app.core.security import TokenError, password_fingerprint, session_claims
 from app.db.models import Employee
 from app.db.session import get_session_factory
 from app.services.reports import current_period
@@ -39,6 +39,19 @@ def _unauthorized(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
+#: Что доступно, пока человек не сменил временный пароль. Список здесь,
+#: а не проверками по роутерам: так видно всю картину и невозможно
+#: забыть закрыть новый эндпоинт — то же правило, что у таблицы прав.
+PASSWORD_CHANGE_ALLOWED = frozenset(
+    {
+        "/api/auth/me",
+        "/api/auth/password",
+        "/api/auth/logout",
+        "/api/auth/policy",
+    }
+)
+
+
 def get_current_user(request: Request, session: DbSession) -> Employee:
     """Текущий сотрудник по токену из httpOnly cookie.
 
@@ -50,13 +63,28 @@ def get_current_user(request: Request, session: DbSession) -> Employee:
         raise _unauthorized("Требуется вход")
 
     try:
-        employee_id = token_subject(token)
+        employee_id, fingerprint = session_claims(token)
     except TokenError as exc:
         raise _unauthorized(str(exc)) from exc
 
     employee = session.get(Employee, employee_id)
     if employee is None or not employee.active:
         raise _unauthorized("Учётная запись недоступна")
+
+    # Пароль сменили — все выданные до этого сессии гаснут. Это и есть
+    # завершение чужих сеансов после административного сброса: cookie,
+    # оставшаяся на чужом устройстве, дальше не работает.
+    if fingerprint != password_fingerprint(employee.password_hash):
+        raise _unauthorized("Пароль изменён, войдите заново")
+
+    # Временный пароль знают двое, и работать под ним нельзя: заявка,
+    # поданная так, не доказывает, кто её подал. Оставляем ровно то, чем
+    # человек закрывает этот вопрос: увидеть себя, сменить пароль, выйти.
+    if employee.must_change_password and request.url.path not in PASSWORD_CHANGE_ALLOWED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Смените временный пароль в «Параметрах» — до этого работа закрыта",
+        )
     return employee
 
 
