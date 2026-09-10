@@ -602,12 +602,43 @@ function AiCard() {
         <>
           <div className="rubric">За {usage.days} {plural(usage.days, 'день', 'дня', 'дней')}</div>
           <dl style={{ display: 'grid', gap: 12, margin: 0 }}>
-            <Row k="Обращений" v={<span className="num">{usage.total}</span>} />
+            <Row
+              k="Обращений"
+              v={
+                <span className="num">
+                  {usage.total}
+                  {usage.total_week > 0 ? (
+                    <span className="caption"> · за неделю {usage.total_week}</span>
+                  ) : null}
+                </span>
+              }
+            />
             <Row
               k="Ответила модель"
               v={<span className="num">{share === null ? '—' : `${share}%`}</span>}
             />
-            <Row k="Ответом воспользовались" v={<span className="num">{usage.applied}</span>} />
+            <Row
+              k="Отказов"
+              v={
+                <span className="num">
+                  {usage.failed}
+                  {usage.error_pct !== null ? (
+                    <span className="caption"> · {usage.error_pct}%</span>
+                  ) : null}
+                </span>
+              }
+            />
+            <Row
+              k="Ответом воспользовались"
+              v={
+                <span className="num">
+                  {usage.applied}
+                  {usage.apply_rate_pct !== null ? (
+                    <span className="caption"> · {usage.apply_rate_pct}%</span>
+                  ) : null}
+                </span>
+              }
+            />
             <Row
               k="Среднее время ответа"
               v={
@@ -616,7 +647,47 @@ function AiCard() {
                 </span>
               }
             />
+            <Row
+              k="Оценки людей"
+              v={
+                <span className="num">
+                  {usage.useful + usage.useless === 0
+                    ? '—'
+                    : `${usage.useful} за · ${usage.useless} против`}
+                  {usage.useless_pct !== null ? (
+                    <span className="caption"> · против {usage.useless_pct}%</span>
+                  ) : null}
+                </span>
+              }
+            />
+            {/* Токены нужны, чтобы считать стоимость: без них она известна
+                только из счёта Anthropic, задним числом и целиком. */}
+            <Row
+              k="Токены"
+              v={
+                <span className="num">
+                  {usage.input_tokens === null
+                    ? '—'
+                    : `${usage.input_tokens} на вход · ${usage.output_tokens ?? 0} на выход`}
+                </span>
+              }
+            />
           </dl>
+
+          {usage.top_reasons.length > 0 && (
+            <>
+              <div className="rubric">Чем ответы не подошли</div>
+              <dl style={{ display: 'grid', gap: 12, margin: 0 }}>
+                {usage.top_reasons.map((reason) => (
+                  <Row
+                    key={reason.reason}
+                    k={reason.label}
+                    v={<span className="num">{reason.count}</span>}
+                  />
+                ))}
+              </dl>
+            </>
+          )}
         </>
       )}
 

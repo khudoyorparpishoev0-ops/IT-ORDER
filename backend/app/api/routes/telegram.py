@@ -51,6 +51,8 @@ NOT_LINKED = (
 HELP = (
     "Что я умею:\n\n"
     "/new — подать заявку прямо отсюда\n"
+    "/again — повторить прошлую заявку\n"
+    "/templates — мои шаблоны\n"
     "/cancel — прервать начатую заявку\n"
     "/stop — отключить уведомления\n\n"
     "Остальное — в панели."
@@ -187,7 +189,10 @@ async def webhook(secret: str, session: DbSession, request: Request):
             _reply(chat_id, UNKNOWN_CODE)
         else:
             session.commit()
-            _reply(chat_id, f"{employee.full_name}, {GREETING}", with_button=True)
+            _reply(chat_id, f"{employee.full_name}, {GREETING}")
+            # Сразу показываем, что можно сделать: команды с телефона на
+            # стройке никто не набирает, а кнопки нажимают.
+            _send(chat_id, flow.menu(employee))
         return {"ok": True}
 
     if text.startswith("/stop"):
@@ -222,8 +227,21 @@ async def webhook(secret: str, session: DbSession, request: Request):
         _send(chat_id, reply)
         return {"ok": True}
 
-    if text.startswith("/help"):
-        _reply(chat_id, HELP, with_button=True)
+    if text.startswith("/again"):
+        reply = flow.repeat_last(session, employee, text[len("/again") :].strip())
+        session.commit()
+        _send(chat_id, reply)
+        return {"ok": True}
+
+    if text.startswith("/templates"):
+        reply = flow.templates_of(session, employee)
+        session.commit()
+        _send(chat_id, reply)
+        return {"ok": True}
+
+    if text.startswith("/help") or text.startswith("/menu"):
+        _reply(chat_id, HELP)
+        _send(chat_id, flow.menu(employee))
         return {"ok": True}
 
     # Обычный текст — это ответ боту, если разговор идёт. Иначе человек
@@ -234,7 +252,20 @@ async def webhook(secret: str, session: DbSession, request: Request):
         _send(chat_id, reply)
         return {"ok": True}
 
-    _reply(chat_id, HELP, with_button=True)
+    if text and not text.startswith("/"):
+        # Разговор не идёт. «Как в прошлый раз», «повтори прошлую
+        # заявку», «мне опять этот кабель» — это просьба найти прошлое, а
+        # не начать разговор с нуля.
+        if flow.is_for_someone_else(text):
+            _reply(chat_id, flow.FOREIGN_REQUEST)
+            return {"ok": True}
+        if flow.looks_like_repeat(text):
+            reply = flow.repeat_last(session, employee, text)
+            session.commit()
+            _send(chat_id, reply)
+            return {"ok": True}
+
+    _send(chat_id, flow.menu(employee))
     return {"ok": True}
 
 
@@ -250,6 +281,22 @@ def _handle_press(session: Session, chat_id: int, code: str) -> None:
         reply = flow.pick_project(session, employee, _number(code, flow.PICK_PROJECT))
     elif code.startswith(flow.PICK_OPTION):
         reply = flow.pick_option(session, employee, _number(code, flow.PICK_OPTION))
+    elif code.startswith(flow.PICK_MATERIAL):
+        reply = flow.pick_material(session, employee, _number(code, flow.PICK_MATERIAL))
+    elif code.startswith(flow.PICK_TEMPLATE):
+        reply = flow.pick_template(session, employee, _number(code, flow.PICK_TEMPLATE))
+    elif code.startswith(flow.PICK_REPEAT):
+        reply = flow.pick_repeat(session, employee, _number(code, flow.PICK_REPEAT))
+    elif code == flow.MENU_NEW:
+        reply = flow.start(session, employee)
+    elif code == flow.MENU_LAST:
+        reply = flow.last_requests(session, employee)
+    elif code == flow.MENU_ACTIVE:
+        reply = flow.active_requests(session, employee)
+    elif code == flow.MENU_FREQUENT:
+        reply = flow.frequent_materials(session, employee)
+    elif code == flow.MENU_AI:
+        reply = flow.start(session, employee)
     elif code == flow.CONFIRM_SEND:
         reply = flow.confirm(session, employee)
     elif code == flow.CONFIRM_EDIT:

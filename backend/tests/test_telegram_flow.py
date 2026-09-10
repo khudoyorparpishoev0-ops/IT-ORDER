@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import select
 
 from app.config import get_settings
@@ -287,7 +288,216 @@ def test_source_is_telegram(
     assert entry.employee_id is None or entry.employee_id == employee.id
 
 
-def test_unknown_text_outside_dialogue_shows_help(client, session, employee, telegram_box) -> None:
+def test_unknown_text_outside_dialogue_shows_menu(client, session, employee, telegram_box) -> None:
+    """Команды с телефона на стройке не набирают — показываем кнопки."""
     linked(session, employee)
     says(client, "привет")
-    assert "/new" in last(telegram_box)
+    assert employee.full_name in last(telegram_box)
+    assert buttons(telegram_box) == [
+        "menu:new",
+        "menu:last",
+        "menu:frequent",
+        "menu:active",
+        "menu:ai",
+    ]
+
+
+# --- Быстрые действия и повтор (фаза 4) -----------------------------------------
+
+
+def test_start_shows_quick_actions(client, session, employee, telegram_box) -> None:
+    """После привязки сразу видно, что можно сделать: команды не набирают."""
+    from app.config import get_settings
+    from app.core.time import utcnow
+    from datetime import timedelta
+
+    employee.telegram_link_code = "код-привязки"
+    employee.telegram_link_expires_at = utcnow() + timedelta(minutes=30)
+    session.commit()
+
+    says(client, "/start код-привязки", chat_id=705)
+    assert buttons(telegram_box) == [
+        "menu:new",
+        "menu:last",
+        "menu:frequent",
+        "menu:active",
+        "menu:ai",
+    ]
+
+
+def test_frequent_button_offers_materials(
+    client, session, employee, project, telegram_box
+) -> None:
+    from app.schemas.request import ExpenseLineIn, RequestCreate
+    from app.services import requests as svc
+
+    linked(session, employee)
+    svc.create_request(
+        session,
+        RequestCreate(
+            employee_id=employee.id,
+            project_id=project.id,
+            lines=[ExpenseLineIn(title="Цемент М500", quantity=1, unit="мешок")],
+            submit=True,
+        ),
+    )
+    session.commit()
+
+    presses(client, "menu:frequent")
+    assert "Цемент М500" in last(telegram_box).replace("\n", " ") or any(
+        "Цемент М500" in label for label, _ in telegram_box[-1].choices
+    )
+    assert buttons(telegram_box) == ["m:0"]
+
+    presses(client, "m:0")
+    assert "На какой объект" in last(telegram_box)
+
+
+def test_active_and_last_show_only_own(
+    client, session, employee, manager, project, telegram_box
+) -> None:
+    from app.schemas.request import ExpenseLineIn, RequestCreate
+    from app.services import requests as svc
+
+    linked(session, employee)
+    svc.create_request(
+        session,
+        RequestCreate(
+            employee_id=manager.id,
+            project_id=project.id,
+            lines=[ExpenseLineIn(title="Чужая позиция", quantity=1, unit="шт.")],
+            submit=True,
+        ),
+    )
+    session.commit()
+
+    presses(client, "menu:last")
+    assert "Заявок пока нет" in last(telegram_box)
+    presses(client, "menu:active")
+    assert "В работе ничего нет" in last(telegram_box)
+
+
+def test_repeat_shows_a_card_and_creates_nothing(
+    client, session, employee, project, telegram_box
+) -> None:
+    from app.schemas.request import ExpenseLineIn, RequestCreate
+    from app.services import requests as svc
+
+    linked(session, employee)
+    svc.create_request(
+        session,
+        RequestCreate(
+            employee_id=employee.id,
+            project_id=project.id,
+            lines=[ExpenseLineIn(title="Кабель UTP Cat6", quantity=2, unit="бухта")],
+            submit=True,
+        ),
+    )
+    session.commit()
+    before = len(session.scalars(select(ExpenseRequest)).all())
+
+    says(client, "как в прошлый раз")
+    assert "Нашёл предыдущий вариант" in last(telegram_box)
+    assert "Кабель UTP Cat6" in last(telegram_box)
+    assert "r:0" in buttons(telegram_box)
+    assert len(session.scalars(select(ExpenseRequest)).all()) == before
+
+    presses(client, "r:0")
+    assert "Проверьте заявку" in last(telegram_box)
+    assert len(session.scalars(select(ExpenseRequest)).all()) == before
+
+    presses(client, "send")
+    assert len(session.scalars(select(ExpenseRequest)).all()) == before + 1
+
+
+def test_template_is_applied_from_the_bot(
+    client, session, employee, project, telegram_box
+) -> None:
+    from app.services import templates as tsvc
+
+    linked(session, employee)
+    tsvc.create(
+        session,
+        employee,
+        name="Заправка Opel",
+        lines=[{"title": "Бензин АИ-92", "quantity": 40, "unit": "л"}],
+        project_id=project.id,
+    )
+    session.commit()
+
+    says(client, "/templates")
+    codes = buttons(telegram_box)
+    assert codes and codes[0].startswith("t:")
+
+    presses(client, codes[0])
+    assert "Проверьте заявку" in last(telegram_box)
+    assert "Бензин АИ-92 — 40 л" in last(telegram_box)
+
+
+def test_foreign_template_is_not_applied(client, session, employee, manager, telegram_box) -> None:
+    from app.services import templates as tsvc
+
+    linked(session, employee)
+    foreign = tsvc.create(
+        session,
+        manager,
+        name="Чужой шаблон",
+        lines=[{"title": "Что-то", "quantity": 1, "unit": "шт."}],
+    )
+    session.commit()
+
+    presses(client, f"t:{foreign.id}")
+    assert "Такого шаблона нет" in last(telegram_box)
+
+
+# --- Заявка только от себя ---------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Создай заявку за Иванова",
+        "оформи заявку от имени Петрова",
+        "нужен цемент вместо Сидорова",
+    ],
+)
+def test_request_for_someone_else_is_refused(
+    client, session, employee, telegram_box, text
+) -> None:
+    """Через бота заявку подают только от своего имени."""
+    linked(session, employee)
+    says(client, text)
+    assert last(telegram_box) == (
+        "Через Telegram заявку можно оформить только от вашего имени."
+    )
+    assert session.scalars(select(ExpenseRequest)).all() == []
+
+
+def test_refusal_works_inside_the_dialogue(
+    client, session, employee, project, assistant_box, telegram_box
+) -> None:
+    """И посреди разговора тоже — а к модели за этим не ходим."""
+    linked(session, employee)
+    says(client, "/new")
+    presses(client, f"p:{project.id}")
+
+    says(client, "заявку за Иванова: два мешка цемента")
+    assert "только от вашего имени" in last(telegram_box)
+    assert assistant_box.prompts == []
+    assert session.scalars(select(ExpenseRequest)).all() == []
+
+
+def test_created_request_belongs_to_the_sender(
+    client, session, employee, manager, project, assistant_box, telegram_box
+) -> None:
+    """Автор — владелец чата, а не тот, кого назвали в тексте."""
+    linked(session, employee)
+    assistant_box.answer = REPLY_READY
+    says(client, "/new")
+    presses(client, f"p:{project.id}")
+    says(client, "два мешка цемента")
+    presses(client, "send")
+
+    (request,) = session.scalars(select(ExpenseRequest)).all()
+    assert request.employee_id == employee.id
+    assert request.employee_id != manager.id

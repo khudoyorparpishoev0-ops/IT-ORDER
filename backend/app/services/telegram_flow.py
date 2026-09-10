@@ -28,14 +28,25 @@ from datetime import timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.errors import NotFoundError
 from app.core.permissions import Permission, has_permission
+from app.core.text import plural
 from app.core.time import utcnow
-from app.db.models import AiSource, Employee, Project, TelegramSession
+from app.db.models import (
+    AiSource,
+    Employee,
+    ExpenseRequest,
+    Project,
+    RequestStatus,
+    TelegramSession,
+)
 from app.schemas.assistant import AssistantContext, AssistantFormLine, AssistantTurn
 from app.schemas.request import ExpenseLineIn, RequestCreate
-from app.services import request_assistant
+from app.services import ai_memory, ai_privacy, request_assistant
+from app.services import templates as templates_svc
 from app.services import requests as requests_svc
-from app.services.notifications import request_url
+from app.services.notifications import panel_url, request_url
+from app.services.requests import awaiting_label, title_of
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +55,8 @@ STEP_PROJECT = "PROJECT"
 STEP_NEED = "NEED"
 STEP_CLARIFY = "CLARIFY"
 STEP_CONFIRM = "CONFIRM"
+#: Показали ленту вариантов (частое, шаблоны, повтор) и ждём выбора.
+STEP_PICK = "PICK"
 
 #: Незаконченный разговор живёт сутки. Заявка, которую начали вчера и
 #: бросили, сегодня уже про другое.
@@ -59,9 +72,47 @@ MAX_HISTORY = 12
 #: Коды кнопок. Короткие: Telegram отдаёт не больше 64 байт.
 PICK_PROJECT = "p:"
 PICK_OPTION = "o:"
+PICK_TEMPLATE = "t:"
+PICK_MATERIAL = "m:"
+PICK_REPEAT = "r:"
 CONFIRM_SEND = "send"
 CONFIRM_EDIT = "edit"
 CONFIRM_CANCEL = "cancel"
+MENU_NEW = "menu:new"
+MENU_LAST = "menu:last"
+MENU_FREQUENT = "menu:frequent"
+MENU_ACTIVE = "menu:active"
+MENU_AI = "menu:ai"
+
+#: Сколько частых материалов показываем кнопками. Больше восьми список
+#: перестаёт читаться на экране телефона.
+FREQUENT_LIMIT = 8
+
+#: Сколько заявок показываем в «последних» и «моих активных».
+LIST_LIMIT = 5
+
+#: Заявка ещё в работе: по ней чего-то ждут. Оплаченная, отклонённая и
+#: закрытая складом — уже нет.
+IN_WORK = (
+    RequestStatus.PENDING,
+    RequestStatus.SOURCING,
+    RequestStatus.PRICED,
+    RequestStatus.APPROVED,
+)
+
+#: Ответ на просьбу подать заявку за другого. Через бота это невозможно
+#: по замыслу: в панели такое право есть только у администратора, и
+#: открывать его в чате, где нельзя проверить, кто пишет, нельзя.
+FOREIGN_REQUEST = (
+    "Через Telegram заявку можно оформить только от вашего имени."
+)
+
+#: Как человек просит подать заявку за другого. Ловим до модели: тратить
+#: на это запрос к Claude незачем, а ответ всё равно один.
+FOREIGN_MARKERS = (
+    "за ивано", "от имени", "вместо ", "за сотрудник", "за коллег",
+    "за него", "за неё", "за нее", "заявку за ", "заявка за ",
+)
 
 
 @dataclass
@@ -178,6 +229,13 @@ def handle_text(session: Session, employee: Employee, text: str) -> Reply:
     state = _load(session, employee)
     if state is None or state.step not in (STEP_NEED, STEP_CLARIFY):
         return LOST
+
+    if is_for_someone_else(text):
+        # Отвечаем сами, не спрашивая модель: ответ один и тот же, а
+        # запрос к Claude стоит денег и секунд.
+        return Reply(
+            f"{FOREIGN_REQUEST}\n\nЧто нужно вам? Напишите словами."
+        )
 
     data = dict(state.data)
     history = [AssistantTurn(**turn) for turn in data.get("history", [])][-MAX_HISTORY:]
@@ -354,3 +412,281 @@ def _lines_text(lines: list[dict]) -> str:
         purpose = f" — {line['purpose']}" if line.get("purpose") else ""
         rows.append(f"• {line.get('title', '')} — {amount}{unit}{purpose}")
     return "\n".join(rows)
+
+
+def is_for_someone_else(text: str) -> bool:
+    """Просят ли подать заявку за другого сотрудника.
+
+    Через бота это невозможно по замыслу: в панели право подать заявку за
+    другого есть только у администратора, а в чате нельзя убедиться, что
+    пишет именно тот, чей это телефон. Проверка грубая и намеренно
+    такая: ошибиться в сторону отказа безопаснее, чем создать заявку не
+    от того имени.
+    """
+    low = " " + " ".join((text or "").lower().split()) + " "
+    return any(marker in low for marker in FOREIGN_MARKERS)
+
+
+def menu(employee: Employee) -> Reply:
+    """Быстрые действия после /start и /help.
+
+    Пять частых дел кнопками: набирать команды с телефона на стройке
+    неудобно, а «Новая заявка» и «Часто заказываю» — это девять
+    обращений из десяти.
+    """
+    choices = [
+        ("Новая заявка", MENU_NEW),
+        ("Последние заявки", MENU_LAST),
+        ("Часто заказываю", MENU_FREQUENT),
+        ("Мои активные", MENU_ACTIVE),
+        ("Спросить ORDER AI", MENU_AI),
+    ]
+    return Reply(f"{employee.full_name}, что делаем?", choices=choices)
+
+
+def last_requests(session: Session, employee: Employee) -> Reply:
+    """Последние заявки сотрудника — свои, а не чужие."""
+    rows = list(
+        session.scalars(
+            select(ExpenseRequest)
+            .where(ExpenseRequest.employee_id == employee.id)
+            .order_by(ExpenseRequest.created_at.desc())
+            .limit(LIST_LIMIT)
+        )
+    )
+    if not rows:
+        return Reply("Заявок пока нет. Первую можно подать командой /new.")
+    return Reply(
+        "<b>Ваши последние заявки</b>\n\n" + "\n".join(_request_line(r) for r in rows),
+        button=("Открыть панель", panel_url("/requests")),
+    )
+
+
+def active_requests(session: Session, employee: Employee) -> Reply:
+    """Заявки, которые ещё в работе: по ним чего-то ждут."""
+    rows = list(
+        session.scalars(
+            select(ExpenseRequest)
+            .where(
+                ExpenseRequest.employee_id == employee.id,
+                ExpenseRequest.status.in_(IN_WORK),
+            )
+            .order_by(ExpenseRequest.created_at.desc())
+            .limit(LIST_LIMIT)
+        )
+    )
+    if not rows:
+        return Reply("В работе ничего нет — всё закрыто.")
+    return Reply(
+        "<b>В работе</b>\n\n" + "\n".join(_request_line(r, with_stage=True) for r in rows),
+        button=("Открыть панель", panel_url("/requests")),
+    )
+
+
+def frequent_materials(session: Session, employee: Employee) -> Reply:
+    """Что человек заказывает чаще всего — кнопками.
+
+    Нажатие начинает заявку с этой позиции: повтор прошлой заявки должен
+    стоить одно движение, иначе им не пользуются.
+    """
+    items = ai_memory.mine(session, employee.id, limit=FREQUENT_LIMIT)
+    if not items:
+        items = ai_memory.frequent(session, limit=FREQUENT_LIMIT)
+    if not items:
+        return Reply("Пока не из чего выбирать: заявок ещё не было. /new — первая.")
+
+    _save(
+        session,
+        employee,
+        step=STEP_PICK,
+        data={"lines": [], "history": [], "materials": [i.title for i in items]},
+    )
+    return Reply(
+        "Что нужно? Выберите или напишите словами.",
+        choices=[
+            (f"{item.title}" + (f" · {item.unit}" if item.unit else ""), f"{PICK_MATERIAL}{i}")
+            for i, item in enumerate(items)
+        ],
+    )
+
+
+def pick_material(session: Session, employee: Employee, index: int) -> Reply:
+    """Выбрали материал из ленты частых — дальше спрашиваем объект."""
+    state = _load(session, employee)
+    if state is None or state.step != STEP_PICK:
+        return LOST
+
+    materials = list(state.data.get("materials") or [])
+    if index >= len(materials):
+        return Reply("Этот вариант уже не подходит. Начните заново: /new.")
+
+    data = dict(state.data)
+    data["lines"] = [{"title": materials[index], "quantity": 1, "unit": None}]
+    data.pop("materials", None)
+    _save(session, employee, step=STEP_PROJECT, data=data)
+
+    projects = _active_projects(session)
+    if not projects:
+        return NO_PROJECTS
+    return Reply(
+        f"<b>{materials[index]}</b>. На какой объект?",
+        choices=[(p.name, f"{PICK_PROJECT}{p.id}") for p in projects],
+    )
+
+
+def templates_of(session: Session, employee: Employee) -> Reply:
+    """Шаблоны сотрудника кнопками."""
+    rows = templates_svc.list_for(session, employee)
+    if not rows:
+        return Reply(
+            "Шаблонов нет. Их сохраняют в панели: подали заявку, которая "
+            "повторяется каждую неделю, — нажали «Сохранить шаблоном»."
+        )
+    return Reply(
+        "Какой шаблон?",
+        choices=[(t.name, f"{PICK_TEMPLATE}{t.id}") for t in rows[:FREQUENT_LIMIT]],
+    )
+
+
+def pick_template(session: Session, employee: Employee, template_id: int) -> Reply:
+    """Шаблон подставлен — показываем карточку, но не подаём заявку."""
+    try:
+        template, warning = templates_svc.apply(session, employee, template_id)
+    except NotFoundError:
+        return Reply("Такого шаблона нет. Посмотреть свои: /templates.")
+
+    lines = templates_svc.lines_of(template)
+    data = {
+        "lines": lines,
+        "history": [],
+        "project_id": template.project_id,
+        "project_name": None,
+    }
+    if template.project_id is not None:
+        project = session.get(Project, template.project_id)
+        data["project_name"] = project.name if project else None
+        _save(session, employee, step=STEP_CONFIRM, data=data)
+        return _card(data, note=f"Шаблон «{template.name}».")
+
+    _save(session, employee, step=STEP_PROJECT, data=data)
+    projects = _active_projects(session)
+    if not projects:
+        return NO_PROJECTS
+    head = f"Шаблон «{template.name}»."
+    if warning:
+        head += f" {warning}"
+    return Reply(
+        f"{head} На какой объект?",
+        choices=[(p.name, f"{PICK_PROJECT}{p.id}") for p in projects],
+    )
+
+
+def repeat_last(session: Session, employee: Employee, text: str = "") -> Reply:
+    """«Как в прошлый раз»: показываем найденное, но ничего не создаём."""
+    found = ai_memory.last_like(
+        session,
+        employee_id=employee.id,
+        text=text,
+        visible_employee_id=ai_privacy.visible_employee_id(employee),
+    )
+    if not found:
+        return Reply("Похожей заявки не нашёл. Расскажите, что нужно: /new.")
+
+    _save(
+        session,
+        employee,
+        step=STEP_PICK,
+        data={
+            "lines": [],
+            "history": [],
+            "repeats": [
+                {
+                    "number": item.number,
+                    "project_id": item.project_id,
+                    "project_name": item.project,
+                    "lines": item.lines,
+                }
+                for item in found
+            ],
+        },
+    )
+    first = found[0]
+    return Reply(
+        "<b>Нашёл предыдущий вариант</b>\n\n"
+        f"Заявка {first.number}, {_days_ago(first.days_ago)}\n"
+        f"Объект: {first.project}\n"
+        f"{_lines_text(first.lines)}\n\n"
+        "Заявку не подаю: проверьте и решите сами.",
+        choices=[
+            ("Использовать", f"{PICK_REPEAT}0"),
+            *(
+                [("Другой вариант", f"{PICK_REPEAT}1")]
+                if len(found) > 1
+                else []
+            ),
+            ("Отмена", CONFIRM_CANCEL),
+        ],
+    )
+
+
+def pick_repeat(session: Session, employee: Employee, index: int) -> Reply:
+    """Взяли один из найденных вариантов — показываем карточку."""
+    state = _load(session, employee)
+    if state is None or state.step != STEP_PICK:
+        return LOST
+
+    options = list(state.data.get("repeats") or [])
+    if index >= len(options):
+        return Reply("Вариантов больше нет. Расскажите, что нужно: /new.")
+
+    option = options[index]
+    data = {
+        "lines": option["lines"],
+        "history": [],
+        "project_id": option.get("project_id"),
+        "project_name": option.get("project_name"),
+    }
+    _save(session, employee, step=STEP_CONFIRM, data=data)
+    note = f"Как в заявке {option['number']}."
+    if index + 1 < len(options):
+        note += " Не то — «Изменить» или /new."
+    return _card(data, note=note)
+
+
+def _active_projects(session: Session) -> list[Project]:
+    return list(
+        session.scalars(
+            select(Project)
+            .where(Project.active.is_(True))
+            .order_by(Project.name)
+            .limit(PROJECT_LIMIT)
+        )
+    )
+
+
+def _request_line(request, *, with_stage: bool = False) -> str:
+    stage = f" · {awaiting_label(request)}" if with_stage else ""
+    return f"• {request.number} — {title_of(request)}{stage}"
+
+
+def _days_ago(days: int) -> str:
+    if days == 0:
+        return "сегодня"
+    if days == 1:
+        return "вчера"
+    return f"{days} {plural(days, 'день', 'дня', 'дней')} назад"
+
+
+#: Как звучит просьба повторить прошлую заявку. Ловим до модели: ответ
+#: один и тот же, а запрос к Claude стоит денег и секунд.
+REPEAT_MARKERS = (
+    "как в прошлый раз", "как в прошлый", "повтори", "повторить",
+    "как всегда", "как обычно", "опять", "снова", "то же самое",
+    "как вчера", "такой же", "такую же", "как на прошлой",
+)
+
+
+def looks_like_repeat(text: str) -> bool:
+    """Просят ли повторить прошлую заявку."""
+    low = " ".join((text or "").lower().split())
+    return any(marker in low for marker in REPEAT_MARKERS)

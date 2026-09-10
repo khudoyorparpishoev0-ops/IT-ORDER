@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Field } from '@/components/Field';
+import { Modal } from '@/components/Modal';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { AiButton } from '@/components/AiButton';
 import { FrequentMaterials } from '@/components/FrequentMaterials';
+import { RepeatCard } from '@/components/RepeatCard';
+import { TemplatePicker } from '@/components/TemplatePicker';
 import { RequestAssistant } from '@/components/RequestAssistant';
 import { useAuth } from '@/api/auth';
 import {
   useAiApplied,
   useDuplicateCheck,
+  useRepeat,
+  useSaveTemplate,
   useAssistantStatus,
   useCreateRequest,
   useEmployees,
@@ -26,9 +31,13 @@ import type {
   ExpenseLineInput,
   MaterialAdvice,
   MemoryItem,
+  RequestCategory,
+  RepeatOption,
   RequestDetail,
   SimilarRequest,
+  TemplateLine,
 } from '@/api/types';
+import { CATEGORY_LABEL } from '@/api/types';
 import { days, plural } from '@/data/format';
 import { STATUS } from '@/data/status';
 import { useShell } from '@/shell/ShellContext';
@@ -37,6 +46,14 @@ type Line = {
   title: string;
   quantity: string;
   unit: string;
+  /**
+   * Что человек набрал своими руками, до правки помощником.
+   *
+   * Отдельно от `title`, потому что «Применить» на совете помощника
+   * переписывает `title`, и набранное исчезает. Панель — единственное
+   * место, где сырой ввод ещё есть: сервер получает его только отсюда.
+   */
+  original?: string;
   /** Совет помощника по этому названию; 'loading' — ждём ответ. */
   advice?: MaterialAdvice | 'loading';
   /** Для какого написания получен совет: повторно не спрашиваем. */
@@ -45,7 +62,12 @@ type Line = {
 const EMPTY: Line = { title: '', quantity: '1', unit: '' };
 
 function fromDetail(edit: RequestDetail): Line[] {
-  return edit.lines.map((l) => ({ title: l.title, quantity: String(l.quantity), unit: l.unit ?? '' }));
+  return edit.lines.map((l) => ({
+    title: l.title,
+    quantity: String(l.quantity),
+    unit: l.unit ?? '',
+    original: l.original_text || l.title,
+  }));
 }
 
 /** Страница формы: новая заявка или правка черновика (/requests/:id/edit). */
@@ -77,6 +99,8 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const advise = useMaterialAdvice();
   const applied = useAiApplied();
   const duplicates = useDuplicateCheck();
+  const repeat = useRepeat();
+  const saveTemplate = useSaveTemplate();
   const create = useCreateRequest();
   const update = useUpdateRequest();
   const send = useSubmitRequest();
@@ -84,6 +108,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const forOthers = can('create_request_for_others') && !edit;
   const [employeeId, setEmployeeId] = useState<number | null>(edit ? edit.employee_id : (user?.id ?? null));
   const [projectId, setProjectId] = useState<number | null>(edit ? edit.project_id : null);
+  const [category, setCategory] = useState<RequestCategory | null>(edit?.category ?? null);
   const [lines, setLines] = useState<Line[]>(edit ? fromDetail(edit) : [{ ...EMPTY }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<'send' | 'draft' | null>(null);
@@ -92,6 +117,9 @@ function Form({ edit }: { edit?: RequestDetail }) {
   // Похожие заявки за неделю. Спрашиваем до подачи: два одинаковых
   // счёта замечают обычно тогда, когда оба уже оплачены.
   const [repeats, setRepeats] = useState<SimilarRequest[]>([]);
+  // Найденные прошлые варианты по кнопке «Как в прошлый раз».
+  const [previous, setPrevious] = useState<RepeatOption[] | null>(null);
+  const [naming, setNaming] = useState<string | null>(null);
 
   const activeProjects = (projects.data ?? []).filter((p) => p.active);
   const projectsNote = projects.isLoading
@@ -115,7 +143,15 @@ function Form({ edit }: { edit?: RequestDetail }) {
     setLines((rows) =>
       rows.map((row, i) =>
         i === index
-          ? { ...row, title, unit: row.unit || known?.unit || '', advice: row.checked === title.trim() ? row.advice : undefined }
+          ? {
+              ...row,
+              title,
+              // Набранное человеком запоминаем здесь и больше не трогаем:
+              // ниже «Применить» перепишет title, а исходное нужно целым.
+              original: title,
+              unit: row.unit || known?.unit || '',
+              advice: row.checked === title.trim() ? row.advice : undefined,
+            }
           : row,
       ),
     );
@@ -159,6 +195,53 @@ function Form({ edit }: { edit?: RequestDetail }) {
     } catch {
       // Подсказка о повторе — не повод мешать подаче заявки.
       setRepeats([]);
+    }
+  };
+
+  // Состав из шаблона или прошлой заявки подставляется целиком: это
+  // готовая заготовка, а не подсказка по одной строке.
+  const useLines = (proposed: TemplateLine[], project: number | null, note?: string | null) => {
+    const rows = proposed.map((line) => ({
+      title: line.title,
+      quantity: String(line.quantity),
+      unit: line.unit ?? '',
+      checked: line.title,
+    }));
+    setLines(rows.length ? rows : [{ ...EMPTY }]);
+    if (project !== null) setProjectId(project);
+    setPrevious(null);
+    void checkRepeats(rows, project ?? projectId);
+    if (note) flash(note, 'var(--dot-warn)');
+  };
+
+  const askPrevious = async () => {
+    try {
+      const found = await repeat.mutateAsync({
+        text: lines.map((l) => l.title).join(' '),
+        project_id: projectId,
+      });
+      if (found.options.length) setPrevious(found.options);
+      else flash('Похожей заявки не нашли', 'var(--dot-off)');
+    } catch {
+      flash('Не удалось найти прошлые заявки', 'var(--dot-err)');
+    }
+  };
+
+  const storeTemplate = async (name: string) => {
+    try {
+      await saveTemplate.mutateAsync({
+        name,
+        project_id: projectId,
+        lines: filled.map((l) => ({
+          title: l.title.trim(),
+          quantity: Number(l.quantity) || 1,
+          unit: l.unit.trim() || null,
+        })),
+      });
+      setNaming(null);
+      flash(`Шаблон «${name}» сохранён`, 'var(--dot-ok)');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Шаблон не сохранён', 'var(--dot-err)');
     }
   };
 
@@ -217,6 +300,16 @@ function Form({ edit }: { edit?: RequestDetail }) {
 
   const filled = lines.filter((l) => l.title.trim());
 
+  const payload = (): ExpenseLineInput[] =>
+    filled.map((l) => ({
+      title: l.title.trim(),
+      // Не набирал — значит строка пришла из шаблона, повтора или от
+      // помощника: исходным считается итоговое название.
+      original_text: (l.original ?? l.title).trim(),
+      quantity: Number(l.quantity) || 1,
+      unit: l.unit.trim() || null,
+    }));
+
   const submit = async (sendNow: boolean) => {
     if (!employeeId || !projectId) {
       setError('Выберите объект');
@@ -229,17 +322,24 @@ function Form({ edit }: { edit?: RequestDetail }) {
     setError(null);
     setSaving(sendNow ? 'send' : 'draft');
     try {
-      const payload: ExpenseLineInput[] = filled.map((l) => ({
-        title: l.title.trim(),
-        quantity: Number(l.quantity) || 1,
-        unit: l.unit.trim() || null,
-      }));
+      const rows = payload();
       let saved: RequestDetail;
       if (edit) {
-        saved = await update.mutateAsync({ id: edit.id, project_id: projectId, lines: payload });
+        saved = await update.mutateAsync({
+          id: edit.id,
+          project_id: projectId,
+          category,
+          lines: rows,
+        });
         if (sendNow) saved = await send.mutateAsync(edit.id);
       } else {
-        saved = await create.mutateAsync({ employee_id: employeeId, project_id: projectId, lines: payload, submit: sendNow });
+        saved = await create.mutateAsync({
+          employee_id: employeeId,
+          project_id: projectId,
+          category,
+          lines: rows,
+          submit: sendNow,
+        });
       }
       flash(
         saved.status === 'draft' ? `Черновик ${saved.number} сохранён` : `Заявка ${saved.number} отправлена на согласование`,
@@ -317,6 +417,27 @@ function Form({ edit }: { edit?: RequestDetail }) {
               </select>
             )}
           </Field>
+
+          <Field
+            label="Категория расхода"
+            note="Нужна отчётам: «сколько ушло на транспорт за месяц». Не знаете — оставьте пустой."
+          >
+            {(id) => (
+              <select
+                id={id}
+                className="field"
+                value={category ?? ''}
+                onChange={(e) => setCategory((e.target.value as RequestCategory) || null)}
+              >
+                <option value="">Не указана</option>
+                {(Object.keys(CATEGORY_LABEL) as RequestCategory[]).map((code) => (
+                  <option key={code} value={code}>
+                    {CATEGORY_LABEL[code]}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
         </section>
 
         <section className="card" style={{ display: 'grid', gap: 12 }}>
@@ -325,19 +446,38 @@ function Form({ edit }: { edit?: RequestDetail }) {
               Позиции заявки
               <span aria-hidden="true" style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>
             </div>
-            {assistant.data?.enabled && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {/* Зелёной кнопка становится, когда в форме уже что-то есть:
-                    тогда помощнику есть с чем работать. На пустой форме он
-                    тоже поможет, но звать его нечем — кнопка спокойная. */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {/* Повтор прошлой заявки моделью не считается: находит его
+                  база, и работает он с выключенным помощником тоже. */}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={repeat.isPending}
+                onClick={() => void askPrevious()}
+              >
+                {repeat.isPending ? 'Ищем…' : 'Как в прошлый раз'}
+              </button>
+              {filled.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setNaming(filled[0].title.trim().slice(0, 60))}
+                >
+                  Сохранить шаблоном
+                </button>
+              )}
+              {assistant.data?.enabled && (
+                /* Зелёной кнопка становится, когда в форме уже что-то есть:
+                   тогда помощнику есть с чем работать. На пустой форме он
+                   тоже поможет, но звать его нечем — кнопка спокойная. */
                 <AiButton
                   small
                   active={lines.some((l) => l.title.trim())}
                   label={lines.some((l) => l.title.trim()) ? 'Проверить заявку' : 'Помощь AI'}
                   onClick={() => setHelper('open')}
                 />
-              </div>
-            )}
+              )}
+            </div>
           </div>
           <div aria-hidden="true" className="caption line-head" style={{ marginTop: 0 }}>
             <span className="line-title">Что нужно</span>
@@ -402,6 +542,18 @@ function Form({ edit }: { edit?: RequestDetail }) {
             Добавить позицию
           </button>
 
+          {previous && previous.length > 0 && (
+            <RepeatCard
+              options={previous}
+              onUse={(proposed, project) => useLines(proposed, project)}
+              onClose={() => setPrevious(null)}
+            />
+          )}
+
+          <TemplatePicker
+            onApply={(proposed, project, warning) => useLines(proposed, project, warning)}
+          />
+
           <FrequentMaterials
             projectId={projectId}
             projectName={activeProjects.find((p) => p.id === projectId)?.name ?? null}
@@ -458,6 +610,44 @@ function Form({ edit }: { edit?: RequestDetail }) {
           Черновик виден только вам и в согласование не попадает. Отправленную заявку править уже нельзя.
         </p>
       </form>
+
+      {naming !== null && (
+        <Modal
+          title="Сохранить шаблоном"
+          onClose={() => setNaming(null)}
+          footer={
+            <>
+              <button type="button" className="btn btn-secondary" onClick={() => setNaming(null)}>
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!naming.trim() || saveTemplate.isPending}
+                onClick={() => void storeTemplate(naming.trim())}
+              >
+                {saveTemplate.isPending ? 'Сохраняем…' : 'Сохранить'}
+              </button>
+            </>
+          }
+        >
+          <Field label="Название шаблона" required note="Так его будет видно в списке и в боте">
+            {(id) => (
+              <input
+                id={id}
+                className="field"
+                autoFocus
+                maxLength={200}
+                value={naming}
+                onChange={(e) => setNaming(e.target.value)}
+              />
+            )}
+          </Field>
+          <p className="caption" style={{ margin: 0 }}>
+            Сохранятся позиции и объект. Заявка при этом не подаётся.
+          </p>
+        </Modal>
+      )}
 
       {helper !== null && (
         <RequestAssistant

@@ -14,8 +14,8 @@ from app.core.errors import NotFoundError
 from app.core.permissions import Permission
 from app.core.time import to_local
 from app.db.models import AiKind
-from app.schemas.ai import AiEntry, AiSettingsOut, AiUsage
-from app.services import ai_log, ai_memory
+from app.schemas.ai import AiEntry, AiFeedbackIn, AiSettingsOut, AiUsage
+from app.services import ai_feedback, ai_log, ai_memory
 
 router = APIRouter(prefix="/api/ai", tags=["ai"], dependencies=[Depends(bind_audit_actor)])
 
@@ -56,7 +56,7 @@ def settings_(session: DbSession, _: CurrentUser):
     """Что администратор должен видеть, не заходя на сервер: работает ли
     помощник, какой моделью, сколько им пользуются и что отвечает."""
     settings = get_settings()
-    usage = ai_log.stats(session)
+    usage = ai_log.stats(session) | ai_feedback.summary(session)
     return AiSettingsOut(
         enabled=settings.assistant_enabled,
         model=settings.assistant_model,
@@ -96,3 +96,25 @@ def _mask(key: str | None) -> str | None:
     if len(key) <= 12:
         return "…" + key[-4:]
     return f"{key[:11]}…{key[-4:]}"
+
+
+@router.get("/feedback/reasons", response_model=dict[str, str])
+def feedback_reasons(_: CurrentUser):
+    """Причины отрицательной оценки. Список закрытый: свободный текст в
+    статистике не группируется, а «Другое» с комментарием закрывает
+    остальные случаи."""
+    return ai_feedback.REASONS
+
+
+@router.post("/feedback", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+def rate(session: DbSession, user: CurrentUser, data: AiFeedbackIn) -> Response:
+    """Оценка ответа помощника. Оценить можно только своё обращение."""
+    ai_feedback.rate(
+        session,
+        user,
+        interaction_id=data.interaction_id,
+        useful=data.useful,
+        reason=data.reason,
+        comment=data.comment,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

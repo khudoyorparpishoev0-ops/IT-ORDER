@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AiButton } from '@/components/AiButton';
+import { AiFeedback } from '@/components/AiFeedback';
 import { Modal } from '@/components/Modal';
 import { useAiApplied, useAssistantChat } from '@/api/hooks';
 import type { AssistantLine, AssistantReply, AssistantTurn } from '@/api/types';
@@ -195,6 +196,7 @@ export function RequestAssistant({ projectName, lines, onApply, onClose }: Props
                   Отмена
                 </button>
               </div>
+              <AiFeedback interactionId={reply.interaction_id} />
             </div>
           )}
 

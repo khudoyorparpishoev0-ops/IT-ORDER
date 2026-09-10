@@ -1443,3 +1443,41 @@ select.filter {
   border-left: 2px solid var(--yellow);
   background: var(--mist);
 }
+
+/* Шаблон и кнопка его удаления идут парой: удалять по ошибке страшнее,
+   чем нажать мимо, поэтому крестик отдельной маленькой кнопкой рядом. */
+.chip-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Оценка ответа помощника: строка «Помог ответ?» с двумя кнопками. */
+.ai-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.ai-rate-label {
+  margin: 0;
+  color: var(--slate);
+}
+
+/* Найденный прошлый вариант: жёлтой полосы нет — это не предупреждение,
+   а находка. Рамка как у карточки, действия внизу. */
+.repeat-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-left: 2px solid var(--green);
+  background: var(--mist);
+}
+/* Позиции внутри карточки — список, а не разделы: шаг маленький, иначе
+   две строки читаются как два разных блока. */
+.repeat-lines {
+  display: grid;
+  gap: 4px;
+}

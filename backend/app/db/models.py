@@ -47,6 +47,33 @@ class RequestStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class RequestCategory(str, enum.Enum):
+    """Бизнес-категория заявки. Не справочник материалов — их одиннадцать
+    на всю компанию, и меняются они раз в годы.
+
+    Нужна аналитике руководителя: «на транспорт за месяц ушло столько» —
+    вопрос, на который по названиям материалов не ответить. Материалы
+    по-прежнему никто не ведёт справочником, а категорий ровно столько,
+    сколько влезает в один выпадающий список.
+
+    Значение может отсутствовать: старые заявки её не знают, и заставлять
+    людей проставлять её задним числом никто не станет. NULL честно
+    значит «не указана», а не «Другое».
+    """
+
+    MATERIALS = "MATERIALS"
+    EQUIPMENT = "EQUIPMENT"
+    TRANSPORT = "TRANSPORT"
+    FUEL = "FUEL"
+    MEALS = "MEALS"
+    LODGING = "LODGING"
+    TRIP = "TRIP"
+    DELIVERY = "DELIVERY"
+    SERVICES = "SERVICES"
+    HOUSEHOLD = "HOUSEHOLD"
+    OTHER = "OTHER"
+
+
 class EmployeeRole(str, enum.Enum):
     """Роль в согласовании.
 
@@ -275,6 +302,12 @@ class ExpenseRequest(Base):
         nullable=False,
     )
     amount: Mapped[Money] = mapped_column(default=Decimal("0.00"), nullable=False)
+    #: Бизнес-категория: транспорт, топливо, питание. NULL — не указана;
+    #: старые заявки её не знают, и это честнее, чем свалить их в «Другое».
+    #: Помощник предлагает, человек подтверждает — сама не проставляется.
+    category: Mapped[RequestCategory | None] = mapped_column(
+        Enum(RequestCategory, name="request_category", native_enum=False, length=16)
+    )
 
     created_at: Mapped[CreatedAt]
     submitted_at: Mapped[Timestamp | None]
@@ -316,6 +349,7 @@ class ExpenseRequest(Base):
         CheckConstraint("amount >= 0", name="ck_requests_amount_non_negative"),
         Index("ix_requests_status_created", "status", "created_at"),
         Index("ix_requests_employee_created", "employee_id", "created_at"),
+        Index("ix_requests_category_created", "category", "created_at"),
     )
 
 
@@ -328,10 +362,18 @@ class ExpenseLine(Base):
     request_id: Mapped[int] = mapped_column(
         ForeignKey("expense_requests.id", ondelete="CASCADE"), nullable=False
     )
+    #: Итоговое название позиции — то, что вошло в заявку. Именно его
+    #: видят закуп, бухгалтерия и отчёты.
     title: Mapped[Name]
+    #: Что человек набрал своими руками, до всякой правки. Отдельно от
+    #: `title`, потому что это разные вещи: приняв поправку помощника
+    #: («гофра16» → «Гофра гибкая 16 мм»), человек меняет `title`, и
+    #: набранное им исчезает. По `original_text` видно, как люди на самом
+    #: деле называют вещи, — без этого нельзя ни проверить помощника, ни
+    #: понять, что стоит добавить в подсказки.
+    original_text: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     #: Приведённое написание (`services/material_norm.py`): по нему идёт
-    #: поиск, подсказки и поиск дублей. Показываем всегда `title` — то,
-    #: как написал человек.
+    #: поиск, подсказки и поиск дублей. Показываем всегда `title`.
     normalized_text: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Единица измерения словами: «шт.», «мешок», «м²». Сотрудник пишет
@@ -489,6 +531,83 @@ class AuditLog(Base):
     )
 
 
+class AiFeedback(Base):
+    """Оценка ответа помощника человеком: подошло или нет и почему.
+
+    Отдельно от `ai_interactions`, потому что это другая природа данных:
+    там факт обращения, здесь мнение человека. Живёт ровно столько,
+    сколько живёт само обращение (`ON DELETE CASCADE`): оценка без
+    ответа, к которому она относится, не значит ничего.
+
+    Один человек — одна оценка на обращение: передумал и нажал другое —
+    заменяем, а не копим.
+    """
+
+    __tablename__ = "ai_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    interaction_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_interactions.id", ondelete="CASCADE"), nullable=False
+    )
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    #: True — «полезно», False — «не подходит».
+    useful: Mapped[bool] = mapped_column(nullable=False)
+    #: Причина отказа из готового списка (`app/services/ai_feedback.py`).
+    reason: Mapped[str | None] = mapped_column(String(64))
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[CreatedAt]
+
+    __table_args__ = (
+        UniqueConstraint("interaction_id", "employee_id", name="uq_ai_feedback_once"),
+        Index("ix_ai_feedback_created", "created_at"),
+    )
+
+
+class RequestTemplate(Base):
+    """Часто повторяющаяся заявка, сохранённая человеком.
+
+    «Заправка Opel», «Обед сотрудников», «UTP Cat6 на Регар» — это
+    заявки, которые подают каждую неделю одними и теми же словами.
+    Шаблон превращает их в одно нажатие.
+
+    Шаблон принадлежит человеку, а не компании: у каждого свои
+    повторяющиеся дела, а общий список шаблонов пришлось бы кому-то
+    вести. Создаётся только руками — помощник может предложить сохранить
+    шаблон, но не завести его сам.
+
+    Состав хранится в `payload` как в форме (позиции с количеством и
+    единицей): заявка неизменяема после подачи, а шаблон — заготовка,
+    и связывать его с конкретной заявкой нельзя, та может быть удалена.
+    """
+
+    __tablename__ = "request_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[Name]
+    #: Объект по умолчанию. NULL — спрашиваем при применении: «Обед
+    #: сотрудников» бывает на любом объекте.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL")
+    )
+    #: Позиции: [{"title", "quantity", "unit"}]. Форма шаблона совпадает
+    #: с формой заявки, поэтому применение — это подстановка, а не разбор.
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_used_at: Mapped[Timestamp | None]
+    created_at: Mapped[CreatedAt]
+    updated_at: Mapped[Timestamp | None]
+
+    __table_args__ = (
+        UniqueConstraint("employee_id", "name", name="uq_template_name_per_employee"),
+        Index("ix_templates_employee", "employee_id"),
+    )
+
+
 class TelegramSession(Base):
     """Незаконченный разговор с ботом: на каком шаге и что уже набрали.
 
@@ -578,6 +697,13 @@ class AiInteraction(Base):
     #: Человек воспользовался ответом: нажал «Применить». NULL — ответ
     #: такой кнопки не предполагал (вопрос аналитику).
     applied: Mapped[bool | None] = mapped_column()
+    #: Какой моделью отвечали. Модель меняют в `.env`, и сравнивать
+    #: качество ответов имеет смысл только внутри одной.
+    model: Mapped[str | None] = mapped_column(String(64))
+    #: Токены на вход и выход, если Anthropic их вернул. По ним считается
+    #: стоимость ORDER AI: без них она известна только из счёта.
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[CreatedAt]
 
     __table_args__ = (

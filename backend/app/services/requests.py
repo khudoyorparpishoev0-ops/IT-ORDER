@@ -239,6 +239,11 @@ def _apply_lines(request: ExpenseRequest, lines: list[ExpenseLineIn]) -> None:
         request.lines.append(
             ExpenseLine(
                 title=line.title,
+                # Исходный ввод пришёл от панели: она помнит, что человек
+                # набрал до того, как принял поправку помощника. Не пришёл —
+                # значит он ничего не набирал (шаблон, повтор, позиция от
+                # помощника), и исходным считается итоговое название.
+                original_text=(line.original_text or line.title)[:200],
                 # Приведённое написание считаем один раз при записи: искать
                 # по выражению от колонки — значит не пользоваться индексом.
                 normalized_text=normalize(line.title)[:200],
@@ -303,6 +308,7 @@ def create_request(session: Session, data: RequestCreate) -> ExpenseRequest:
         number=next_number(session),
         employee_id=employee.id,
         project_id=project.id,
+        category=data.category,
         status=RequestStatus.DRAFT,
     )
     _apply_lines(request, data.lines)
@@ -336,6 +342,8 @@ def update_request(
         if not project.active:
             raise ValidationError(f"Объект «{project.name}» отключён")
         request.project_id = project.id
+    if data.category is not None:
+        request.category = data.category
     if data.lines is not None:
         _apply_lines(request, data.lines)
 

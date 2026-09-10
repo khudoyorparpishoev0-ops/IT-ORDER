@@ -122,13 +122,24 @@ export type MaterialAdvice = {
 };
 
 /** Сколько помощником пользовались за период. Раздел администратора. */
+export type AiReasonCount = { reason: string; label: string; count: number };
+
 export type AiUsage = {
   days: number;
   total: number;
   failed: number;
+  error_pct: number | null;
   applied: number;
+  apply_rate_pct: number | null;
   avg_seconds: number | null;
   by_kind: Record<string, number>;
+  total_week: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  useful: number;
+  useless: number;
+  useless_pct: number | null;
+  top_reasons: AiReasonCount[];
 };
 
 /** Строка журнала обращений к AI. */
@@ -279,6 +290,8 @@ export type TeamMember = {
 export type ExpenseLine = {
   id: number;
   title: string;
+  /** Что набрал человек до правки помощником. */
+  original_text: string;
   quantity: number;
   unit: string | null;
   /** null — строку ещё не оценил закуп. */
@@ -303,6 +316,8 @@ export type SourcingInput = {
 /** Строка сметы при заведении заявки. Сумма считается сервером. */
 export type ExpenseLineInput = {
   title: string;
+  /** Что набрал человек до правки. Не передано — исходным считается title. */
+  original_text?: string;
   quantity: number;
   /** «шт.», «мешок», «м²» — словами. Цен у сотрудника нет. */
   unit: string | null;
@@ -311,6 +326,8 @@ export type ExpenseLineInput = {
 export type RequestInput = {
   employee_id: number;
   project_id: number;
+  /** null — категория не указана, и это честнее, чем «Другое». */
+  category?: RequestCategory | null;
   lines: ExpenseLineInput[];
   /** true — сразу на согласование, false — оставить черновиком. */
   submit: boolean;
@@ -319,6 +336,7 @@ export type RequestInput = {
 /** Правка черновика: что не передано — не меняется. */
 export type RequestUpdateInput = {
   project_id?: number;
+  category?: RequestCategory | null;
   lines?: ExpenseLineInput[];
 };
 
@@ -351,6 +369,8 @@ export type RequestListItem = {
   employee_position: string;
   project_id: number;
   project_name: string;
+  /** Бизнес-категория расхода. null — не указана. */
+  category: RequestCategory | null;
   /** Наименование для списка: первая позиция сметы (+ «и ещё N»). */
   title: string;
   lines_count: number;
@@ -694,10 +714,11 @@ export type MemoryItem = {
   last_date: string | null;
 };
 
-/** Что ORDER помнит о заявках: частое, своё и по объекту. */
+/** Что ORDER помнит о заявках: частое, своё, недавнее и по объекту. */
 export type Memory = {
   frequent: MemoryItem[];
   mine: MemoryItem[];
+  recent: MemoryItem[];
   project: MemoryItem[];
 };
 
@@ -717,4 +738,163 @@ export type SimilarRequest = {
 export type DuplicateCheck = {
   requests: SimilarRequest[];
   days: number;
+};
+
+
+/** Позиция шаблона. Форма та же, что у строки формы заявки. */
+export type TemplateLine = {
+  title: string;
+  quantity: number;
+  unit: string | null;
+};
+
+/** Шаблон заявки: повторяющееся дело в одно нажатие. */
+export type RequestTemplate = {
+  id: number;
+  name: string;
+  project_id: number | null;
+  project_name: string | null;
+  lines: TemplateLine[];
+  usage_count: number;
+  last_used_at: string | null;
+};
+
+/** Шаблон, готовый к подстановке. Заявку применение не создаёт. */
+export type TemplateApply = {
+  template: RequestTemplate;
+  /** Объект шаблона отключён или удалён. */
+  warning: string | null;
+};
+
+/** Найденный прошлый вариант для «как в прошлый раз». */
+export type RepeatOption = {
+  request_id: number;
+  number: string;
+  title: string;
+  project_id: number;
+  project: string;
+  days_ago: number;
+  lines: TemplateLine[];
+  reasons: string[];
+};
+
+export type RepeatResult = { options: RepeatOption[] };
+
+
+/** Бизнес-категория заявки. Не справочник материалов: их одиннадцать. */
+export type RequestCategory =
+  | 'MATERIALS'
+  | 'EQUIPMENT'
+  | 'TRANSPORT'
+  | 'FUEL'
+  | 'MEALS'
+  | 'LODGING'
+  | 'TRIP'
+  | 'DELIVERY'
+  | 'SERVICES'
+  | 'HOUSEHOLD'
+  | 'OTHER';
+
+/** Подписи категорий. Порядок — от частого к редкому. */
+export const CATEGORY_LABEL: Record<RequestCategory, string> = {
+  MATERIALS: 'Материалы',
+  EQUIPMENT: 'Оборудование',
+  TRANSPORT: 'Транспорт',
+  FUEL: 'Топливо',
+  MEALS: 'Питание',
+  LODGING: 'Проживание',
+  TRIP: 'Командировка',
+  DELIVERY: 'Доставка',
+  SERVICES: 'Услуги',
+  HOUSEHOLD: 'Хозяйственные расходы',
+  OTHER: 'Другое',
+};
+
+/** Строка блока «требует внимания» на дашборде директора. */
+export type Problem = { code: string; label: string; count: number; severity: Severity };
+
+/** Насколько всё плохо в разделе ORDER Intelligence. */
+export type Severity = 'critical' | 'warning' | 'info';
+
+/** Состояние компании одним экраном. Все числа считает сервер. */
+export type ExecutiveOverview = {
+  generated_at: string;
+  active_requests: number;
+  created_today: number;
+  completed_today: number;
+  overdue: number;
+  stuck: number;
+  requires_attention: number;
+  amount_active: string;
+  problems: Problem[];
+};
+
+/** Заявка в очереди внимания со всеми причинами разом. */
+export type AttentionRow = {
+  request_id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  status: RequestStatus;
+  stage_label: string;
+  hours_in_status: number;
+  norm_hours: number | null;
+  amount: string;
+  priced: boolean;
+  severity: Severity;
+  reasons: string[];
+  codes: string[];
+};
+
+/** Заявка без движения. */
+export type StuckRequest = {
+  request_id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  status: RequestStatus;
+  stage_label: string;
+  hours_in_status: number;
+  norm_hours: number | null;
+  assignee: string;
+  severity: Severity;
+  overdue: boolean;
+  reason: string;
+};
+
+/** Нестыковка в заявке. Факт, а не обвинение. */
+export type Issue = {
+  request_id: number;
+  number: string;
+  title: string;
+  project: string;
+  employee: string;
+  severity: Severity;
+  code: string;
+  detail: string;
+};
+
+/** Показатель, отличающийся от обычного уровня. */
+export type Anomaly = {
+  code: string;
+  subject: string;
+  current: number;
+  previous: number;
+  change_pct: number;
+  unit: string;
+  detail: string;
+  severity: Severity;
+};
+
+/** Раздел ORDER Intelligence целиком. */
+export type Intelligence = {
+  overview: ExecutiveOverview;
+  attention: AttentionRow[];
+  stuck: StuckRequest[];
+  issues: Issue[];
+  anomalies: Anomaly[];
+  ai: AiText;
+  blind_spots: string[];
 };

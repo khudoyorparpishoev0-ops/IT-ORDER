@@ -11,9 +11,13 @@ export const ENTITY_LABEL: Record<string, string> = {
   budget: 'Бюджет месяца',
   request: 'Заявка',
   analytics: 'AI-аналитика',
+  template: 'Шаблон заявки',
 };
 
 export const ACTION_LABEL: Record<string, string> = {
+  template_created: 'Шаблон создан',
+  template_updated: 'Шаблон изменён',
+  template_deleted: 'Шаблон удалён',
   login: 'Вход в систему',
   logout: 'Выход',
   login_failed: 'Неудачный вход',
@@ -55,6 +59,7 @@ export const ENTITY_FILTER = [
   { value: 'project', label: 'Объекты' },
   { value: 'job', label: 'Фоновые задачи' },
   { value: 'budget', label: 'Бюджет' },
+  { value: 'template', label: 'Шаблоны' },
 ];
 
 /** Действия в фильтре сгруппированы: доступ отдельно, работа отдельно. */
@@ -86,6 +91,10 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
     actions: ['submit', 'sourcing', 'priced', 'fulfilled', 'approve', 'auto_approve', 'reject', 'pay'],
   },
   { label: 'Справочники', actions: ['create', 'update', 'delete'] },
+  {
+    label: 'Шаблоны',
+    actions: ['template_created', 'template_updated', 'template_deleted'],
+  },
   { label: 'AI', actions: ['ai_question'] },
 ];
 

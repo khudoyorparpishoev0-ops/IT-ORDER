@@ -181,5 +181,6 @@ def _logged(
         question=question,
         answer=advice.suggested or advice.title,
         duration_ms=duration_ms,
+        usage=assistant.last_usage() if duration_ms is not None else None,
     )
     return advice.model_copy(update={"interaction_id": entry_id})

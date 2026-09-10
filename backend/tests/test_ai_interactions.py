@@ -78,7 +78,9 @@ def test_analytics_question_is_recorded(client, login, manager, session, assista
 
     (entry,) = rows(session)
     assert entry.kind is AiKind.ANALYTICS
-    assert entry.question == "что происходит"
+    # В журнале видно и вопрос, и выбранное намерение: по нему потом
+    # понятно, какую именно функцию выполнял сервер.
+    assert entry.question == "[overview] что происходит"
     assert entry.answer == "Всё спокойно"
 
 

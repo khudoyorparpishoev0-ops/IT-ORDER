@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import CurrentUser, DbSession, bind_audit_actor
-from app.core.permissions import Permission, has_permission
 from app.schemas.assistant import (
     AssistantAskIn,
     AssistantReplyOut,
@@ -13,9 +12,13 @@ from app.schemas.assistant import (
     DuplicateCheckOut,
     MemoryItem,
     MemoryOut,
+    RepeatIn,
+    RepeatLine,
+    RepeatOption,
+    RepeatOut,
     SimilarRequestOut,
 )
-from app.services import ai_memory, request_assistant
+from app.services import ai_memory, ai_privacy, request_assistant
 
 # Открыт любому вошедшему: помощь нужна тому, кто заполняет заявку.
 # Ключ Claude живёт только здесь, на сервере, и наружу не отдаётся.
@@ -57,13 +60,50 @@ def memory(
     Anthropic, а автодополнение осталось на месте.
     """
     return MemoryOut(
-        frequent=[_item(x) for x in ai_memory.frequent(session, project_id=project_id)],
-        mine=[_item(x) for x in ai_memory.mine(session, user.id)],
+        frequent=[
+            _item(x) for x in ai_memory.frequent(session, project_id=project_id, limit=5)
+        ],
+        mine=[_item(x) for x in ai_memory.mine(session, user.id, limit=5)],
+        recent=[_item(x) for x in ai_memory.recent(session, user.id, limit=5)],
         project=(
-            [_item(x) for x in ai_memory.by_project(session, project_id)]
+            [_item(x) for x in ai_memory.by_project(session, project_id, limit=5)]
             if project_id is not None
             else []
         ),
+    )
+
+
+@router.post("/repeat", response_model=RepeatOut)
+def repeat(session: DbSession, user: CurrentUser, data: RepeatIn):
+    """«Как в прошлый раз», «повтори прошлую заявку», «мне опять этот кабель».
+
+    Заявка по этому не создаётся никогда — только показываются найденные
+    варианты с кнопками. Угадать можно и неверно, а деньги настоящие.
+
+    Границу видимости навязывает сервер: без права видеть чужие заявки
+    человек получает варианты только из своей истории.
+    """
+    found = ai_memory.last_like(
+        session,
+        employee_id=user.id,
+        text=data.text,
+        project_id=data.project_id,
+        visible_employee_id=ai_privacy.visible_employee_id(user),
+    )
+    return RepeatOut(
+        options=[
+            RepeatOption(
+                request_id=item.request_id,
+                number=item.number,
+                title=item.title,
+                project_id=item.project_id,
+                project=item.project,
+                days_ago=item.days_ago,
+                lines=[RepeatLine(**line) for line in item.lines],
+                reasons=item.reasons,
+            )
+            for item in found
+        ]
     )
 
 
@@ -76,7 +116,7 @@ def duplicates(session: DbSession, user: CurrentUser, data: DuplicateCheckIn):
     навязывает сервер: без права видеть чужие заявки человек получит
     только свои повторы.
     """
-    visible = None if has_permission(user.role, Permission.VIEW_ALL_REQUESTS) else user.id
+    visible = ai_privacy.visible_employee_id(user)
     found = ai_memory.similar_requests(
         session, titles=data.titles, project_id=data.project_id, employee_id=visible
     )
