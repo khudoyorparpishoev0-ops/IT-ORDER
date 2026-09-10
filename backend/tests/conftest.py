@@ -563,3 +563,27 @@ def budget(session) -> MonthlyBudget:
     session.add(b)
     session.flush()
     return b
+
+
+@pytest.fixture
+def totp_code(client, session):
+    """Действующий код второго фактора вошедшего человека.
+
+    Нужен там, где опасное действие подтверждается кодом администратора:
+    смена чужого пароля, сброс чужого второго фактора.
+    """
+    import pyotp
+
+    def _code(person: Employee) -> str:
+        secret = _TOTP_SECRETS.get((id(client), person.id))
+        assert secret, f"неизвестен секрет TOTP для {person.email}"
+        # Тот же приём, что при входе: в тестах один человек подтверждает
+        # несколько действий за одну секунду, и защита от повторного
+        # применения кода мешала бы стенду. Сама защита проверяется
+        # отдельным тестом.
+        person.totp_last_step = None
+        session.flush()
+        session.commit()
+        return pyotp.TOTP(secret).now()
+
+    return _code

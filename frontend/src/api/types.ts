@@ -704,6 +704,8 @@ export type CurrentUser = {
   /** Роль обязана иметь второй фактор: отключить его нельзя. */
   two_factor_required: boolean;
   recovery_codes_left: number;
+  /** Пароль выдан администратором и ещё не сменён: до смены работа закрыта. */
+  must_change_password: boolean;
   notifications: NotificationPrefs;
 };
 

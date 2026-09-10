@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react';
+import { CodeConfirm } from '@/components/CodeConfirm';
 import { Field } from '@/components/Field';
 import { Icon } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
@@ -476,6 +477,9 @@ function AccessSection({
   const [password, setPasswordValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Какое опасное действие ждёт подтверждения кодом. null — окна нет.
+  const [confirming, setConfirming] = useState<'password' | 'reset2fa' | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   const run = async (action: () => Promise<unknown>, done: () => void) => {
     setError(null);
@@ -530,15 +534,10 @@ function AccessSection({
             type="button"
             className="btn btn-secondary"
             disabled={busy || password.length < MIN_PASSWORD}
-            onClick={() =>
-              run(
-                () => setPassword.mutateAsync({ id: employee.id, password }),
-                () => {
-                  setPasswordValue('');
-                  onFlash('Пароль назначен', 'var(--dot-ok)');
-                },
-              )
-            }
+            onClick={() => {
+              setCodeError(null);
+              setConfirming('password');
+            }}
           >
             {access?.has_password ? 'Заменить пароль' : 'Выдать пароль'}
           </button>
@@ -553,18 +552,17 @@ function AccessSection({
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {access?.two_factor_enabled && (
-          <Confirm
-            label="Сбросить второй фактор"
-            question="Сбросить? Сотрудник настроит приложение заново."
-            danger={false}
+          <button
+            type="button"
+            className="btn btn-secondary"
             disabled={busy}
-            onConfirm={() =>
-              run(
-                () => reset2fa.mutateAsync(employee.id),
-                () => onFlash('Второй фактор сброшен', 'var(--dot-warn)'),
-              )
-            }
-          />
+            onClick={() => {
+              setCodeError(null);
+              setConfirming('reset2fa');
+            }}
+          >
+            Сбросить второй фактор
+          </button>
         )}
         <Confirm
           label="Удалить запись"
@@ -583,9 +581,65 @@ function AccessSection({
         />
       </div>
       <p className="caption" style={{ margin: 0 }}>
-        Сброс второго фактора нужен, когда сотрудник потерял и телефон, и коды
-        восстановления. Удаление работает только для записи без заявок.
+        Смена чужого пароля и сброс второго фактора подтверждаются вашим кодом:
+        одной открытой сессии для этого недостаточно. Сброс нужен, когда
+        сотрудник потерял и телефон, и коды восстановления. Удаление работает
+        только для записи без заявок.
       </p>
+
+      {confirming === 'password' && (
+        <CodeConfirm
+          title="Подтвердите смену пароля"
+          text={`Пароль сотрудника «${employee.full_name}» будет заменён на временный. Прежний перестанет работать сразу, открытые сеансы сотрудника завершатся, а при следующем входе он обязан задать свой пароль.`}
+          confirmLabel="Заменить пароль"
+          busy={busy}
+          error={codeError}
+          onClose={() => setConfirming(null)}
+          onConfirm={async (code) => {
+            setCodeError(null);
+            setBusy(true);
+            try {
+              await setPassword.mutateAsync({ id: employee.id, password, code });
+              setConfirming(null);
+              setPasswordValue('');
+              onFlash(
+                'Пароль сброшен. Сотрудник задаст свой при следующем входе.',
+                'var(--dot-ok)',
+              );
+            } catch (err) {
+              // Ошибка остаётся в окне: неверный код исправляют здесь же,
+              // не набирая пароль заново.
+              setCodeError(message(err));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
+
+      {confirming === 'reset2fa' && (
+        <CodeConfirm
+          title="Подтвердите сброс второго фактора"
+          text={`Сотрудник «${employee.full_name}» настроит приложение заново. До этого он входит по одному паролю.`}
+          confirmLabel="Сбросить"
+          busy={busy}
+          error={codeError}
+          onClose={() => setConfirming(null)}
+          onConfirm={async (code) => {
+            setCodeError(null);
+            setBusy(true);
+            try {
+              await reset2fa.mutateAsync({ id: employee.id, code });
+              setConfirming(null);
+              onFlash('Второй фактор сброшен', 'var(--dot-warn)');
+            } catch (err) {
+              setCodeError(message(err));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
     </section>
   );
 }

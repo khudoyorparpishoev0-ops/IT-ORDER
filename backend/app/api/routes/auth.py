@@ -53,6 +53,7 @@ def _to_out(session, employee: Employee) -> CurrentUserOut:
         two_factor_enabled=employee.totp_enabled,
         two_factor_required=svc.requires_2fa(employee),
         recovery_codes_left=svc.unused_recovery_count(session, employee),
+        must_change_password=employee.must_change_password,
         notifications=_prefs(employee),
     )
 
@@ -70,7 +71,11 @@ def _set_session_cookie(response: Response, employee: Employee) -> None:
     settings = get_settings()
     response.set_cookie(
         key=settings.cookie_name,
-        value=create_token(employee.id, role=employee.role.value),
+        value=create_token(
+            employee.id,
+            role=employee.role.value,
+            password_hash=employee.password_hash,
+        ),
         max_age=settings.session_lifetime_minutes * 60,
         # httponly закрывает токен от скриптов на странице: украсть его
         # через XSS не выйдет.

@@ -21,7 +21,7 @@
 старая часть ленты читалась.
 
 Revision ID: 0021
-Revises: 0019
+Revises: 0020
 Create Date: 2026-09-10
 """
 
@@ -34,7 +34,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0021"
-down_revision: str | None = "0019"
+down_revision: str | None = "0020"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
