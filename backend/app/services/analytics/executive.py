@@ -23,6 +23,7 @@ from app.db.models import ExpenseRequest, RequestStatus
 from app.services.analytics import inconsistencies as inc
 from app.services.analytics import stale
 from app.services.analytics.facts import find_duplicates
+from app.services.analytics.scope import Scope
 from app.services.requests import SPENT_STATUSES
 
 #: Заявка закрыта: оплачена, закрыта складом или отклонена.
@@ -58,11 +59,13 @@ class Overview:
     problems: list[Problem] = field(default_factory=list)
 
 
-def overview(session: Session, *, now: datetime | None = None) -> Overview:
+def overview(
+    session: Session, *, now: datetime | None = None, scope: Scope | None = None
+) -> Overview:
     """Сводка руководителя. Все числа — из базы, ни одного от модели."""
     moment = now or utcnow()
     today = local_date(moment)
-    rows = stale.in_work(session)
+    rows = stale.in_work(session, scope=scope)
 
     stuck_rows = stale.stuck_requests(session, now=moment, rows=rows)
     overdue_ids = {s.request_id for s in stuck_rows if s.overdue}

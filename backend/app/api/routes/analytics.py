@@ -139,8 +139,8 @@ def executive_overview(session: DbSession, user: CurrentUser):
     по этим цифрам распоряжаются деньгами, а правдоподобная выдумка тут
     дороже отсутствия цифры.
     """
-    scope_svc.for_employee(user)
-    data = executive_svc.overview(session)
+    box = scope_svc.for_employee(user)
+    data = executive_svc.overview(session, scope=box)
     _log(session, user, "overview", data.requires_attention, with_ai=False)
     return _overview_out(data)
 
@@ -156,13 +156,16 @@ def intelligence_section(
 ):
     """Раздел ORDER Intelligence целиком: сводка, очередь внимания,
     застой, нестыковки и отклонения от обычного уровня."""
-    scope_svc.for_employee(user)
+    box = scope_svc.for_employee(user)
     now = utcnow()
 
-    data = executive_svc.overview(session, now=now)
-    queue = attention_svc.requires_attention(session, now=now)
-    stuck = stale_svc.stuck_requests(session, now=now)
-    issues = inc_svc.find_all(session, now=now)
+    # Все разделы берут заявки из одной точки в границах видимости:
+    # забыть ограничение в одном из них так невозможно.
+    rows = stale_svc.in_work(session, scope=box)
+    data = executive_svc.overview(session, now=now, scope=box)
+    queue = attention_svc.requires_attention(session, now=now, scope=box)
+    stuck = stale_svc.stuck_requests(session, now=now, rows=rows)
+    issues = inc_svc.find_all(session, now=now, rows=rows)
     deviations = anomalies_svc.find(session, now=now)
 
     text = (
@@ -186,8 +189,12 @@ def intelligence_section(
 @router.get("/digest/{kind}", response_model=DigestOutText)
 def digest_text(session: DbSession, user: CurrentUser, kind: str):
     """Утренняя или вечерняя сводка — та же, что уходит письмом и в бот."""
-    scope_svc.for_employee(user)
-    data = digest_svc.evening(session) if kind == "evening" else digest_svc.morning(session)
+    box = scope_svc.for_employee(user)
+    data = (
+        digest_svc.evening(session, scope=box)
+        if kind == "evening"
+        else digest_svc.morning(session, scope=box)
+    )
     _log(session, user, f"digest_{data.kind}", len(data.problems), with_ai=False)
     return DigestOutText(
         kind=data.kind,

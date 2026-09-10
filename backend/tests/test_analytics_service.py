@@ -494,3 +494,63 @@ def test_category_survives_the_api(client, login, employee, project) -> None:
         },
     )
     assert created.status_code == 201
+
+
+# --- Сравнение «утро → вечер» ------------------------------------------------------
+
+
+def test_evening_compares_against_a_recomputed_baseline(session, employee, project) -> None:
+    """Модель утреннюю сводку не помнит — сервер пересчитывает её сам."""
+    from app.services.analytics.digest import overdue_delta
+
+    # Просрочилась ещё вчера: к утру уже стояла.
+    old = submit(session, employee, project, "Цемент М500")
+    age(session, old, hours=40)
+    # Просрочилась после утренней сводки: норматив 8 часов, стоит 9.
+    fresh = submit(session, employee, project, "Песок речной")
+    age(session, fresh, hours=9)
+
+    delta = overdue_delta(session, now=utcnow())
+    assert delta["left"] == 1, "вчерашняя всё ещё стоит"
+    assert delta["new"] == 1, "сегодняшняя просрочилась после утра"
+    assert delta["resolved"] == 0
+
+
+def test_resolved_counts_closed_morning_overdue(session, employee, project, advance) -> None:
+    """Закрытая за день утренняя просрочка попадает в «устранено»."""
+    from app.services.analytics.digest import overdue_delta
+
+    request = submit(session, employee, project, "Цемент М500")
+    age(session, request, hours=40)
+    # Проводим до оплаты: заявка закрыта сегодня.
+    advance(request, to="approved")
+    row = session.get(ExpenseRequest, request.id)
+    row.decided_at = utcnow() - timedelta(hours=40)
+    session.commit()
+
+    from app.services import requests as rsvc
+    from app.schemas.request import PaymentIn
+
+    rsvc.pay_request(
+        session, row.id, PaymentIn(method="cash", document="РКО-1", actor="Бухгалтер")
+    )
+    session.commit()
+
+    assert overdue_delta(session, now=utcnow())["resolved"] == 1
+
+
+def test_fresh_request_is_in_no_bucket(session, employee, project) -> None:
+    from app.services.analytics.digest import overdue_delta
+
+    submit(session, employee, project, "Цемент М500")
+    assert overdue_delta(session, now=utcnow()) == {"resolved": 0, "left": 0, "new": 0}
+
+
+def test_evening_text_shows_the_delta(session, employee, project) -> None:
+    request = submit(session, employee, project, "Цемент М500")
+    age(session, request, hours=40)
+
+    text = digest.as_text(digest.evening(session))
+    assert "Из утренних просрочек" in text
+    assert "устранено: 0" in text
+    assert "осталось: 1" in text

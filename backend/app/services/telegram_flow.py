@@ -22,7 +22,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from datetime import timedelta
 
 from sqlalchemy import delete, select
@@ -43,6 +42,7 @@ from app.db.models import (
 from app.schemas.assistant import AssistantContext, AssistantFormLine, AssistantTurn
 from app.schemas.request import ExpenseLineIn, RequestCreate
 from app.services import ai_memory, ai_privacy, request_assistant
+from app.services import telegram_director as director
 from app.services import templates as templates_svc
 from app.services import requests as requests_svc
 from app.services.notifications import panel_url, request_url
@@ -115,13 +115,9 @@ FOREIGN_MARKERS = (
 )
 
 
-@dataclass
-class Reply:
-    """Что бот отвечает: текст, кнопки выбора и, может быть, ссылка."""
-
-    text: str
-    choices: list[tuple[str, str]] = field(default_factory=list)
-    button: tuple[str, str] | None = None
+#: Ответ бота один на весь бот: и подача заявки, и аналитика отдают одну
+#: и ту же форму, поэтому отправка у них тоже одна.
+Reply = director.Reply
 
 
 NO_RIGHT = Reply(
@@ -433,6 +429,10 @@ def menu(employee: Employee) -> Reply:
     Пять частых дел кнопками: набирать команды с телефона на стройке
     неудобно, а «Новая заявка» и «Часто заказываю» — это девять
     обращений из десяти.
+
+    Руководителю ниже добавляется директорский блок — те же расчёты, что
+    в панели. Обычному сотруднику его не видно вовсе: не спрятано, а
+    отсутствует, и нажать нечего.
     """
     choices = [
         ("Новая заявка", MENU_NEW),
@@ -440,6 +440,7 @@ def menu(employee: Employee) -> Reply:
         ("Часто заказываю", MENU_FREQUENT),
         ("Мои активные", MENU_ACTIVE),
         ("Спросить ORDER AI", MENU_AI),
+        *director.menu_rows(employee),
     ]
     return Reply(f"{employee.full_name}, что делаем?", choices=choices)
 

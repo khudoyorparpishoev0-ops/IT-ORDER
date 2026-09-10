@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core import assistant
-from app.db.models import AiKind
+from app.db.models import AiKind, AiSource
 from app.core.money import money
 from app.core.time import utcnow as _utcnow
 from app.schemas.analytics import (
@@ -487,6 +487,7 @@ def ask_by_intent(
     history: list[AnalyticsTurn] | None = None,
     now: datetime | None = None,
     scope=None,
+    source: AiSource = AiSource.WEB,
 ) -> AnalyticsReplyOut:
     """Вопрос руководителя обычными словами через разрешённые намерения.
 
@@ -508,7 +509,7 @@ def ask_by_intent(
 
     # Номера, которые сервер действительно отдал модели. Всё, чего здесь
     # нет, она придумала — ссылку на такое не делаем.
-    known = _numbers(session, moment)
+    known = _numbers(session, moment, scope)
 
     turns = [(turn.role, turn.text) for turn in (history or [])][-MAX_HISTORY:]
     started = time.monotonic()
@@ -539,13 +540,14 @@ def ask_by_intent(
         )
         return AnalyticsReplyOut(enabled=True, available=False)
 
-    ai_log.record(
+    entry_id = ai_log.record(
         session,
         kind=AiKind.ANALYTICS,
         question=f"[{name}] {question}",
         answer=reply.answer,
         duration_ms=_ms(started),
         usage=assistant.last_usage(),
+        source=source,
     )
 
     refs = [
@@ -560,11 +562,17 @@ def ask_by_intent(
         bullets=[b.strip() for b in reply.bullets if b.strip()][:5],
         requests=refs[:5],
         recommendations=[r.strip() for r in reply.recommendations if r.strip()][:3],
+        intent=name,
+        interaction_id=entry_id,
     )
 
 
-def _numbers(session: Session, now: datetime) -> dict[str, int]:
-    """Номера заявок, которые сервер может подтвердить."""
+def _numbers(session: Session, now: datetime, scope=None) -> dict[str, int]:
+    """Номера заявок, которые сервер может подтвердить.
+
+    В границах видимости: ссылку на заявку, которую человеку видеть не
+    положено, делать нельзя даже если модель её назвала.
+    """
     from app.services.analytics.stale import in_work
 
-    return {r.number: r.id for r in in_work(session)}
+    return {r.number: r.id for r in in_work(session, scope=scope)}

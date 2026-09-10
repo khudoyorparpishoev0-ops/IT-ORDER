@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.time import utcnow
 from app.db.models import Employee, ExpenseRequest, Project, RequestStatus
 from app.services.analytics import sla
+from app.services.analytics.scope import Scope
 from app.services.requests import awaiting_label, awaiting_since, awaiting_stage, title_of
 
 #: Заявки, по которым чего-то ждут. Оплаченная, отклонённая и закрытая
@@ -73,20 +74,31 @@ def _severity(hours: int, norm: int | None, threshold: int) -> tuple[str, bool]:
     return "info", False
 
 
-def in_work(session: Session) -> list[ExpenseRequest]:
-    """Незакрытые заявки со всем, что понадобится разбору."""
-    return list(
-        session.scalars(
-            select(ExpenseRequest)
-            .options(
-                selectinload(ExpenseRequest.employee),
-                selectinload(ExpenseRequest.project),
-                selectinload(ExpenseRequest.lines),
-            )
-            .where(ExpenseRequest.status.in_(IN_WORK))
-            .order_by(ExpenseRequest.created_at)
+def in_work(session: Session, *, scope: Scope | None = None) -> list[ExpenseRequest]:
+    """Незакрытые заявки со всем, что понадобится разбору.
+
+    Единственная точка, где аналитика берёт заявки: и сводка
+    руководителя, и очередь внимания, и нестыковки идут отсюда. Поэтому
+    границу видимости достаточно навязать здесь — забыть её в одном из
+    разделов невозможно.
+    """
+    stmt = (
+        select(ExpenseRequest)
+        .options(
+            selectinload(ExpenseRequest.employee),
+            selectinload(ExpenseRequest.project),
+            selectinload(ExpenseRequest.lines),
         )
+        .where(ExpenseRequest.status.in_(IN_WORK))
+        .order_by(ExpenseRequest.created_at)
     )
+    if scope is not None:
+        visible = scope.visible_employee_id
+        if visible is not None:
+            stmt = stmt.where(ExpenseRequest.employee_id == visible)
+        if scope.projects:
+            stmt = stmt.where(ExpenseRequest.project_id.in_(scope.projects))
+    return list(session.scalars(stmt))
 
 
 def hours_in_status(request: ExpenseRequest, now: datetime) -> int:
@@ -100,6 +112,7 @@ def stuck_requests(
     now: datetime | None = None,
     threshold_hours: int | None = None,
     rows: list[ExpenseRequest] | None = None,
+    scope: Scope | None = None,
 ) -> list[Stuck]:
     """Заявки, которые стоят дольше норматива или дольше порога.
 
@@ -110,7 +123,7 @@ def stuck_requests(
     norms = sla.norms()
     result: list[Stuck] = []
 
-    for request in rows if rows is not None else in_work(session):
+    for request in rows if rows is not None else in_work(session, scope=scope):
         hours = hours_in_status(request, moment)
         norm = norms.get(request.status)
         severity, overdue = _severity(hours, norm, threshold)

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, DbSession, RequirePermission, bind_audit_actor
 from app.config import get_settings
+from app.core.audit_context import Actor, set_actor
 from app.core.errors import ConflictError, ValidationError
 from app.core.permissions import Permission
 from app.core.telegram import (
@@ -24,6 +25,7 @@ from app.core.telegram import (
     send_quietly,
 )
 from app.schemas.telegram import TelegramLinkOut, TelegramSetupOut, TelegramStatusOut
+from app.services import telegram_director as director
 from app.services import telegram_flow as flow
 from app.services import telegram_link as svc
 from app.services.notifications import panel_url
@@ -56,6 +58,16 @@ HELP = (
     "/cancel — прервать начатую заявку\n"
     "/stop — отключить уведомления\n\n"
     "Остальное — в панели."
+)
+#: Отдельная справка руководителю: у него команд больше.
+HELP_DIRECTOR = (
+    "\nАналитика:\n"
+    "/summary — сводка\n"
+    "/attention — требуют внимания\n"
+    "/overdue — просроченные\n"
+    "/stuck — без движения\n"
+    "/morning и /evening — сводки за период\n"
+    "/ask вопрос — спросить ORDER AI"
 )
 
 
@@ -212,6 +224,7 @@ async def webhook(secret: str, session: DbSession, request: Request):
     if not employee.active:
         _reply(chat_id, "Учётная запись отключена. Обратитесь к администратору.")
         return {"ok": True}
+    _bind(employee)
 
     if text.startswith("/new"):
         # Сначала коммит, потом сообщение: иначе человек прочтёт про шаг,
@@ -240,8 +253,16 @@ async def webhook(secret: str, session: DbSession, request: Request):
         return {"ok": True}
 
     if text.startswith("/help") or text.startswith("/menu"):
-        _reply(chat_id, HELP)
+        _reply(chat_id, HELP + (HELP_DIRECTOR if director.available(employee) else ""))
         _send(chat_id, flow.menu(employee))
+        return {"ok": True}
+
+    # Директорские команды. Право проверяет сам сервис — здесь только
+    # разбор текста: правило доступа должно быть в одном месте.
+    dir_reply = _director_command(session, employee, text)
+    if dir_reply is not None:
+        session.commit()
+        _send(chat_id, dir_reply)
         return {"ok": True}
 
     # Обычный текст — это ответ боту, если разговор идёт. Иначе человек
@@ -276,6 +297,7 @@ def _handle_press(session: Session, chat_id: int, code: str) -> None:
     if employee is None or not employee.active:
         _reply(chat_id, NOT_LINKED)
         return
+    _bind(employee)
 
     if code.startswith(flow.PICK_PROJECT):
         reply = flow.pick_project(session, employee, _number(code, flow.PICK_PROJECT))
@@ -297,6 +319,26 @@ def _handle_press(session: Session, chat_id: int, code: str) -> None:
         reply = flow.frequent_materials(session, employee)
     elif code == flow.MENU_AI:
         reply = flow.start(session, employee)
+    elif code.startswith(director.DIR_PAGE):
+        reply = _director_page(session, employee, code)
+    elif code.startswith(director.DIR_RATE):
+        reply = _director_rate(session, employee, code)
+    elif code == director.DIR_OVERVIEW:
+        reply = director.overview(session, employee)
+    elif code == director.DIR_ATTENTION:
+        reply = director.attention_page(session, employee)
+    elif code == director.DIR_STUCK:
+        reply = director.stuck_page(session, employee)
+    elif code == director.DIR_OVERDUE:
+        reply = director.overdue_page(session, employee)
+    elif code == director.DIR_PROJECTS:
+        reply = director.projects(session, employee)
+    elif code == director.DIR_ASK:
+        reply = director.ask_prompt()
+    elif code == director.DIR_MORNING:
+        reply = director.digest_reply(session, employee, "morning")
+    elif code == director.DIR_EVENING:
+        reply = director.digest_reply(session, employee, "evening")
     elif code == flow.CONFIRM_SEND:
         reply = flow.confirm(session, employee)
     elif code == flow.CONFIRM_EDIT:
@@ -308,6 +350,72 @@ def _handle_press(session: Session, chat_id: int, code: str) -> None:
 
     session.commit()
     _send(chat_id, reply)
+
+
+def _bind(employee) -> None:
+    """Кто действует в этом обновлении от Telegram.
+
+    Вебхук открыт без входа, поэтому зависимости `bind_audit_actor` на
+    нём нет — а журнал действий и журнал обращений к AI берут человека
+    именно из контекста. Без этой строки запись из бота осталась бы
+    безымянной, и оценить свой же ответ человек не смог бы.
+
+    Ставим здесь, а не глубже: обработчик асинхронный, и контекст
+    доживает до всего, что он зовёт.
+    """
+    set_actor(Actor(id=employee.id, name=employee.full_name))
+
+
+def _director_command(session: Session, employee, text: str):
+    """Директорская команда или None, если это не она."""
+    if text.startswith("/summary") or text.lower().startswith("сводка"):
+        return director.overview(session, employee)
+    if text.startswith("/attention"):
+        return director.attention_page(session, employee)
+    if text.startswith("/overdue"):
+        return director.overdue_page(session, employee)
+    if text.startswith("/stuck"):
+        return director.stuck_page(session, employee)
+    if text.startswith("/projects"):
+        return director.projects(session, employee)
+    if text.startswith("/morning"):
+        return director.digest_reply(session, employee, "morning")
+    if text.startswith("/evening"):
+        return director.digest_reply(session, employee, "evening")
+    if text.startswith("/ask"):
+        question = text[len("/ask") :].strip()
+        if not question:
+            return director.ask_prompt()
+        return director.ask(session, employee, question)
+    return None
+
+
+def _director_page(session: Session, employee, code: str):
+    """Перелистывание списка: `dir:page:att:2`."""
+    tail = code[len(director.DIR_PAGE) :]
+    kind, _, number = tail.partition(":")
+    try:
+        page = int(number)
+    except ValueError:
+        page = 0
+    if kind == "att":
+        return director.attention_page(session, employee, page)
+    if kind == "over":
+        return director.overdue_page(session, employee, page)
+    if kind == "stuck":
+        return director.stuck_page(session, employee, page)
+    return director.overview(session, employee)
+
+
+def _director_rate(session: Session, employee, code: str):
+    """Оценка ответа помощника: `dir:rate:1:42`."""
+    tail = code[len(director.DIR_RATE) :]
+    useful, _, number = tail.partition(":")
+    try:
+        interaction_id = int(number)
+    except ValueError:
+        return flow.LOST
+    return director.rate(session, employee, useful == "1", interaction_id)
 
 
 def _number(code: str, prefix: str) -> int:

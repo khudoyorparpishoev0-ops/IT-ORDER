@@ -214,6 +214,10 @@ class AnalyticsReplyOut(BaseModel):
     bullets: list[str] = []
     requests: list[AnalyticsRequestRef] = []
     recommendations: list[str] = []
+    #: Какое намерение выполнил сервер: overdue, stuck, overview…
+    intent: str | None = None
+    #: Номер записи в журнале обращений — по нему ставится оценка ответа.
+    interaction_id: int | None = None
 
 
 # --- ORDER Intelligence: сводка руководителя ----------------------------------
