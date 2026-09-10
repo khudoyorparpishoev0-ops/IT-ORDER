@@ -21,6 +21,8 @@ from app.db.models import JobRun
 from app.services import ai_log, reminders
 from app.services.schedule import (
     AI_RETENTION,
+    INTELLIGENCE_CRITICAL,
+    INTELLIGENCE_DIGESTS,
     STALE_REQUESTS,
     WEEKLY_BUDGET,
     due_jobs,
@@ -28,12 +30,30 @@ from app.services.schedule import (
 
 log = logging.getLogger(__name__)
 
+def _run_digests(session: Session, *, now: datetime) -> str:
+    """Утренние и вечерние сводки. Зовётся ручным запуском из панели."""
+    from app.db.models import IntelligenceKind
+    from app.services.notifications import intelligence
+
+    morning = intelligence.send_digests(session, IntelligenceKind.MORNING, now=now)
+    evening = intelligence.send_digests(session, IntelligenceKind.EVENING, now=now)
+    return f"утро: {morning}; вечер: {evening}"
+
+
+def _run_critical(session: Session, *, now: datetime) -> str:
+    from app.services.notifications import intelligence
+
+    return intelligence.scan_critical(session, now=now)
+
+
 #: Что делает каждая задача. Функция получает сессию и момент запуска,
 #: возвращает строку для журнала задач.
 HANDLERS = {
     STALE_REQUESTS: reminders.send_stale_reminders,
     WEEKLY_BUDGET: reminders.send_weekly_summary,
     AI_RETENTION: ai_log.purge_old,
+    INTELLIGENCE_DIGESTS: _run_digests,
+    INTELLIGENCE_CRITICAL: _run_critical,
 }
 
 #: Понятные названия для панели и логов.
@@ -41,7 +61,72 @@ JOB_LABEL = {
     STALE_REQUESTS: "Напоминания о залежавшихся заявках",
     WEEKLY_BUDGET: "Недельная сводка по бюджету",
     AI_RETENTION: "Чистка журнала обращений к AI",
+    INTELLIGENCE_DIGESTS: "Сводки ORDER Intelligence",
+    INTELLIGENCE_CRITICAL: "Поиск критичных проблем",
 }
+
+
+def run_intelligence(session: Session, *, now: datetime | None = None) -> list[str]:
+    """Проход по сводкам и сигналам. Зовётся тикером каждую минуту.
+
+    Отдельно от `run_due_jobs`, потому что расписание у них разное: у
+    напоминаний общий час на всех, а у сводок время индивидуальное, и
+    «пора ли» решается по каждому человеку в его поясе.
+
+    Защита от повторов та же и на том же уровне надёжности: у сводки —
+    уникальный ключ на человека и день (`notifications/dedup.py`), у
+    сканирования — уникальный ключ на окно времени. Два процесса не
+    разошлют одно дважды, потому что вставку разрешает база.
+    """
+    from app.services.notifications import intelligence
+
+    settings = get_settings()
+    moment = now or utcnow()
+    done: list[str] = []
+
+    # Сводки проверяются каждый тик: у людей разное время, и ждать
+    # общего часа нельзя. Дорогого здесь ничего нет — пока ничьё время
+    # не наступило, это один запрос за подписчиками.
+    for kind_name in ("MORNING", "EVENING"):
+        from app.db.models import IntelligenceKind
+
+        kind = IntelligenceKind[kind_name]
+        try:
+            result = intelligence.send_digests(session, kind, now=moment)
+        except Exception as exc:  # noqa: BLE001
+            session.rollback()
+            log.exception("Рассылка сводок %s не удалась", kind_name)
+            done.append(f"{kind_name}: {type(exc).__name__}")
+            continue
+        if not result.startswith("отправлено 0, пропущено 0"):
+            done.append(f"{kind_name}: {result}")
+
+    # Сканирование — реже: заявка не становится критичной за минуту, а
+    # лишний проход это запросы к базе на ровном месте.
+    window = _scan_window(moment, settings.intelligence_scan_minutes)
+    run = _claim(session, INTELLIGENCE_CRITICAL, f"{INTELLIGENCE_CRITICAL}:{window}")
+    if run is not None:
+        try:
+            details = intelligence.scan_critical(session, now=moment)
+        except Exception as exc:  # noqa: BLE001
+            session.rollback()
+            _finish(session, run, "FAILED", f"{type(exc).__name__}: {exc}")
+            log.exception("Поиск критичных проблем не удался")
+        else:
+            _finish(session, run, "DONE", details)
+            if not details.startswith("новых 0, повторов 0, закрыто 0"):
+                done.append(details)
+
+    return done
+
+
+def _scan_window(moment: datetime, minutes: int) -> str:
+    """Окно сканирования: одно на всех, кто попал в тот же интервал.
+
+    Ключ окна и делает проход единственным при нескольких процессах.
+    """
+    stamp = int(moment.timestamp() // (minutes * 60))
+    return str(stamp)
 
 
 def _claim(session: Session, job: str, run_key: str) -> JobRun | None:

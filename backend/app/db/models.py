@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+from datetime import time
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -16,6 +17,7 @@ from sqlalchemy import (
     Sequence,
     String,
     Text,
+    Time,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -187,6 +189,28 @@ class Employee(Base):
     notify_stale_requests: Mapped[bool] = mapped_column(default=True, nullable=False)
     #: Еженедельная сводка по бюджету.
     notify_weekly_budget: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    # --- ORDER Intelligence: автоматические сводки руководителю ---
+    #: Главный выключатель. Отдельного «доставлять в Telegram» нет: канал
+    #: один, и его выключатель уже есть — отвязка чата. Второй флаг,
+    #: который не может отличаться от первого, однажды с ним разойдётся.
+    intelligence_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    digest_morning_enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
+    digest_evening_enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
+    #: Во сколько по местному времени человека. Не общий час на всех:
+    #: у одного день начинается в семь, у другого в десять.
+    digest_morning_time: Mapped[time] = mapped_column(
+        Time, default=time(9, 0), nullable=False
+    )
+    digest_evening_time: Mapped[time] = mapped_column(
+        Time, default=time(18, 0), nullable=False
+    )
+    critical_alerts_enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
+    #: Слать сводку, когда разбирать нечего. По умолчанию нет: сводка «всё
+    #: спокойно» каждый вечер учит не открывать сводки вообще.
+    digest_when_no_changes: Mapped[bool] = mapped_column(default=False, nullable=False)
+    #: Часовой пояс человека. Пусто — корпоративный (`APP_TIMEZONE`).
+    timezone: Mapped[str | None] = mapped_column(String(64))
 
     created_at: Mapped[CreatedAt]
 
@@ -605,6 +629,83 @@ class RequestTemplate(Base):
     __table_args__ = (
         UniqueConstraint("employee_id", "name", name="uq_template_name_per_employee"),
         Index("ix_templates_employee", "employee_id"),
+    )
+
+
+class IntelligenceKind(str, enum.Enum):
+    """Что именно отправили руководителю."""
+
+    MORNING = "MORNING"
+    EVENING = "EVENING"
+    CRITICAL = "CRITICAL"
+
+
+class IntelligenceDelivery(Base):
+    """Отправленная сводка или сигнал: и защита от повторов, и история.
+
+    Одна таблица на три роли сразу — и это не экономия, а так и должно
+    быть: «уже отправляли» и «когда отправляли» — один и тот же факт.
+
+    `dedup_key` уникален и делает всю работу:
+
+    * у сводки это `morning:<сотрудник>:<местная дата>` — вставка либо
+      проходит, либо нет, и два процесса не разошлют одно дважды;
+    * у сигнала это `critical:<сотрудник>:<заявка>:<тип>` — одна и та же
+      проблема не приходит каждые двадцать минут.
+
+    Повтор важного сигнала не создаёт новую строку, а поднимает
+    `sent_count` и `last_sent_at` у существующей: иначе «сколько раз мы
+    об этом писали» пришлось бы считать группировкой.
+
+    Устранённая проблема получает `resolved_at`. Отдельного сообщения об
+    этом не шлём — человек и так увидит: оно уходит в вечернюю сводку
+    строкой «из утренних просрочек устранено N».
+    """
+
+    __tablename__ = "intelligence_deliveries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[IntelligenceKind] = mapped_column(
+        Enum(IntelligenceKind, name="intelligence_kind", native_enum=False, length=16),
+        nullable=False,
+    )
+    #: Ключ, по которому решается «уже отправляли или нет».
+    dedup_key: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    #: Заявка, о которой сигнал. NULL — сводка, она не про одну заявку.
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("expense_requests.id", ondelete="SET NULL")
+    )
+    #: Почему заявка попала в сигнал: overdue, stuck, inconsistency.
+    reason: Mapped[str | None] = mapped_column(String(64))
+
+    created_at: Mapped[CreatedAt]
+    #: Когда сообщение действительно ушло. NULL — не ушло вовсе.
+    delivered_at: Mapped[Timestamp | None]
+    last_sent_at: Mapped[Timestamp | None]
+    sent_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: Проблема исчезла из очереди. У сводок не заполняется.
+    resolved_at: Mapped[Timestamp | None]
+
+    #: Куда доставляли. Сегодня канал один (telegram), но история должна
+    #: отвечать на вопрос «куда ушло», а не «куда ушло бы, если бы
+    #: каналов было несколько»: появится второй — старые записи останутся
+    #: верными, а не станут неопределёнными задним числом.
+    channel: Mapped[str] = mapped_column(String(16), default="telegram", nullable=False)
+    ok: Mapped[bool] = mapped_column(default=True, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    #: Сколько заявок вошло в сообщение. По нему видно, была ли сводка
+    #: пустой и стоило ли её слать.
+    result_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: Объясняла ли сводку модель. False — ушёл детерминированный текст.
+    ai_used: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    __table_args__ = (
+        Index("ix_intel_employee_kind", "employee_id", "kind"),
+        Index("ix_intel_created", "created_at"),
+        Index("ix_intel_unresolved", "resolved_at"),
     )
 
 

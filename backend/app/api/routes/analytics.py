@@ -24,6 +24,8 @@ from app.schemas.analytics import (
     IssueOut,
     ProblemOut,
     StuckOut,
+    SubscriptionIn,
+    SubscriptionOut,
 )
 from app.core.time import utcnow
 from app.services import analytics, intelligence
@@ -35,6 +37,7 @@ from app.services.analytics import inconsistencies as inc_svc
 from app.services.analytics import scope as scope_svc
 from app.services.analytics import stale as stale_svc
 from app.services.audit import write_audit
+from app.services.notifications import intelligence as intel_notify
 
 router = APIRouter(
     prefix="/api/analytics",
@@ -203,3 +206,21 @@ def digest_text(session: DbSession, user: CurrentUser, kind: str):
         problems=data.problems,
         text=digest_svc.as_text(data),
     )
+
+
+@router.get("/subscription", response_model=SubscriptionOut)
+def subscription(session: DbSession, user: CurrentUser):
+    """Настройки автоматических сводок этого человека.
+
+    Раздел закрыт тем же правом, что и сама аналитика: подписаться на
+    цифры по компании может только тот, кому их видно. Право проверяется
+    ещё раз в момент отправки — настройка правом доступа не является.
+    """
+    return SubscriptionOut(**intel_notify.describe(session, user))
+
+
+@router.patch("/subscription", response_model=SubscriptionOut)
+def update_subscription(session: DbSession, user: CurrentUser, data: SubscriptionIn):
+    """Меняет настройки рассылки. Присылать нужно только изменённое."""
+    changes = data.model_dump(exclude_unset=True)
+    return SubscriptionOut(**intel_notify.update(session, user, changes))

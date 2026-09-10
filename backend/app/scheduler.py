@@ -13,7 +13,7 @@ import logging
 
 from app.config import get_settings
 from app.db.session import get_session_factory
-from app.services.jobs import run_due_jobs
+from app.services.jobs import run_due_jobs, run_intelligence
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +23,9 @@ def _tick() -> None:
     session = get_session_factory()()
     try:
         run_due_jobs(session)
+        # Сводки живут по индивидуальному времени, поэтому идут отдельным
+        # проходом: общего часа у них нет.
+        run_intelligence(session)
     finally:
         session.close()
 

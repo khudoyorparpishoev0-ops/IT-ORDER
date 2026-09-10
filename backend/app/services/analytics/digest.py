@@ -67,8 +67,8 @@ def morning(
 
     lines = [
         f"Активные: {data.active_requests}",
-        f"Новые за вчера: {_created_yesterday(session, moment)}",
-        f"Выполнено вчера: {_closed_yesterday(session, moment)}",
+        f"Новые за вчера: {created_yesterday(session, moment)}",
+        f"Выполнено вчера: {closed_yesterday(session, moment)}",
         f"Просрочено: {data.overdue}",
         f"Требуют внимания: {data.requires_attention}",
     ]
@@ -231,7 +231,7 @@ def as_text(digest: Digest) -> str:
     return "\n".join(parts)
 
 
-def _created_yesterday(session: Session, now: datetime) -> int:
+def created_yesterday(session: Session, now: datetime) -> int:
     start, end = _yesterday(now)
     return int(
         session.scalar(
@@ -246,7 +246,7 @@ def _created_yesterday(session: Session, now: datetime) -> int:
     )
 
 
-def _closed_yesterday(session: Session, now: datetime) -> int:
+def closed_yesterday(session: Session, now: datetime) -> int:
     start, end = _yesterday(now)
     return int(
         session.scalar(

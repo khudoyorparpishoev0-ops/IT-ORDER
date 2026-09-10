@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.schemas.analytics import DeliveryStatsOut
+
 
 class AiReasonCount(BaseModel):
     """Причина отрицательной оценки и сколько раз её выбрали."""
@@ -80,6 +82,8 @@ class AiSettingsOut(BaseModel):
     #: Правила аналитика заменены файлом (ANALYTICS_PROMPT_FILE).
     analytics_prompt_overridden: bool
     usage: AiUsage
+    #: Автоматические сводки ORDER Intelligence за последний месяц.
+    deliveries: DeliveryStatsOut
     recent: list[AiEntry]
 
 

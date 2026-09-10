@@ -5,12 +5,14 @@ import { PageHeader } from '@/components/PageHeader';
 import {
   useAiSettings,
   useHealth,
+  useIntelligenceSubscription,
   useJobRuns,
   usePushConfig,
   usePushSubscribe,
   usePushTest,
   usePushUnsubscribe,
   useRunJob,
+  useSaveSubscription,
   useTelegramLink,
   useTelegramSetup,
   useTelegramStatus,
@@ -95,6 +97,7 @@ export function Settings() {
         </Card>
 
         <NotificationsCard onFlash={flash} />
+        <IntelligenceCard onFlash={flash} />
         <TelegramCard onFlash={flash} />
         <InstallCard onFlash={flash} />
         <PushCard onFlash={flash} />
@@ -455,6 +458,177 @@ function NotificationsCard({ onFlash }: { onFlash: (text: string, color: string)
 }
 
 /**
+ * Получасовая сетка времени для выбора.
+ *
+ * Список, а не `input[type=time]`: тот показывает время в формате
+ * браузера, и на английской системе в русском интерфейсе получается
+ * «09:00 AM». Заодно набрать в нём бессмыслицу невозможно.
+ *
+ * Значение, заданное через API мимо сетки, не теряется: оно добавляется
+ * в список отдельным пунктом, иначе поле показало бы пустоту, а
+ * следующее сохранение молча сдвинуло бы время.
+ */
+function hourOptions(current: string) {
+  const values: string[] = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += 30) {
+    const h = String(Math.floor(minutes / 60)).padStart(2, '0');
+    const m = String(minutes % 60).padStart(2, '0');
+    values.push(`${h}:${m}`);
+  }
+  if (!values.includes(current)) values.push(current);
+  values.sort();
+  return values.map((value) => (
+    <option key={value} value={value}>
+      {value}
+    </option>
+  ));
+}
+
+/** Переключатели рассылки. Ключи совпадают с полями API. */
+const DIGESTS = [
+  { key: 'morning_enabled', label: 'Утренняя сводка' },
+  { key: 'evening_enabled', label: 'Итоги дня' },
+  { key: 'critical_alerts_enabled', label: 'Срочные сигналы' },
+  { key: 'when_no_changes', label: 'Писать, даже если за день ничего не изменилось' },
+] as const;
+
+/**
+ * Автоматические сводки ORDER Intelligence.
+ *
+ * Виден только тому, кому положена аналитика: подписаться на цифры по
+ * компании может лишь тот, кому их видно. Скрытие карточки — удобство,
+ * решение принимает сервер, и право он проверяет ещё раз в момент
+ * отправки.
+ *
+ * Время местное. Общий час на всех означал бы, что кому-то сводка
+ * приходит ночью — а ночью её не читают, её отключают.
+ */
+function IntelligenceCard({ onFlash }: { onFlash: (text: string, color: string) => void }) {
+  const { can } = useAuth();
+  const allowed = can('view_reports');
+  const state = useIntelligenceSubscription(allowed);
+  const save = useSaveSubscription();
+
+  if (!allowed) return null;
+
+  const data = state.data;
+  const apply = (changes: Parameters<typeof save.mutate>[0]) =>
+    save.mutate(changes, {
+      onError: (err) =>
+        onFlash(err instanceof Error ? err.message : 'Не удалось сохранить', 'var(--dot-err)'),
+    });
+
+  return (
+    <Card title="Сводки ORDER Intelligence">
+      {state.isPending && <p className="caption" style={{ margin: 0 }}>Загружаем…</p>}
+      {state.isError && (
+        <Warn>Не удалось загрузить настройки рассылки. Обновите страницу.</Warn>
+      )}
+
+      {data && (
+        <>
+          {!data.telegram_connected && (
+            <Warn>
+              Telegram не подключён — сводка не уйдёт, сколько её ни включай. Подключите его в
+              карточке ниже.
+            </Warn>
+          )}
+
+          <div className="toggle-row">
+            <label htmlFor="intel-on" style={{ cursor: 'pointer' }}>
+              Присылать сводки автоматически
+            </label>
+            <button
+              id="intel-on"
+              type="button"
+              role="switch"
+              aria-checked={data.enabled}
+              className="toggle"
+              disabled={save.isPending}
+              onClick={() => apply({ enabled: !data.enabled })}
+            />
+          </div>
+
+          <div style={{ opacity: data.enabled ? 1 : 0.6 }}>
+            {DIGESTS.map((row) => (
+              <div key={row.key} className="toggle-row">
+                <label htmlFor={`intel-${row.key}`} style={{ cursor: 'pointer' }}>
+                  {row.label}
+                </label>
+                <button
+                  id={`intel-${row.key}`}
+                  type="button"
+                  role="switch"
+                  aria-checked={data[row.key]}
+                  className="toggle"
+                  disabled={save.isPending || !data.enabled}
+                  onClick={() => apply({ [row.key]: !data[row.key] })}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="filter-row" style={{ gap: 16 }}>
+            <Field label="Утром в">
+              {(id) => (
+                <select
+                  id={id}
+                  className="field"
+                  value={data.morning_time}
+                  disabled={save.isPending || !data.enabled}
+                  onChange={(e) => apply({ morning_time: e.target.value })}
+                >
+                  {hourOptions(data.morning_time)}
+                </select>
+              )}
+            </Field>
+            <Field label="Вечером в">
+              {(id) => (
+                <select
+                  id={id}
+                  className="field"
+                  value={data.evening_time}
+                  disabled={save.isPending || !data.enabled}
+                  onChange={(e) => apply({ evening_time: e.target.value })}
+                >
+                  {hourOptions(data.evening_time)}
+                </select>
+              )}
+            </Field>
+          </div>
+
+          <Field
+            label="Часовой пояс"
+            note={`Пусто — корпоративный (${data.timezone_hint})`}
+          >
+            {(id) => (
+              <input
+                id={id}
+                className="field"
+                placeholder={data.timezone_hint}
+                defaultValue={data.timezone ?? ''}
+                disabled={save.isPending}
+                onBlur={(e) => {
+                  const value = e.target.value.trim();
+                  if (value !== (data.timezone ?? '')) apply({ timezone: value || null });
+                }}
+              />
+            )}
+          </Field>
+
+          <p className="caption" style={{ margin: 0 }}>
+            Утром — что есть сейчас, вечером — что изменилось за день. Срочный сигнал приходит
+            только по критичному и повторяется не чаще раза в {data.repeat_hours}{' '}
+            {plural(data.repeat_hours, 'час', 'часа', 'часов')}. Устранённые проблемы попадают
+            строкой в вечернюю сводку, отдельным сообщением о них не пишем.
+          </p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
  * Уведомления в Telegram. Привязка идёт через самого бота: панель выдаёт
  * одноразовую ссылку, человек открывает её, бот присылает нам id чата.
  * Так никому не нужно знать и вводить внутренние идентификаторы.
@@ -688,6 +862,46 @@ function AiCard() {
               </dl>
             </>
           )}
+        </>
+      )}
+
+      {data && (
+        <>
+          {/* Рассылка сводок: сколько ушло и сколько не дошло. Без этого
+              «работает ли она» выясняется только жалобой руководителя. */}
+          <div className="rubric">
+            Автоматические сводки за {data.deliveries.days}{' '}
+            {plural(data.deliveries.days, 'день', 'дня', 'дней')}
+          </div>
+          <dl style={{ display: 'grid', gap: 12, margin: 0 }}>
+            <Row k="Подписаны" v={<span className="num">{data.deliveries.subscribers}</span>} />
+            <Row
+              k="Отправлено"
+              v={
+                <span className="num">
+                  {data.deliveries.morning_sent} утром · {data.deliveries.evening_sent} вечером ·{' '}
+                  {data.deliveries.critical_sent} срочных
+                </span>
+              }
+            />
+            <Row
+              k="Не доставлено"
+              v={
+                <span className="num" style={data.deliveries.failed ? { color: 'var(--red)' } : undefined}>
+                  {data.deliveries.failed}
+                </span>
+              }
+            />
+            <Row
+              k="Со словами модели"
+              v={
+                <span className="num">
+                  {data.deliveries.ai_digests} из{' '}
+                  {data.deliveries.ai_digests + data.deliveries.fallback_digests}
+                </span>
+              }
+            />
+          </dl>
         </>
       )}
 

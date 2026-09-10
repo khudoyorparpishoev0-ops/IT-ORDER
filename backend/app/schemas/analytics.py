@@ -333,3 +333,57 @@ class DigestOutText(BaseModel):
     lines: list[str] = []
     problems: list[str] = []
     text: str
+
+
+class SubscriptionOut(BaseModel):
+    """Настройки автоматических сводок ORDER Intelligence.
+
+    Время хранится и отдаётся в поясе самого человека: у бухгалтерии в
+    Худжанде и у руководителя в командировке «девять утра» — это разные
+    моменты, и общий час на всех означал бы, что кому-то сводка приходит
+    ночью.
+    """
+
+    enabled: bool
+    morning_enabled: bool
+    evening_enabled: bool
+    #: «09:00» — местное время получателя.
+    morning_time: str
+    evening_time: str
+    critical_alerts_enabled: bool
+    #: Слать ли вечернюю сводку, когда за день ничего не изменилось.
+    when_no_changes: bool
+    #: Пояс. None — корпоративный (`timezone_hint`).
+    timezone: str | None
+    timezone_hint: str
+    #: Есть ли куда доставлять. False — Telegram не подключён, и сводка
+    #: не уйдёт, сколько её ни включай.
+    telegram_connected: bool
+    #: Как часто повторяется неустранённый критичный сигнал, часов.
+    repeat_hours: int
+
+
+class SubscriptionIn(BaseModel):
+    """Изменение настроек. Присылается только то, что меняют."""
+
+    enabled: bool | None = None
+    morning_enabled: bool | None = None
+    evening_enabled: bool | None = None
+    morning_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    evening_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    critical_alerts_enabled: bool | None = None
+    when_no_changes: bool | None = None
+    timezone: str | None = None
+
+
+class DeliveryStatsOut(BaseModel):
+    """Метрики рассылки для карточки администратора."""
+
+    days: int
+    morning_sent: int
+    evening_sent: int
+    critical_sent: int
+    failed: int
+    ai_digests: int
+    fallback_digests: int
+    subscribers: int

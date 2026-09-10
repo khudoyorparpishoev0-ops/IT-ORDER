@@ -95,7 +95,14 @@ class HttpTransport:
         rows = [[{"text": title, "callback_data": code}] for title, code in message.choices]
         if message.button:
             title, url = message.button
-            rows.append([{"text": title, "url": url}])
+            # Кнопке нужен полный адрес: относительный путь Telegram не
+            # принимает и отвергает всё сообщение целиком. Без
+            # PUBLIC_BASE_URL вести некуда, и лучше сообщение без кнопки,
+            # чем молча не отправленное сообщение.
+            if url.startswith("http"):
+                rows.append([{"text": title, "url": url}])
+            else:
+                log.warning("Кнопка «%s» без PUBLIC_BASE_URL — отправляем без неё", title)
         if rows:
             payload["reply_markup"] = {"inline_keyboard": rows}
         payload.update(message.extra)

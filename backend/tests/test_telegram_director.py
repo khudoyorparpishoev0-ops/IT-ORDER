@@ -315,11 +315,20 @@ def test_digests_are_closed_to_employees(client, session, employee, telegram_box
     assert "доступна руководителю" in last(telegram_box)
 
 
-def test_no_scheduled_digest_job() -> None:
-    """Автоматическая рассылка сводок в этой фазе не включается."""
-    from app.services.jobs import HANDLERS
+def test_digest_by_request_needs_no_subscription(
+    client, session, manager, employee, project, telegram_box
+) -> None:
+    """Сводка по кнопке приходит и без подписки на рассылку.
 
-    assert not [name for name in HANDLERS if "digest" in name]
+    Автоматическая рассылка появилась в 5C и живёт отдельно
+    (`notifications/intelligence.py`); ручной запрос от неё не зависит.
+    """
+    submit(session, employee, project, "Цемент М500", hours_old=30)
+    linked(session, manager)
+    assert manager.intelligence_enabled is False
+
+    says(client, "/morning")
+    assert "Активные: 1" in last(telegram_box)
 
 
 # --- Вопрос руководителя ---------------------------------------------------------------------

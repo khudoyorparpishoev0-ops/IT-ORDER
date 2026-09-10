@@ -38,6 +38,9 @@ DIR_STUCK = "dir:stuck"
 DIR_OVERDUE = "dir:over"
 DIR_PROJECTS = "dir:proj"
 DIR_ASK = "dir:ask"
+DIR_SUB = "dir:sub"
+DIR_SUB_ON = "dir:sub:on"
+DIR_SUB_OFF = "dir:sub:off"
 DIR_MORNING = "dir:morning"
 DIR_EVENING = "dir:evening"
 #: Страница очереди: `dir:page:att:2`.
@@ -117,6 +120,7 @@ def menu_rows(employee: Employee) -> list[tuple[str, str]]:
         ("Просроченные", DIR_OVERDUE),
         ("Объекты", DIR_PROJECTS),
         ("Спросить ORDER AI", DIR_ASK),
+        ("Рассылка", DIR_SUB),
     ]
 
 
@@ -323,9 +327,10 @@ def projects(session: Session, employee: Employee) -> Reply:
 def digest_reply(session: Session, employee: Employee, kind: str) -> Reply:
     """Утренняя или вечерняя сводка по запросу.
 
-    По запросу, а не по расписанию: автоматическая рассылка — отдельная
-    работа, и включать её раньше, чем формат устоялся, значит будить
-    людей черновиком.
+    Та же сводка приходит сама, если человек включил рассылку
+    («Рассылка» в меню, полностью — в «Параметрах» панели). Запрос от
+    подписки не зависит: посмотреть цифры можно в любой момент, а
+    рассылку человек может и не хотеть.
     """
     if not available(employee):
         return Reply(NO_ACCESS)
@@ -454,3 +459,64 @@ def deviations(session: Session, employee: Employee) -> Reply:
     lines = ["<b>Отличается от обычного уровня</b>", ""]
     lines.extend(f"{MARK.get(a.severity, '·')} {a.detail}" for a in found)
     return Reply(_cut("\n".join(lines)))
+
+
+# --- Автоматическая рассылка -------------------------------------------------------
+
+
+def subscription(session: Session, employee: Employee) -> Reply:
+    """Что сейчас настроено у человека и одна кнопка — включить или нет.
+
+    Время меняется в панели: в чате его пришлось бы вводить текстом и
+    разбирать, а ошибиться в «9» вместо «09:00» проще, чем кажется.
+    Здесь — состояние и главный выключатель, за остальным — ссылка.
+    """
+    if not available(employee):
+        return Reply(NO_ACCESS)
+
+    from app.services.notifications import intelligence as notify
+
+    state = notify.describe(session, employee)
+    on = "включена" if state["enabled"] else "выключена"
+    zone = state["timezone"] or state["timezone_hint"]
+    lines = [
+        f"<b>Рассылка ORDER Intelligence: {on}</b>",
+        "",
+        f"Утром в {state['morning_time']}: "
+        + ("да" if state["morning_enabled"] else "нет"),
+        f"Вечером в {state['evening_time']}: "
+        + ("да" if state["evening_enabled"] else "нет"),
+        "Срочные сигналы: "
+        + ("да" if state["critical_alerts_enabled"] else "нет"),
+        f"Часовой пояс: {zone}",
+    ]
+    if not state["enabled"]:
+        lines.append("")
+        lines.append("Пока выключена — ORDER сам ничего не присылает.")
+
+    return Reply(
+        "\n".join(lines),
+        choices=[
+            ("Выключить рассылку", DIR_SUB_OFF)
+            if state["enabled"]
+            else ("Включить рассылку", DIR_SUB_ON)
+        ],
+        button=("Настроить время", panel_url("/settings")),
+    )
+
+
+def switch(session: Session, employee: Employee, *, on: bool) -> Reply:
+    """Включает или выключает рассылку одной кнопкой.
+
+    Настройки времени при выключении не трогаем: человек может
+    отключить рассылку на время отпуска и вернуть её потом, не набирая
+    часы заново.
+    """
+    if not available(employee):
+        return Reply(NO_ACCESS)
+
+    from app.services.notifications import intelligence as notify
+
+    notify.update(session, employee, {"enabled": on})
+    session.commit()
+    return subscription(session, employee)
