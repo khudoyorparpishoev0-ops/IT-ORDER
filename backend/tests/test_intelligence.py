@@ -173,6 +173,9 @@ def test_ask_without_key_says_so(client, login, manager) -> None:
         "bullets": [],
         "requests": [],
         "recommendations": [],
+        # Намерение не выбиралось и обращения не было: модель молчит.
+        "intent": None,
+        "interaction_id": None,
     }
 
 

@@ -20,6 +20,7 @@ from app.core.time import utcnow
 from app.services.analytics import inconsistencies as inc
 from app.services.analytics import stale
 from app.services.analytics.facts import find_duplicates
+from app.services.analytics.scope import Scope
 from app.services.requests import title_of
 
 #: Порядок разбора. Критичное — сверху, справочное — вниз.
@@ -53,7 +54,11 @@ class Item:
 
 
 def requires_attention(
-    session: Session, *, now: datetime | None = None, limit: int = LIMIT
+    session: Session,
+    *,
+    now: datetime | None = None,
+    limit: int = LIMIT,
+    scope: Scope | None = None,
 ) -> list[Item]:
     """Всё, что требует внимания руководителя, одной очередью.
 
@@ -61,7 +66,7 @@ def requires_attention(
     только пересказывает его словами.
     """
     moment = now or utcnow()
-    rows = stale.in_work(session)
+    rows = stale.in_work(session, scope=scope)
     by_id = {r.id: r for r in rows}
 
     reasons: dict[int, list[str]] = {}

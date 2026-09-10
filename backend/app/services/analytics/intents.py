@@ -54,28 +54,26 @@ class Intent:
 
 
 def _overview(session: Session, scope: Scope, now: datetime) -> Any:
-    del scope
-    return executive.overview(session, now=now)
+    return executive.overview(session, now=now, scope=scope)
 
 
 def _overdue(session: Session, scope: Scope, now: datetime) -> Any:
-    del scope
-    return [s for s in stale.stuck_requests(session, now=now) if s.overdue][:ROWS_LIMIT]
+    rows = stale.stuck_requests(session, now=now, scope=scope)
+    return [s for s in rows if s.overdue][:ROWS_LIMIT]
 
 
 def _stuck(session: Session, scope: Scope, now: datetime) -> Any:
-    del scope
-    return [s for s in stale.stuck_requests(session, now=now) if not s.overdue][:ROWS_LIMIT]
+    rows = stale.stuck_requests(session, now=now, scope=scope)
+    return [s for s in rows if not s.overdue][:ROWS_LIMIT]
 
 
 def _attention(session: Session, scope: Scope, now: datetime) -> Any:
-    del scope
-    return attention.requires_attention(session, now=now)[:ROWS_LIMIT]
+    return attention.requires_attention(session, now=now, scope=scope)[:ROWS_LIMIT]
 
 
 def _inconsistencies(session: Session, scope: Scope, now: datetime) -> Any:
-    del scope
-    return inc.find_all(session, now=now)[:ROWS_LIMIT]
+    rows = stale.in_work(session, scope=scope)
+    return inc.find_all(session, now=now, rows=rows)[:ROWS_LIMIT]
 
 
 def _duplicates(session: Session, scope: Scope, now: datetime) -> Any:
