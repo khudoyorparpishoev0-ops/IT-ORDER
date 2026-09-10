@@ -45,7 +45,7 @@ def test_event_records_who_did_it(client, login, employee, project, session):
     created = [e for e in request.events if e.kind is EventKind.CREATED][0]
     assert created.employee_id == employee.id
     assert created.actor_type == "human"
-    assert employee.full_name.upper() in created.actor
+    assert created.actor == employee.full_name
 
 
 def test_actor_from_session_not_from_body(
@@ -68,10 +68,11 @@ def test_actor_from_session_not_from_body(
     assert response.status_code == 200, response.text
 
     request = svc.get_request(session, card["id"], full=True)
-    sourcing = [e for e in request.events if e.kind is EventKind.SOURCING][0]
-    assert sourcing.employee_id == manager.id
-    assert "КТО-ТО ДРУГОЙ" not in sourcing.actor
-    assert manager.full_name.upper() in sourcing.actor
+    approved = [e for e in request.events if e.kind is EventKind.NEED_APPROVED][0]
+    assert approved.employee_id == manager.id
+    assert approved.actor_role == manager.role.value
+    assert "Кто-то другой" not in approved.actor
+    assert approved.actor == manager.full_name
 
 
 def test_history_has_no_edit_or_delete_endpoint(client, login, employee, project):
@@ -183,6 +184,7 @@ def test_status_transition_records_from_and_to(
     request = svc.get_request(session, card["id"], full=True)
     submitted = [e for e in request.events if e.kind is EventKind.SUBMITTED][0]
     assert submitted.details["status"] == {"from": "draft", "to": "pending"}
+    assert submitted.details["waiting"], "видно, кто может взять заявку дальше"
     assert submitted.details["holder"] == "У руководителя: согласовать покупку"
 
 
@@ -369,7 +371,369 @@ def test_viewer_list_has_no_ip_or_user_agent(client, login, employee, project):
         assert set(viewer) == {
             "employee_id",
             "employee_name",
+            "role",
             "first_viewed_at",
             "last_viewed_at",
+            "first_viewed_iso",
             "times",
         }
+
+
+# --- у каждого события есть человек ------------------------------------
+
+
+def test_every_step_names_the_person_who_did_it(
+    client, login, employee, manager, procurement, finance, project, session, pipeline
+):
+    """Главное обещание журнала: по каждой строке видно, кто её сделал.
+
+    Проверяется весь путь заявки разом. Если хотя бы один шаг остался
+    без имени и роли, читатель журнала не сможет понять, к кому идти, —
+    а ради этого журнал и открывают.
+    """
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    pipeline(
+        card["id"],
+        manager=manager,
+        buyer=procurement,
+        prices={"Кабель UTP Cat6": "1200.00"},
+        to="approved",
+    )
+    login(finance)
+    client.post(
+        f"/api/requests/{card['id']}/payment",
+        json={"method": "cash", "document": "РКО-9"},
+    )
+
+    request = svc.get_request(session, card["id"], full=True)
+    expected = {
+        EventKind.CREATED: employee,
+        EventKind.SUBMITTED: employee,
+        EventKind.NEED_APPROVED: manager,
+        EventKind.PRICED: procurement,
+        EventKind.APPROVED: manager,
+        EventKind.PAID: finance,
+    }
+    by_kind = {e.kind: e for e in request.events}
+    for kind, person in expected.items():
+        event = by_kind.get(kind)
+        assert event is not None, f"нет события {kind.value}"
+        assert event.employee_id == person.id, f"{kind.value}: не тот сотрудник"
+        assert event.actor_role == person.role.value, f"{kind.value}: нет роли"
+        assert event.actor == person.full_name, f"{kind.value}: нет имени"
+
+
+def test_decision_and_handover_are_separate_events(
+    client, login, employee, manager, procurement, project, session
+):
+    """«Одобрил» и «передала дальше» — два разных дела.
+
+    Одной строкой «Потребность одобрена, заявка передана в отдел закупа»
+    получалось, что маршрут выбрал руководитель. Он решение принял, а
+    маршрут выбрала система, и по ленте это должно быть видно.
+    """
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(f"/api/requests/{card['id']}/decision", json={"approve": True})
+
+    request = svc.get_request(session, card["id"], full=True)
+    human = [e for e in request.events if e.kind is EventKind.NEED_APPROVED][0]
+    system = [e for e in request.events if e.kind is EventKind.SOURCING][0]
+
+    assert human.actor_type == "human"
+    assert human.employee_id == manager.id
+    assert system.actor_type == "system"
+    assert system.employee_id is None, "у системы нет сотрудника"
+    assert system.actor_role is None
+    assert human.created_at <= system.created_at, "сначала решение, потом маршрут"
+    assert system.details["waiting"], "видно, кто может взять заявку дальше"
+
+
+def test_system_event_has_no_borrowed_name(
+    client, login, employee, manager, project, session
+):
+    """Системный переход не подписывается именем человека."""
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(f"/api/requests/{card['id']}/decision", json={"approve": True})
+
+    request = svc.get_request(session, card["id"], full=True)
+    system = [e for e in request.events if e.actor_type == "system"]
+    assert system
+    for event in system:
+        assert event.actor != manager.full_name
+
+
+def test_role_is_a_snapshot_not_a_link(
+    client, login, employee, manager, project, session
+):
+    """Роль в событии — та, что была в момент действия.
+
+    Закупщика переведут в руководители, и «Оценил заявку · Руководитель»
+    станет неправдой про уже случившееся.
+    """
+    from app.db.models import EmployeeRole
+
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(f"/api/requests/{card['id']}/decision", json={"approve": True})
+
+    manager.role = EmployeeRole.EMPLOYEE
+    session.flush()
+
+    request = svc.get_request(session, card["id"], full=True)
+    approved = [e for e in request.events if e.kind is EventKind.NEED_APPROVED][0]
+    assert approved.actor_role == "manager", "роль зафиксирована на момент действия"
+
+
+def test_procurement_price_change_is_visible_per_line(
+    client, login, employee, manager, procurement, project, session, pipeline
+):
+    """Видно, что стало с ценой каждой позиции: «не оценена» → сумма."""
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    pipeline(
+        card["id"],
+        manager=manager,
+        buyer=procurement,
+        prices={"Кабель UTP Cat6": "1200.00"},
+        to="priced",
+    )
+    request = svc.get_request(session, card["id"], full=True)
+    priced = [e for e in request.events if e.kind is EventKind.PRICED][0]
+    line = priced.details["prices"][0]
+    assert line["title"] == "Кабель UTP Cat6"
+    assert line["from"] == "не оценена"
+    assert line["to"].replace("\xa0", " ").startswith("1 200")
+
+
+def test_comment_keeps_author_role_and_stage(
+    client, login, employee, manager, procurement, project, session, pipeline
+):
+    """У комментария есть автор, его роль и этап.
+
+    Через месяц «Ив» без этапа не значит ничего, а «на оценке закупа» —
+    значит.
+    """
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(f"/api/requests/{card['id']}/decision", json={"approve": True})
+
+    login(procurement)
+    detail = client.get(f"/api/requests/{card['id']}").json()
+    client.post(
+        f"/api/requests/{card['id']}/sourcing",
+        json={
+            "lines": [
+                {"id": detail["lines"][0]["id"], "price": "1200.00", "from_stock": False}
+            ],
+            "comment": "Беру у проверенного поставщика",
+        },
+    )
+
+    request = svc.get_request(session, card["id"], full=True)
+    comment = [e for e in request.events if e.kind is EventKind.COMMENTED][0]
+    assert comment.details["comment"] == "Беру у проверенного поставщика"
+    assert comment.details["stage"] == "На оценке закупа"
+    assert comment.employee_id == procurement.id
+    assert comment.actor_role == procurement.role.value
+
+
+def test_rejection_reason_stays_in_the_rejection(
+    client, login, employee, manager, project, session
+):
+    """Причина отказа живёт в самом отказе, а не отдельной строкой.
+
+    Второе событие с тем же текстом удвоило бы одну и ту же мысль, а
+    читатель ленты решил бы, что руководитель написал дважды.
+    """
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(
+        f"/api/requests/{card['id']}/decision",
+        json={"approve": False, "comment": "Есть на складе"},
+    )
+    request = svc.get_request(session, card["id"], full=True)
+    rejected = [e for e in request.events if e.kind is EventKind.REJECTED][0]
+    assert rejected.details["comment"] == "Есть на складе"
+    assert rejected.details["stage"]
+    assert rejected.employee_id == manager.id
+    assert rejected.actor_role == manager.role.value
+    assert [e for e in request.events if e.kind is EventKind.COMMENTED] == []
+
+
+def test_admin_creating_for_another_is_recorded_as_admin(
+    client, login, admin, employee, project, session
+):
+    """Заявку завёл администратор — так и записано, автор отдельно.
+
+    «Создал Иванов» было бы неправдой: Иванов в этот момент мог быть на
+    объекте без связи.
+    """
+    login(admin)
+    response = client.post(
+        "/api/requests",
+        json={
+            "employee_id": employee.id,
+            "project_id": project.id,
+            "lines": [{"title": "Гофра 16 мм", "quantity": 5, "unit": "м"}],
+            "submit": False,
+        },
+    )
+    assert response.status_code == 201, response.text
+    request = svc.get_request(session, response.json()["id"], full=True)
+    created = [e for e in request.events if e.kind is EventKind.CREATED][0]
+    assert created.employee_id == admin.id
+    assert created.details["author"] == employee.full_name
+
+
+# --- кто ждёт и видел ли -----------------------------------------------
+
+
+def test_waiting_people_show_whether_they_opened_it(
+    client, login, employee, manager, project
+):
+    """«У руководителя третий день» и «...и туда никто не заходил» —
+    разные новости, и карточка должна их различать."""
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+
+    body = client.get(f"/api/requests/{card['id']}").json()
+    watch = {w["full_name"]: w for w in body["awaiting_watch"]}
+    assert manager.full_name in watch
+    assert watch[manager.full_name]["viewed_at"] is None
+    assert watch[manager.full_name]["role"] == manager.role.value
+
+    login(manager)
+    client.post(f"/api/requests/{card['id']}/viewed")
+    body = client.get(f"/api/requests/{card['id']}").json()
+    watch = {w["full_name"]: w for w in body["awaiting_watch"]}
+    assert watch[manager.full_name]["viewed_at"] is not None
+    assert watch[manager.full_name]["times"] == 1
+
+
+def test_author_is_not_in_the_waiting_list(
+    client, login, employee, manager, project, session
+):
+    """Свою заявку человек не согласует — значит, и ждать её не может."""
+    login(manager)
+    card = _create(client, manager, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    body = client.get(f"/api/requests/{card['id']}").json()
+    assert manager.full_name not in [w["full_name"] for w in body["awaiting_watch"]]
+
+
+# --- сколько где стояла -------------------------------------------------
+
+
+def test_stays_show_where_the_request_stood(
+    client, login, employee, manager, project, session
+):
+    """Видно, сколько заявка провела на каждом шаге."""
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(f"/api/requests/{card['id']}/decision", json={"approve": True})
+
+    body = client.get(f"/api/requests/{card['id']}").json()
+    stages = [s["stage"] for s in body["stays"]]
+    assert stages == ["draft", "pending", "sourcing"]
+    assert body["stays"][-1]["ongoing"] is True, "на последнем шаге заявка стоит сейчас"
+    assert all(s["hours"] >= 0 for s in body["stays"])
+    assert body["stays"][-1]["holder"] == "У отдела закупа: склад и цены"
+
+
+def test_closed_request_has_no_ongoing_stay(
+    client, login, employee, manager, procurement, finance, project, pipeline
+):
+    """Закрытая заявка нигде не стоит: последний отрезок не «идёт»."""
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    pipeline(
+        card["id"],
+        manager=manager,
+        buyer=procurement,
+        prices={"Кабель UTP Cat6": "1200.00"},
+        to="approved",
+    )
+    login(finance)
+    client.post(
+        f"/api/requests/{card['id']}/payment",
+        json={"method": "cash", "document": "РКО-5"},
+    )
+    body = client.get(f"/api/requests/{card['id']}").json()
+    assert body["stays"], "отрезки посчитаны"
+    assert not any(s["ongoing"] for s in body["stays"])
+
+
+# --- старые записи ------------------------------------------------------
+
+
+def test_old_events_without_actor_survive(client, login, employee, project, session):
+    """Записи, сделанные до появления истории, продолжают показываться.
+
+    У них нет ни ссылки на сотрудника, ни роли — только имя строкой. Это
+    и показываем: выдумывать сотрудника задним числом нельзя.
+    """
+    from app.db.models import RequestEvent
+
+    login(employee)
+    card = _create(client, employee, project)
+    request = svc.get_request(session, card["id"], full=True)
+    request.events.append(
+        RequestEvent(
+            kind=EventKind.COMMENTED,
+            text="Старая запись",
+            actor="ПЁТР СТАРЫЙ",
+            employee_id=None,
+            actor_role=None,
+            details={},
+        )
+    )
+    session.flush()
+
+    body = client.get(f"/api/requests/{card['id']}").json()
+    old = [e for e in body["events"] if e["text"] == "Старая запись"][0]
+    assert old["actor"] == "ПЁТР СТАРЫЙ"
+    assert old["actor_id"] is None
+    assert old["actor_role"] is None
+    assert old["actor_type"] == "human"
+
+
+def test_comment_comes_before_the_handover(
+    client, login, employee, manager, procurement, project, session
+):
+    """Комментарий стоит после решения и до перехода.
+
+    Иначе в ленте выходит, что руководитель написал вслед уже ушедшей
+    заявке, — а он написал, когда решал.
+    """
+    login(employee)
+    card = _create(client, employee, project)
+    client.post(f"/api/requests/{card['id']}/submit", json={})
+    login(manager)
+    client.post(
+        f"/api/requests/{card['id']}/decision",
+        json={"approve": True, "comment": "Берите у постоянного поставщика"},
+    )
+
+    request = svc.get_request(session, card["id"], full=True)
+    order = [e.kind for e in request.events]
+    assert order.index(EventKind.NEED_APPROVED) < order.index(EventKind.COMMENTED)
+    assert order.index(EventKind.COMMENTED) < order.index(EventKind.SOURCING)

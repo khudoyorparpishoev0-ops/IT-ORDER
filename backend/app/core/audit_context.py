@@ -19,10 +19,16 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Actor:
-    """Действующий сотрудник: id для связи, имя для чтения глазами."""
+    """Действующий сотрудник: id для связи, имя для чтения глазами.
+
+    Роль — снимок на момент действия, а не ссылка на нынешнюю: закупщика
+    переведут в руководители, и «Оценил заявку · Руководитель» станет
+    неправдой про уже случившееся.
+    """
 
     id: int | None
     name: str | None
+    role: str | None = None
 
 
 _actor: ContextVar[Actor | None] = ContextVar("audit_actor", default=None)

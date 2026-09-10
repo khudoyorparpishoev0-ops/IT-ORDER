@@ -41,6 +41,8 @@ from app.schemas.request import (
     RequestUpdate,
     RequestViewerOut,
     SourcingIn,
+    StayOut,
+    WatcherOut,
 )
 from app.services import reports as reports_svc
 from app.services import requests as svc
@@ -114,6 +116,8 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
                 actor=e.actor,
                 meta=svc.event_meta(e),
                 actor_type=e.actor_type,
+                actor_id=e.employee_id,
+                actor_role=e.actor_role,
                 details=e.details or {},
                 created_at=e.created_at,
             )
@@ -129,11 +133,34 @@ def to_detail(session, request: ExpenseRequest) -> RequestDetail:
             RequestViewerOut(
                 employee_id=v.employee_id,
                 employee_name=v.employee.full_name,
+                role=v.employee.role.value,
                 first_viewed_at=format_local_datetime(v.first_viewed_at),
                 last_viewed_at=format_local_datetime(v.last_viewed_at),
+                first_viewed_iso=v.first_viewed_at,
                 times=v.times,
             )
             for v in svc.viewers(session, request)
+        ],
+        awaiting_watch=[
+            WatcherOut(
+                employee_id=w.employee_id,
+                full_name=w.full_name,
+                role=w.role,
+                viewed_at=(
+                    format_local_datetime(w.viewed_at) if w.viewed_at else None
+                ),
+                times=w.times,
+            )
+            for w in svc.awaiting_watch(session, request)
+        ],
+        stays=[
+            StayOut(
+                stage=stay.stage,
+                holder=stay.holder,
+                hours=stay.hours,
+                ongoing=stay.ongoing,
+            )
+            for stay in svc.stays(request)
         ],
     )
 

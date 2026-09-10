@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -55,12 +55,35 @@ def submit(session, employee, project, *titles, unit="шт.", quantity=1, catego
 
 def age(session, request, hours: int) -> ExpenseRequest:
     """Состаривает заявку: ждать восемь часов в тесте нечем."""
+    return age_at(session, request, utcnow(), hours=hours)
+
+
+def age_at(session, request, now: datetime, *, hours: int) -> ExpenseRequest:
+    """То же, но относительно заданного момента, а не текущего.
+
+    Нужно там, где проверяется сравнение «утро → вечер»: оно считается от
+    часа утренней сводки, и прогон в полночь видел бы одно, а в полдень —
+    другое. Тест, который зелёный только в рабочие часы, не проверяет
+    ничего — он сообщает время суток.
+    """
     row = session.get(ExpenseRequest, request.id)
-    moment = utcnow() - timedelta(hours=hours)
+    moment = now - timedelta(hours=hours)
     row.created_at = moment
     row.submitted_at = moment
     session.commit()
     return row
+
+
+def evening_of_today() -> datetime:
+    """Местные 18:00 сегодняшнего дня — точка отсчёта для вечерней сводки.
+
+    После утреннего часа при любых настройках, поэтому «сегодняшнее
+    утро» для этого момента однозначно.
+    """
+    from app.core.time import to_local
+
+    local = to_local(utcnow()).replace(hour=18, minute=0, second=0, microsecond=0)
+    return local.astimezone(UTC)
 
 
 # --- Нормативы -------------------------------------------------------------------
@@ -503,14 +526,15 @@ def test_evening_compares_against_a_recomputed_baseline(session, employee, proje
     """Модель утреннюю сводку не помнит — сервер пересчитывает её сам."""
     from app.services.analytics.digest import overdue_delta
 
+    now = evening_of_today()
     # Просрочилась ещё вчера: к утру уже стояла.
     old = submit(session, employee, project, "Цемент М500")
-    age(session, old, hours=40)
+    age_at(session, old, now, hours=40)
     # Просрочилась после утренней сводки: норматив 8 часов, стоит 9.
     fresh = submit(session, employee, project, "Песок речной")
-    age(session, fresh, hours=9)
+    age_at(session, fresh, now, hours=9)
 
-    delta = overdue_delta(session, now=utcnow())
+    delta = overdue_delta(session, now=now)
     assert delta["left"] == 1, "вчерашняя всё ещё стоит"
     assert delta["new"] == 1, "сегодняшняя просрочилась после утра"
     assert delta["resolved"] == 0
@@ -520,12 +544,13 @@ def test_resolved_counts_closed_morning_overdue(session, employee, project, adva
     """Закрытая за день утренняя просрочка попадает в «устранено»."""
     from app.services.analytics.digest import overdue_delta
 
+    now = evening_of_today()
     request = submit(session, employee, project, "Цемент М500")
-    age(session, request, hours=40)
+    age_at(session, request, now, hours=40)
     # Проводим до оплаты: заявка закрыта сегодня.
     advance(request, to="approved")
     row = session.get(ExpenseRequest, request.id)
-    row.decided_at = utcnow() - timedelta(hours=40)
+    row.decided_at = now - timedelta(hours=40)
     session.commit()
 
     from app.services import requests as rsvc
@@ -536,7 +561,7 @@ def test_resolved_counts_closed_morning_overdue(session, employee, project, adva
     )
     session.commit()
 
-    assert overdue_delta(session, now=utcnow())["resolved"] == 1
+    assert overdue_delta(session, now=now)["resolved"] == 1
 
 
 def test_fresh_request_is_in_no_bucket(session, employee, project) -> None:

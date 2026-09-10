@@ -38,7 +38,9 @@ export type EventKind =
   | 'auto_approved'
   | 'rejected'
   | 'paid'
-  | 'edited';
+  | 'edited'
+  | 'need_approved'
+  | 'moved';
 
 /** Суммы приходят строками: Decimal нельзя переводить в number без потерь. */
 export type Money = string;
@@ -473,6 +475,10 @@ export type RequestEvent = {
   meta: string;
   /** `human` — человек нажал кнопку, `system` — переход как следствие. */
   actor_type: 'human' | 'system';
+  /** Кто именно. Пусто у системы и у записей до появления истории. */
+  actor_id: number | null;
+  /** Роль на момент действия — снимок, а не нынешняя роль человека. */
+  actor_role: string | null;
   /** Подробности: «было → стало». Пусто у событий до появления истории. */
   details: EventDetails;
   created_at: string;
@@ -488,6 +494,14 @@ export type EventDetails = {
   changed?: { title: string; from: string; to: string }[];
   from_stock?: string[];
   lines?: { title: string; total: string }[];
+  /** Цена по каждой позиции: «не оценена» → сумма. */
+  prices?: { title: string; from: string; to: string; total: string }[];
+  /** Кто может взять заявку дальше — в системном событии перехода. */
+  waiting?: string[];
+  /** Этап, на котором оставлен комментарий или принято решение. */
+  stage?: string;
+  /** Автор заявки, если её завёл не он сам. */
+  author?: string;
   holder?: string;
   comment?: string;
   method?: string;
@@ -495,12 +509,33 @@ export type EventDetails = {
   amount_total?: string;
 };
 
+export type Watcher = {
+  employee_id: number;
+  full_name: string;
+  role: string;
+  /** Когда открывал в последний раз. null — не открывал ни разу. */
+  viewed_at: string | null;
+  times: number;
+};
+
+export type Stay = {
+  stage: string;
+  holder: string;
+  hours: number;
+  /** true — заявка стоит здесь прямо сейчас. */
+  ongoing: boolean;
+};
+
 export type RequestViewer = {
   employee_id: number;
   employee_name: string;
+  /** Роль на сегодня: просмотр — не решение, снимка роли под него нет. */
+  role: string;
   /** Уже в местном поясе, строкой: «04.09.2026, 18:12». */
   first_viewed_at: string;
   last_viewed_at: string;
+  /** То же время в исходном виде — только чтобы сортировать ленту. */
+  first_viewed_iso: string;
   times: number;
 };
 
@@ -554,6 +589,10 @@ export type RequestDetail = RequestListItem & {
   awaiting_people: string[];
   /** Кто открывал карточку. Пусто — заявку ещё никто не смотрел. */
   viewers: RequestViewer[];
+  /** Кто может сделать следующий шаг и открывал ли он заявку. */
+  awaiting_watch: Watcher[];
+  /** Сколько времени заявка провела на каждом шаге. */
+  stays: Stay[];
 };
 
 export type Page<T> = {

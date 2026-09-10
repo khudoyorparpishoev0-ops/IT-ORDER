@@ -282,7 +282,11 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
 
           {/* История — в широкой колонке: «было → стало» в узком
               столбце переносится по слогам и перестаёт читаться. */}
-          <Timeline events={detail.events} viewers={detail.viewers} />
+          <Timeline
+            events={detail.events}
+            viewers={detail.viewers}
+            stays={detail.stays}
+          />
         </div>
 
         <div className="stack">

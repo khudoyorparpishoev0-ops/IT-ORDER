@@ -79,6 +79,13 @@ class RequestEventOut(BaseModel):
     #: чужого решения. Подписывать такой переход именем значит утверждать,
     #: что человек сделал два действия вместо одного.
     actor_type: str = "human"
+    #: Номер сотрудника. Пусто у системных событий и у записей, сделанных
+    #: до появления истории: кто нажимал кнопку два месяца назад, мы не
+    #: знаем, и подставлять догадку в журнал нельзя.
+    actor_id: int | None = None
+    #: Роль на момент действия: `manager`, `procurement`, `finance`…
+    #: Снимок, а не нынешняя роль человека.
+    actor_role: str | None = None
     #: Подробности: «было → стало» по статусу и сумме, состав правки,
     #: у кого заявка теперь. Пусто у событий до появления истории.
     details: dict = Field(default_factory=dict)
@@ -92,11 +99,39 @@ class RequestViewerOut(BaseModel):
 
     employee_id: int
     employee_name: str
+    #: Роль на сегодня, а не на момент просмотра: просмотр — не решение,
+    #: и хранить под него снимок роли не за чем.
+    role: str
     #: Дата и время в местном поясе, строкой: «04.09.2026, 18:12».
     first_viewed_at: str
     last_viewed_at: str
+    #: То же время в исходном виде. Нужно только для сортировки: в ленте
+    #: просмотры стоят вперемешку с событиями, а «11.09.2026, 00:37»
+    #: как строка сравнивается не по времени, а по первой цифре дня.
+    first_viewed_iso: datetime
     #: Сколько раз открывал. Возвращения в пределах получаса — один раз.
     times: int
+
+
+class WatcherOut(BaseModel):
+    """Тот, кто может сделать следующий шаг, и открывал ли он заявку."""
+
+    employee_id: int
+    full_name: str
+    role: str
+    #: Когда открывал в последний раз. None — не открывал ни разу.
+    viewed_at: str | None
+    times: int
+
+
+class StayOut(BaseModel):
+    """Сколько заявка простояла на одном шаге."""
+
+    stage: str
+    holder: str
+    hours: float
+    #: true — отрезок ещё идёт: заявка стоит здесь прямо сейчас.
+    ongoing: bool
 
 
 class PaymentOut(ORMModel):
@@ -151,6 +186,12 @@ class RequestDetail(RequestListItem):
     #: Кто открывал карточку. Автору видно, дошла ли заявка до глаз, а не
     #: только до очереди.
     viewers: list[RequestViewerOut] = Field(default_factory=list)
+    #: Те же люди, что в `awaiting_people`, но с ответом на вопрос
+    #: «а они её вообще открывали». «У бухгалтерии третий день» и «у
+    #: бухгалтерии третий день, и туда никто не заходил» — разные новости.
+    awaiting_watch: list[WatcherOut] = Field(default_factory=list)
+    #: Сколько времени заявка провела на каждом шаге.
+    stays: list[StayOut] = Field(default_factory=list)
 
 
 class RequestCreate(BaseModel):

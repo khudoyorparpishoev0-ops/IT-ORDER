@@ -1495,19 +1495,26 @@ select.filter {
 .tl-item {
   position: relative;
   display: grid;
-  grid-template-columns: 6px 1fr;
+  grid-template-columns: 24px 1fr;
   gap: 12px;
   padding: 0 0 16px;
   align-items: start;
 }
-.tl-item > .dot {
-  margin-top: 6px;
+.tl-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--paper);
+  position: relative;
+  z-index: 1;
 }
 .tl-item:not(:last-child)::before {
   content: '';
   position: absolute;
-  left: 2px;
-  top: 14px;
+  left: 11px;
+  top: 20px;
   bottom: 0;
   width: 1px;
   background: var(--line);
@@ -1527,11 +1534,56 @@ select.filter {
   gap: 8px;
   justify-content: space-between;
 }
+/* Имя человека заметнее самого действия: журнал читают, чтобы понять,
+   к кому идти, а не чтобы перечитать формулировку. */
 .tl-actor {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tl-role {
+  font-size: 12px;
+  color: var(--slate);
+}
+.tl-text {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* Сколько заявка простояла на каждом шаге. */
+.stays {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--mist);
+}
+.stays-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+/* Кто может взять заявку дальше и открывал ли он её. */
+.watch-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.watch-row {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.watch-row > svg {
+  margin-top: 3px;
+}
+.watch-name {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--ink);
 }
 /* «Было → стало» под событием. Сетка в две колонки, на телефоне — в
