@@ -17,7 +17,7 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Без этих значений система не поднимется или в неё будет некому войти.
+# Без этих значений система не поднимется. Проверяются всегда.
 REQUIRED=(
   POSTGRES_PASSWORD
   SECRET_KEY
@@ -25,12 +25,30 @@ REQUIRED=(
   PUBLIC_BASE_URL
   ALLOWED_EMAIL_DOMAINS
   ACME_EMAIL
-  BOOTSTRAP_ADMIN_EMAIL
-  BOOTSTRAP_ADMIN_PASSWORD
 )
 
+# Первый администратор. Нужен ровно один раз — при первом запуске, пока в
+# базе нет ни одной учётной записи с ролью ADMIN. Дальше эти строки не
+# просто не нужны, а вредны: это логин и пароль администратора открытым
+# текстом в файле на сервере, и README велит их удалить.
+#
+# Поэтому они НЕ в обязательных. Скрипт, который ругается на исправную
+# систему при каждом запуске, перестают читать целиком — вместе с теми
+# замечаниями, ради которых он написан.
+FIRST_RUN=(BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD)
+
 # Без этих не будет писем и уведомлений в Telegram, но система работает.
-OPTIONAL=(SMTP_HOST SMTP_USER SMTP_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USERNAME VAPID_PRIVATE_KEY VAPID_SUBJECT ANTHROPIC_API_KEY)
+OPTIONAL=(
+  SMTP_HOST SMTP_USER SMTP_PASSWORD
+  TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USERNAME
+  VAPID_PRIVATE_KEY VAPID_SUBJECT
+  ANTHROPIC_API_KEY
+  # Фазы 5C и 6: сводки и расход на AI. Пустые — работают значения по
+  # умолчанию, это нормально.
+  INTELLIGENCE_SCAN_MINUTES CRITICAL_ALERT_REPEAT_HOURS
+  AI_MONTHLY_BUDGET_USD AI_BUDGET_WARNING_PERCENT AI_PRICES_FILE
+  SCHEDULER_CATCH_UP_HOURS
+)
 
 problems=0
 
@@ -84,7 +102,23 @@ for key in "${REQUIRED[@]}"; do
 done
 
 echo
-echo "=== Почта, Telegram, push, помощник (без них соответствующая часть молчит) ==="
+echo "=== Первый запуск ==="
+first_run_left=0
+for key in "${FIRST_RUN[@]}"; do
+  val=$(value_of "$key")
+  [ -n "$val" ] && first_run_left=1
+done
+if [ "$first_run_left" -eq 0 ]; then
+  echo "  ok      администратор заведён, строки удалены — так и должно быть"
+else
+  echo "  ВНИМАНИЕ BOOTSTRAP_ADMIN_* ещё в файле."
+  echo "          Если вы уже входили в панель, удалите их: это логин и"
+  echo "          пароль администратора открытым текстом."
+  echo "          sed -i '/^BOOTSTRAP_ADMIN_/d' $ENV_FILE && docker compose up -d"
+fi
+
+echo
+echo "=== Почта, Telegram, push, помощник, сводки (без них соответствующая часть молчит) ==="
 for key in "${OPTIONAL[@]}"; do
   val=$(value_of "$key")
   [ -z "$val" ] && echo "  пусто   $key" || echo "  ok      $key"
