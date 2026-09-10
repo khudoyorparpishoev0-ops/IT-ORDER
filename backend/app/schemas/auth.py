@@ -81,9 +81,22 @@ class PasswordChangeIn(BaseModel):
 
 
 class PasswordSetIn(BaseModel):
-    """Назначение пароля администратором."""
+    """Назначение пароля администратором.
+
+    Код второго фактора обязателен: смена чужого пароля — это захват
+    учётной записи, и подтверждать её должен человек, а не открытая
+    сессия.
+    """
 
     password: str = Field(min_length=1, max_length=256)
+    #: Код из приложения администратора или его код восстановления.
+    totp_code: str = Field(min_length=1, max_length=32)
+
+
+class ConfirmIn(BaseModel):
+    """Подтверждение опасного действия кодом второго фактора."""
+
+    totp_code: str = Field(min_length=1, max_length=32)
 
 
 class AuthPolicyOut(BaseModel):

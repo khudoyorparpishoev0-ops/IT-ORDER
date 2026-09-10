@@ -36,7 +36,7 @@ def test_access_path_is_not_read_as_id(as_admin, admin) -> None:
     assert admin.id in {row["id"] for row in response.json()}
 
 
-def test_new_employee_cannot_sign_in_until_password_is_set(as_admin) -> None:
+def test_new_employee_cannot_sign_in_until_password_is_set(as_admin, admin, totp_code) -> None:
     created = as_admin.post(
         "/api/employees",
         json={"full_name": "Далер Сафаров", "email": "d.safarov@it-hona.tj"},
@@ -50,7 +50,8 @@ def test_new_employee_cannot_sign_in_until_password_is_set(as_admin) -> None:
     assert row["last_login_at"] is None
 
     set_password = as_admin.put(
-        f"/api/employees/{new_id}/password", json={"password": "пароль-подлиннее"}
+        f"/api/employees/{new_id}/password",
+        json={"password": "пароль-подлиннее", "totp_code": totp_code(admin)},
     )
     assert set_password.status_code == 200, set_password.text
 
@@ -126,12 +127,13 @@ def test_disabled_admin_does_not_count_as_the_last_one(as_admin, admin, session)
     assert response.status_code == 409
 
 
-def test_admin_password_change_takes_effect(as_admin, employee, client, session) -> None:
+def test_admin_password_change_takes_effect(as_admin, admin, employee, client, session, totp_code) -> None:
     """Назначенный администратором пароль действительно пускает в систему."""
     new_password = "новый-пароль-сотрудника"
     assert (
         as_admin.put(
-            f"/api/employees/{employee.id}/password", json={"password": new_password}
+            f"/api/employees/{employee.id}/password",
+            json={"password": new_password, "totp_code": totp_code(admin)},
         ).status_code
         == 200
     )
@@ -147,3 +149,128 @@ def test_admin_password_change_takes_effect(as_admin, employee, client, session)
     )
     assert fresh.status_code == 200, fresh.text
     assert fresh.json()["status"] == "ok"
+
+
+# --- Подтверждение кодом второго фактора --------------------------------------
+
+
+def test_password_change_requires_the_admin_code(client, login, admin, employee, totp_code) -> None:
+    """Смена чужого пароля — это захват учётной записи.
+
+    Одной открытой сессии администратора недостаточно: незакрытый
+    ноутбук или украденная cookie не должны давать доступ к бухгалтерии.
+    """
+    login(admin)
+
+    без_кода = client.put(
+        f"/api/employees/{employee.id}/password", json={"password": "новый-длинный-пароль-1"}
+    )
+    assert без_кода.status_code == 422, без_кода.text
+
+    неверный = client.put(
+        f"/api/employees/{employee.id}/password",
+        json={"password": "новый-длинный-пароль-1", "totp_code": "000000"},
+    )
+    assert неверный.status_code == 422
+    assert "код" in неверный.json()["detail"].lower()
+
+    верный = client.put(
+        f"/api/employees/{employee.id}/password",
+        json={"password": "новый-длинный-пароль-1", "totp_code": totp_code(admin)},
+    )
+    assert верный.status_code == 200, верный.text
+
+
+def test_reset_2fa_requires_the_admin_code(client, login, admin, employee, totp_code) -> None:
+    """Сброс чужого второго фактора закрыт так же.
+
+    Иначе подтверждение не закрывало бы ничего: пароль сменить нельзя,
+    зато второй фактор можно снести и войти по одному паролю.
+    """
+    login(admin)
+
+    без_кода = client.post(f"/api/employees/{employee.id}/reset-2fa", json={})
+    assert без_кода.status_code == 422
+
+    неверный = client.post(
+        f"/api/employees/{employee.id}/reset-2fa", json={"totp_code": "123456"}
+    )
+    assert неверный.status_code == 422
+
+    верный = client.post(
+        f"/api/employees/{employee.id}/reset-2fa", json={"totp_code": totp_code(admin)}
+    )
+    assert верный.status_code == 200, верный.text
+
+
+def test_recovery_code_also_confirms(client, login, session, admin, employee) -> None:
+    """Телефон теряют, а доступ администратору нужен и в этот день."""
+    from app.db.models import RecoveryCode
+    from app.services import auth as svc
+
+    login(admin)
+    # Коды восстановления выдаёт панель — тем же путём, что и человек.
+    from tests.conftest import TEST_PASSWORD
+
+    codes = client.post(
+        "/api/auth/2fa/recovery-codes", json={"password": TEST_PASSWORD}
+    ).json()["codes"]
+
+    answer = client.put(
+        f"/api/employees/{employee.id}/password",
+        json={"password": "пароль-по-коду-восстановления", "totp_code": codes[0]},
+    )
+    assert answer.status_code == 200, answer.text
+
+    # Код одноразовый: вторым разом та же бумажка не сработает.
+    again = client.put(
+        f"/api/employees/{employee.id}/password",
+        json={"password": "ещё-один-длинный-пароль", "totp_code": codes[0]},
+    )
+    assert again.status_code == 422
+    assert session.query(RecoveryCode).filter(RecoveryCode.used_at.is_not(None)).count() >= 1
+
+
+def test_wrong_codes_lock_the_admin_out(client, login, session, admin, employee) -> None:
+    """Шестизначный код перебирается за миллион попыток.
+
+    Без ограничения открытая сессия администратора стала бы стендом для
+    перебора его же кода — считаем неудачи тем же счётчиком, что и вход.
+    """
+    from app.config import get_settings
+
+    login(admin)
+    limit = get_settings().max_failed_logins
+
+    for _ in range(limit):
+        client.put(
+            f"/api/employees/{employee.id}/password",
+            json={"password": "какой-нибудь-длинный-пароль", "totp_code": "000000"},
+        )
+
+    session.refresh(admin)
+    assert admin.locked_until is not None, "после серии неудач подтверждение не заблокировано"
+
+
+def test_admin_without_2fa_cannot_change_foreign_access(
+    client, login, session, admin, employee, monkeypatch
+) -> None:
+    """Без второго фактора подтверждать нечем — и действие не выполняется.
+
+    Иначе проверка обходилась бы простым «а у меня 2FA не включён», то
+    есть не существовала бы вовсе.
+    """
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "require_2fa_roles", "")
+    login(admin)
+    admin.totp_enabled = False
+    admin.totp_secret = None
+    session.commit()
+
+    answer = client.put(
+        f"/api/employees/{employee.id}/password",
+        json={"password": "длинный-пароль-без-фактора", "totp_code": "000000"},
+    )
+    assert answer.status_code == 422
+    assert "двухфакторн" in answer.json()["detail"].lower()

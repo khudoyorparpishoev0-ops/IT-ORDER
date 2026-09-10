@@ -160,18 +160,27 @@ export function useUpdateEmployee() {
   );
 }
 
+/**
+ * Смена чужого пароля и сброс чужого второго фактора подтверждаются
+ * кодом администратора: одной открытой сессии для захвата учётной
+ * записи недостаточно. Проверяет код сервер.
+ */
 export function useSetEmployeePassword() {
-  return useEmployeeMutation(({ id, password }: { id: number; password: string }) =>
-    api<Employee>(`/api/employees/${id}/password`, {
-      method: 'PUT',
-      body: JSON.stringify({ password }),
-    }),
+  return useEmployeeMutation(
+    ({ id, password, code }: { id: number; password: string; code: string }) =>
+      api<Employee>(`/api/employees/${id}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({ password, totp_code: code }),
+      }),
   );
 }
 
 export function useResetEmployee2fa() {
-  return useEmployeeMutation((id: number) =>
-    api<Employee>(`/api/employees/${id}/reset-2fa`, { method: 'POST' }),
+  return useEmployeeMutation(({ id, code }: { id: number; code: string }) =>
+    api<Employee>(`/api/employees/${id}/reset-2fa`, {
+      method: 'POST',
+      body: JSON.stringify({ totp_code: code }),
+    }),
   );
 }
 

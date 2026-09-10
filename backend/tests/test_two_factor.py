@@ -333,8 +333,20 @@ def test_admin_resets_lost_second_factor(client, login, employee, admin, session
     setup = client.post("/api/auth/2fa/setup").json()
     client.post("/api/auth/2fa/confirm", json={"code": code_for(setup["secret"])})
 
-    reset = client.post(f"/api/employees/{employee.id}/reset-2fa")
-    assert reset.status_code == 200
+    # Сброс чужого второго фактора администратор подтверждает своим кодом:
+    # одной открытой сессии для этого недостаточно.
+    session.refresh(admin)
+    # Код настройки только что использован, а защита от повторного
+    # применения настоящая — снимаем отметку о шаге, как это делает
+    # фикстура входа. Сама защита проверяется отдельным тестом.
+    admin.totp_last_step = None
+    session.commit()
+
+    reset = client.post(
+        f"/api/employees/{employee.id}/reset-2fa",
+        json={"totp_code": code_for(setup["secret"])},
+    )
+    assert reset.status_code == 200, reset.text
 
     client.post("/api/auth/logout")
     response = client.post(
@@ -344,7 +356,12 @@ def test_admin_resets_lost_second_factor(client, login, employee, admin, session
 
 
 def test_manager_cannot_reset_2fa(as_manager, employee) -> None:
-    assert as_manager.post(f"/api/employees/{employee.id}/reset-2fa").status_code == 403
+    assert (
+        as_manager.post(
+            f"/api/employees/{employee.id}/reset-2fa", json={"totp_code": "123456"}
+        ).status_code
+        == 403
+    )
 
 
 # --------------------------------------------------------------------------

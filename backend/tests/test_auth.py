@@ -183,7 +183,7 @@ def test_new_password_must_be_strong(as_manager) -> None:
     assert response.status_code == 422
 
 
-def test_admin_sets_password_for_employee(client, login, admin, session) -> None:
+def test_admin_sets_password_for_employee(client, login, admin, session, totp_code) -> None:
     """Так заводят доступ новому сотруднику и восстанавливают забытый пароль."""
     from app.db.models import Employee
 
@@ -193,7 +193,8 @@ def test_admin_sets_password_for_employee(client, login, admin, session) -> None
 
     login(admin)
     response = client.put(
-        f"/api/employees/{person.id}/password", json={"password": "выданная длинная фраза"}
+        f"/api/employees/{person.id}/password",
+        json={"password": "выданная длинная фраза", "totp_code": totp_code(admin)},
     )
     assert response.status_code == 200
 
