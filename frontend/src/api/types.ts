@@ -166,8 +166,52 @@ export type AiSettings = {
   prompt_overridden: boolean;
   analytics_prompt_overridden: boolean;
   usage: AiUsage;
+  /** Автоматические сводки ORDER Intelligence за последний месяц. */
+  deliveries: DeliveryStats;
   recent: AiEntry[];
 };
+
+/** Метрики автоматической рассылки. Раздел администратора. */
+export type DeliveryStats = {
+  days: number;
+  morning_sent: number;
+  evening_sent: number;
+  critical_sent: number;
+  failed: number;
+  ai_digests: number;
+  fallback_digests: number;
+  subscribers: number;
+};
+
+/**
+ * Настройки автоматических сводок ORDER Intelligence.
+ *
+ * Время местное: у каждого своё утро, общий час на всех означал бы, что
+ * кому-то сводка приходит ночью.
+ */
+export type IntelligenceSubscription = {
+  enabled: boolean;
+  morning_enabled: boolean;
+  evening_enabled: boolean;
+  /** «09:00» — местное время получателя. */
+  morning_time: string;
+  evening_time: string;
+  critical_alerts_enabled: boolean;
+  /** Слать ли вечернюю сводку, когда за день ничего не изменилось. */
+  when_no_changes: boolean;
+  /** null — корпоративный пояс (timezone_hint). */
+  timezone: string | null;
+  timezone_hint: string;
+  /** Есть ли куда доставлять: без Telegram сводка не уйдёт. */
+  telegram_connected: boolean;
+  /** Как часто повторяется неустранённый срочный сигнал, часов. */
+  repeat_hours: number;
+};
+
+/** Изменение настроек рассылки: присылается только изменённое. */
+export type IntelligenceSubscriptionIn = Partial<
+  Omit<IntelligenceSubscription, 'timezone_hint' | 'telegram_connected' | 'repeat_hours'>
+>;
 
 /** Запуск фоновой задачи — строка в списке «Фоновые задачи». */
 export type JobRun = {

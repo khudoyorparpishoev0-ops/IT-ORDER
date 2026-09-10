@@ -15,7 +15,9 @@ from app.core.permissions import Permission
 from app.core.time import to_local
 from app.db.models import AiKind
 from app.schemas.ai import AiEntry, AiFeedbackIn, AiSettingsOut, AiUsage
+from app.schemas.analytics import DeliveryStatsOut
 from app.services import ai_feedback, ai_log, ai_memory
+from app.services.notifications import intelligence as intel_notify
 
 router = APIRouter(prefix="/api/ai", tags=["ai"], dependencies=[Depends(bind_audit_actor)])
 
@@ -65,6 +67,7 @@ def settings_(session: DbSession, _: CurrentUser):
         prompt_overridden=bool(settings.assistant_prompt_file),
         analytics_prompt_overridden=bool(settings.analytics_prompt_file),
         usage=AiUsage(**usage),
+        deliveries=DeliveryStatsOut(**intel_notify.stats(session)),
         recent=[
             AiEntry(
                 id=entry.id,

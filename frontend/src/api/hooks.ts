@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, query } from './client';
 import type {
   AiSettings,
+  IntelligenceSubscription,
+  IntelligenceSubscriptionIn,
   ExecutiveOverview,
   Intelligence,
   DuplicateCheck,
@@ -69,6 +71,7 @@ export const keys = {
   feedbackReasons: ['ai', 'feedback', 'reasons'] as const,
   memory: (projectId: number | null) => ['assistant', 'memory', projectId] as const,
   digest: ['analytics', 'digest'] as const,
+  subscription: ['analytics', 'subscription'] as const,
   telegram: ['telegram'] as const,
   push: ['push'] as const,
   jobs: ['jobs'] as const,
@@ -403,6 +406,34 @@ export function useAiSettings(enabled: boolean) {
     queryFn: () => api<AiSettings>('/api/ai/settings'),
     enabled,
     refetchOnMount: 'always',
+  });
+}
+
+/**
+ * Настройки автоматических сводок ORDER Intelligence.
+ *
+ * Запрос закрыт правом `view_reports`, поэтому у сотрудника без него он
+ * не отправляется вовсе: иначе панель стучалась бы в закрытый эндпоинт
+ * и получала 403 на каждом открытии «Параметров».
+ */
+export function useIntelligenceSubscription(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.subscription,
+    queryFn: () => api<IntelligenceSubscription>('/api/analytics/subscription'),
+    enabled,
+    refetchOnMount: 'always',
+  });
+}
+
+export function useSaveSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: IntelligenceSubscriptionIn) =>
+      api<IntelligenceSubscription>('/api/analytics/subscription', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data) => qc.setQueryData(keys.subscription, data),
   });
 }
 

@@ -17,6 +17,11 @@ STALE_REQUESTS = "stale_requests"
 WEEKLY_BUDGET = "weekly_budget"
 #: Чистка журнала обращений к AI по сроку хранения.
 AI_RETENTION = "ai_retention"
+#: Автоматические сводки руководителю. Часа у них нет: время у каждого
+#: своё, поэтому проход идёт часто, а «пора ли» решается по человеку.
+INTELLIGENCE_DIGESTS = "intelligence_digests"
+#: Поиск критичных проблем для сигналов.
+INTELLIGENCE_CRITICAL = "intelligence_critical_scan"
 
 
 @dataclass(frozen=True)

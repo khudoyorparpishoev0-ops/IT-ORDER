@@ -67,6 +67,7 @@ HELP_DIRECTOR = (
     "/overdue — просроченные\n"
     "/stuck — без движения\n"
     "/morning и /evening — сводки за период\n"
+    "/digests — автоматическая рассылка\n"
     "/ask вопрос — спросить ORDER AI"
 )
 
@@ -339,6 +340,12 @@ def _handle_press(session: Session, chat_id: int, code: str) -> None:
         reply = director.digest_reply(session, employee, "morning")
     elif code == director.DIR_EVENING:
         reply = director.digest_reply(session, employee, "evening")
+    elif code == director.DIR_SUB_ON:
+        reply = director.switch(session, employee, on=True)
+    elif code == director.DIR_SUB_OFF:
+        reply = director.switch(session, employee, on=False)
+    elif code == director.DIR_SUB:
+        reply = director.subscription(session, employee)
     elif code == flow.CONFIRM_SEND:
         reply = flow.confirm(session, employee)
     elif code == flow.CONFIRM_EDIT:
@@ -382,6 +389,8 @@ def _director_command(session: Session, employee, text: str):
         return director.digest_reply(session, employee, "morning")
     if text.startswith("/evening"):
         return director.digest_reply(session, employee, "evening")
+    if text.startswith("/digests"):
+        return director.subscription(session, employee)
     if text.startswith("/ask"):
         question = text[len("/ask") :].strip()
         if not question:

@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, DbSession, RequirePermission, bind_audit_actor
 from app.core.permissions import Permission
@@ -27,10 +27,30 @@ router = APIRouter(
 )
 
 
+#: Сколько запусков берём по каждой задаче. Не общий срез по времени:
+#: поиск критичных проблем идёт каждые двадцать минут и за один день
+#: вытеснил бы из списка все ежедневные рассылки — а смотрят сюда как
+#: раз затем, чтобы проверить, ушли ли они.
+PER_JOB = 5
+
+
 @router.get("", response_model=list[JobRunOut])
 def list_runs(session: DbSession, limit: int = 20):
+    ranked = (
+        select(
+            JobRun,
+            func.row_number()
+            .over(partition_by=JobRun.job, order_by=JobRun.started_at.desc())
+            .label("rn"),
+        )
+        .subquery()
+    )
     runs = session.scalars(
-        select(JobRun).order_by(JobRun.started_at.desc()).limit(limit)
+        select(JobRun)
+        .join(ranked, JobRun.id == ranked.c.id)
+        .where(ranked.c.rn <= PER_JOB)
+        .order_by(JobRun.started_at.desc())
+        .limit(limit)
     )
     return [
         JobRunOut(
