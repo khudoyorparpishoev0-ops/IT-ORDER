@@ -117,7 +117,7 @@ async def bind_audit_actor(user: CurrentUser) -> Employee:
     Подключается на уровне роутера, чтобы про журнал не нужно было помнить
     в каждом новом эндпоинте.
     """
-    set_actor(Actor(id=user.id, name=user.full_name))
+    set_actor(Actor(id=user.id, name=user.full_name, role=user.role.value))
     return user
 
 

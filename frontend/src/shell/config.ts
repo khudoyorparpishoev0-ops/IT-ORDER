@@ -37,7 +37,7 @@ export const ROLE_LABEL: Record<string, string> = {
   employee: 'Сотрудник',
   manager: 'Руководитель',
   procurement: 'Отдел закупа',
-  finance: 'Финансы',
+  finance: 'Бухгалтерия',
   admin: 'Администратор',
 };
 

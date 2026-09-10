@@ -132,9 +132,18 @@ def evening(
 
 
 def _morning_moment(now: datetime) -> datetime:
-    """Момент утренней сводки в эти сутки."""
+    """Момент последней утренней сводки — она уже была, а не будет.
+
+    До утреннего часа (ночной прогон, ручной запуск в полночь) сводка
+    этих суток ещё не уходила, и сравнивать вечер с ней нельзя: заявка,
+    которая просрочится только к девяти утра, оказалась бы «стоявшей с
+    утра». Берём предыдущее утро — то, которое человек читал.
+    """
     hour = get_settings().reminder_hour
-    return to_local(now).replace(hour=hour, minute=0, second=0, microsecond=0)
+    moment = to_local(now).replace(hour=hour, minute=0, second=0, microsecond=0)
+    if moment > to_local(now):
+        moment -= timedelta(days=1)
+    return moment
 
 
 def _step_started(request: ExpenseRequest) -> tuple[RequestStatus, datetime] | None:

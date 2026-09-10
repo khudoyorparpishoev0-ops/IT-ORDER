@@ -370,7 +370,7 @@ def _bind(employee) -> None:
     Ставим здесь, а не глубже: обработчик асинхронный, и контекст
     доживает до всего, что он зовёт.
     """
-    set_actor(Actor(id=employee.id, name=employee.full_name))
+    set_actor(Actor(id=employee.id, name=employee.full_name, role=employee.role.value))
 
 
 def _director_command(session: Session, employee, text: str):

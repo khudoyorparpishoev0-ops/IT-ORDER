@@ -38,6 +38,8 @@ export type IconName =
   | 'ti-filter'
   | 'ti-server-2'
   | 'ti-device-cctv'
+  | 'ti-eye'
+  | 'ti-message-circle'
   | 'ti-checklist'
   | 'ti-shopping-cart'
   | 'ti-bell'
@@ -234,6 +236,13 @@ export function IconSprite() {
       <path d="M7 16l0 .01"></path>
       <path d="M11 8h6"></path>
       <path d="M11 16h6"></path>
+      </symbol>
+      <symbol id="ti-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"></path>
+      <path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"></path>
+      </symbol>
+      <symbol id="ti-message-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
+      <path d="M3 20l1.3 -3.9a9 8 0 1 1 3.4 2.9l-4.7 1"></path>
       </symbol>
       <symbol id="ti-device-cctv" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="butt" strokeLinejoin="miter">
       <path d="M3 4a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1l0 -2"></path>

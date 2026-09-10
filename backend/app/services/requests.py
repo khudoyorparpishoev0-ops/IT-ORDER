@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -29,6 +30,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
+from app.core.audit_context import current_actor
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.money import somoni, to_decimal
 from app.core.time import (
@@ -48,6 +50,7 @@ from app.db.models import (
     Project,
     RequestEvent,
     RequestStatus,
+    RequestView,
 )
 from app.schemas.request import (
     DecisionIn,
@@ -284,11 +287,111 @@ def is_priced(request: ExpenseRequest) -> bool:
 
 
 def _add_event(
-    request: ExpenseRequest, kind: EventKind, text: str, actor: str | None = None
+    request: ExpenseRequest,
+    kind: EventKind,
+    text: str,
+    actor: str | None = None,
+    *,
+    details: dict | None = None,
+    system: bool = False,
 ) -> None:
+    """Одна запись истории. Неизменяема: только добавляется.
+
+    Текст события даётся без рода: «Оценка заявки», а не «Оценил» —
+    имя и роль человека стоят строкой выше, а пола сотрудника в ORDER
+    нет и заводить его ради формулировки незачем. «Ольга Кузнецова ·
+    Оценил» — опечатка, видная каждому, кто откроет карточку.
+
+    Сотрудник берётся из контекста запроса, а не из аргумента: имя от
+    клиента подделывается, id действующего лица — нет. Имя всё равно
+    сохраняем строкой: сотрудника переименуют или удалят, а история
+    должна читаться и через год.
+    """
+    who = current_actor()
     request.events.append(
-        RequestEvent(kind=kind, text=text, actor=(actor or SYSTEM_ACTOR).upper())
+        RequestEvent(
+            kind=kind,
+            text=text,
+            actor=actor or (who.name if who else None) or SYSTEM_ACTOR,
+            employee_id=None if system else (who.id if who else None),
+            actor_role=None if system else (who.role if who else None),
+            actor_type="system" if system else "human",
+            details=details or {},
+        )
     )
+
+
+def _move_event(
+    request: ExpenseRequest,
+    text: str,
+    *,
+    kind: EventKind = EventKind.MOVED,
+    **extra: object,
+) -> None:
+    """Системный переход: заявка ушла дальше как следствие чужого решения.
+
+    Отдельной строкой, а не хвостом к действию человека: «одобрил и
+    передал» — это два разных дела, и подписывать переход именем
+    руководителя значит утверждать, что он сделал оба. По ленте должно
+    быть видно, что решение принял человек, а маршрут выбрала система.
+    """
+    _add_event(
+        request,
+        kind,
+        text,
+        SYSTEM_ACTOR,
+        system=True,
+        details={"holder": awaiting_label(request), "status": request.status.value, **extra},
+    )
+
+
+def _comment_event(
+    request: ExpenseRequest, comment: str | None, actor: str | None, stage: str
+) -> None:
+    """Комментарий человека отдельной строкой ленты.
+
+    Пишется сразу после действия, к которому относится, и до системного
+    перехода: иначе в ленте выходит, что руководитель написал уже вслед
+    ушедшей заявке.
+    """
+    if not comment:
+        return
+    _add_event(
+        request,
+        EventKind.COMMENTED,
+        f"Комментарий: «{comment}»",
+        actor,
+        # Этап, на котором комментарий оставлен: через месяц «Ив» без
+        # этапа не значит ничего, а «на согласовании суммы» — значит.
+        details={"comment": comment, "stage": stage},
+    )
+
+
+def _step_details(
+    before: RequestStatus,
+    request: ExpenseRequest,
+    *,
+    amount_from: Decimal | None = None,
+    **extra: object,
+) -> dict:
+    """Что изменилось на этом шаге: статус, сумма и у кого заявка теперь.
+
+    Панель рисует «было → стало» отсюда, а не разбирает текст события
+    обратно в данные: текст пишется для человека и меняется свободно,
+    а на этих ключах держится лента истории.
+    """
+    # Ключ `amount` — всегда пара «было → стало». Итоговую сумму шага
+    # вызывающий передаёт как `amount_total`: одно имя для двух разных
+    # форм заставило бы панель гадать, что ей пришло.
+    details: dict = {"status": {"from": before.value, "to": request.status.value}}
+    if amount_from is not None and amount_from != request.amount:
+        details["amount"] = {
+            "from": somoni(amount_from),
+            "to": somoni(request.amount),
+        }
+    details["holder"] = awaiting_label(request)
+    details.update(extra)
+    return details
 
 
 def create_request(session: Session, data: RequestCreate) -> ExpenseRequest:
@@ -312,7 +415,18 @@ def create_request(session: Session, data: RequestCreate) -> ExpenseRequest:
         status=RequestStatus.DRAFT,
     )
     _apply_lines(request, data.lines)
-    _add_event(request, EventKind.CREATED, "Заявка создана", employee.full_name)
+    # Кто создал — берём из сессии, а не из карточки автора: администратор
+    # заводит заявку за другого, и «создал Иванов» было бы неправдой.
+    # Автор в этом случае уходит в подробности отдельной строкой.
+    who = current_actor()
+    for_other = who is not None and who.id != employee.id
+    _add_event(
+        request,
+        EventKind.CREATED,
+        "Создание заявки" + (f" за сотрудника: {employee.full_name}" if for_other else ""),
+        None if who else employee.full_name,
+        details={"author": employee.full_name} if for_other else None,
+    )
     session.add(request)
     session.flush()
 
@@ -333,6 +447,10 @@ def update_request(
             f"Заявка {request.number} уже подана, её состав менять нельзя"
         )
 
+    # Снимок «до» — по нему считается, что именно человек изменил.
+    before_project = request.project.name if request.project else None
+    before_lines = _lines_snapshot(request)
+
     if data.project_id is not None:
         project = session.get(Project, data.project_id)
         if project is None:
@@ -341,14 +459,80 @@ def update_request(
         # не подать ни новой, ни правкой черновика.
         if not project.active:
             raise ValidationError(f"Объект «{project.name}» отключён")
-        request.project_id = project.id
+        # Через связь, а не через `project_id`: иначе `request.project`
+        # остаётся прежним до конца транзакции, и «было → стало» по
+        # объекту показало бы одно и то же название дважды.
+        request.project = project
     if data.category is not None:
         request.category = data.category
     if data.lines is not None:
         _apply_lines(request, data.lines)
 
+    session.flush()
+    _record_edit(request, before_project, before_lines)
     write_audit(session, entity="request", entity_id=request.number, action="update")
     return request
+
+
+def _lines_snapshot(request: ExpenseRequest) -> dict[str, str]:
+    """Состав заявки как «что → сколько». Ключ — название, потому что
+    сравниваем именно вещи: строку могли удалить и добавить заново, id
+    сменится, а для человека это та же позиция."""
+    return {
+        line.title: f"{line.quantity:g} {line.unit}".strip()
+        for line in request.lines
+    }
+
+
+def _record_edit(
+    request: ExpenseRequest, before_project: str | None, before_lines: dict[str, str]
+) -> None:
+    """Пишет, что именно изменилось в черновике. Ничего — молчит.
+
+    Правка возможна только у черновика, поэтому это единственное место,
+    где состав заявки меняется по воле человека. После подачи заявка
+    неизменяема, и события «изменил сумму» у поданной не бывает — сумму
+    там впервые проставляет закуп, и это отдельное событие.
+    """
+    after_project = request.project.name if request.project else None
+    after_lines = _lines_snapshot(request)
+
+    changes: dict = {}
+    if before_project != after_project:
+        changes["project"] = {"from": before_project, "to": after_project}
+
+    added = [t for t in after_lines if t not in before_lines]
+    removed = [t for t in before_lines if t not in after_lines]
+    changed = [
+        {"title": t, "from": before_lines[t], "to": after_lines[t]}
+        for t in after_lines
+        if t in before_lines and before_lines[t] != after_lines[t]
+    ]
+    if added:
+        changes["added"] = [{"title": t, "amount": after_lines[t]} for t in added]
+    if removed:
+        changes["removed"] = [{"title": t, "amount": before_lines[t]} for t in removed]
+    if changed:
+        changes["changed"] = changed
+
+    if not changes:
+        return
+
+    parts = []
+    if "project" in changes:
+        parts.append("объект")
+    if added:
+        parts.append(f"добавлено позиций: {len(added)}")
+    if removed:
+        parts.append(f"удалено позиций: {len(removed)}")
+    if changed:
+        parts.append(f"изменено позиций: {len(changed)}")
+    _add_event(
+        request,
+        EventKind.EDITED,
+        "Правка черновика: " + ", ".join(parts),
+        details=changes,
+    )
 
 
 def submit_request(
@@ -364,10 +548,15 @@ def submit_request(
     if not request.lines:
         raise ValidationError("В заявке нет ни одной строки")
 
+    before = request.status
     request.status = RequestStatus.PENDING
     request.submitted_at = utcnow()
     _add_event(
-        request, EventKind.SUBMITTED, "Заявка отправлена на согласование", actor
+        request,
+        EventKind.SUBMITTED,
+        "Отправка на согласование",
+        actor,
+        details=_step_details(before, request, waiting=awaiting_people(session, request)),
     )
     write_audit(session, entity="request", entity_id=request.number, action="submit")
     session.flush()
@@ -375,16 +564,37 @@ def submit_request(
 
 
 def start_sourcing(
-    session: Session, request: ExpenseRequest, *, actor: str | None = None
+    session: Session,
+    request: ExpenseRequest,
+    *,
+    actor: str | None = None,
+    comment: str | None = None,
 ) -> None:
     """Потребность одобрена — заявка уходит в отдел закупа."""
-    request.status = RequestStatus.SOURCING
-    request.sourcing_started_at = utcnow()
+    before = request.status
+    # Сначала действие человека — на прежнем статусе, чтобы «было → стало»
+    # считалось от того, что он видел, когда решал.
     _add_event(
         request,
-        EventKind.SOURCING,
-        "Потребность одобрена, заявка передана в отдел закупа",
+        EventKind.NEED_APPROVED,
+        "Одобрение покупки",
         actor,
+        details={"status": {"from": before.value, "to": RequestStatus.SOURCING.value}},
+    )
+    _comment_event(request, comment, actor, AWAITING[before][1])
+    request.status = RequestStatus.SOURCING
+    request.sourcing_started_at = utcnow()
+    # Затем маршрут, который выбрала система, — с теми, кто может взять
+    # заявку дальше. Персональных назначений в ORDER нет: заявку берёт
+    # любой с правом, и выдумывать «ответственного» мы не станем.
+    # Вид события остаётся SOURCING: на нём держится лента этапов в
+    # карточке («У закупа — с какого числа»). Системным его делает
+    # `actor_type`, а не имя вида.
+    _move_event(
+        request,
+        "Передала заявку в отдел закупа",
+        kind=EventKind.SOURCING,
+        waiting=awaiting_people(session, request),
     )
     write_audit(session, entity="request", entity_id=request.number, action="sourcing")
 
@@ -411,6 +621,13 @@ def apply_sourcing(
             "Ответ закупа должен покрывать все строки заявки, и только их"
         )
 
+    # Снимок «до» по каждой строке: закуп ставит цену впервые (было «не
+    # оценена») или меняет уже поставленную, и в ленте это разные вещи.
+    priced_before = {
+        line.id: (somoni(line.price) if line.price is not None else None)
+        for line in request.lines
+    }
+
     for line in request.lines:
         decision = decisions[line.id]
         line.from_stock = decision.from_stock
@@ -422,6 +639,8 @@ def apply_sourcing(
             line.price = to_decimal(decision.price)
             line.total = to_decimal(line.price * line.quantity)
 
+    before = request.status
+    amount_before = request.amount
     recalculate_amount(request)
     now = utcnow()
     request.sourced_at = now
@@ -437,6 +656,7 @@ def apply_sourcing(
             EventKind.FULFILLED,
             "Со склада: " + ", ".join(line.title for line in from_stock),
             actor,
+            details={"from_stock": [line.title for line in from_stock]},
         )
 
     if to_buy:
@@ -444,9 +664,23 @@ def apply_sourcing(
         _add_event(
             request,
             EventKind.PRICED,
-            f"Закуп оценил заявку на {somoni(request.amount)}"
+            f"Оценка заявки: {somoni(request.amount)}"
             + (f", {len(from_stock)} поз. закрыто складом" if from_stock else ""),
             actor,
+            details=_step_details(
+                before,
+                request,
+                amount_from=amount_before,
+                prices=[
+                    {
+                        "title": line.title,
+                        "from": priced_before[line.id] or "не оценена",
+                        "to": somoni(line.price),
+                        "total": somoni(line.total),
+                    }
+                    for line in to_buy
+                ],
+            ),
         )
         action = "priced"
     else:
@@ -458,12 +692,30 @@ def apply_sourcing(
             EventKind.FULFILLED,
             "Всё нашлось на складе, покупка не требуется",
             actor,
+            details=_step_details(before, request),
         )
+        _move_event(request, "Закрыла заявку: покупка не потребовалась")
         action = "fulfilled"
 
     if request.sourcing_comment:
         _add_event(
-            request, EventKind.COMMENTED, f"Закуп: «{request.sourcing_comment}»", actor
+            request,
+            EventKind.COMMENTED,
+            f"Комментарий: «{request.sourcing_comment}»",
+            actor,
+            # Этап, на котором комментарий оставлен: через месяц «Ив» без
+            # этапа не значит ничего, а «на оценке закупа» — значит.
+            details={"comment": request.sourcing_comment, "stage": "На оценке закупа"},
+        )
+
+    # Переход — последним: сначала всё, что сделал человек, потом маршрут.
+    # Иначе комментарий закупа оказывается «после» передачи заявки
+    # дальше, хотя написан был до неё.
+    if to_buy:
+        _move_event(
+            request,
+            "Передала заявку руководителю на утверждение суммы",
+            waiting=awaiting_people(session, request),
         )
 
     write_audit(
@@ -502,6 +754,7 @@ def decide_request(
         raise ValidationError("Комментарий обязателен при отклонении заявки")
 
     deciding_amount = request.status is RequestStatus.PRICED
+    before = request.status
 
     if not data.approve:
         request.status = RequestStatus.REJECTED
@@ -509,7 +762,13 @@ def decide_request(
         request.decided_by = data.actor
         request.decision_comment = comment
         _add_event(
-            request, EventKind.REJECTED, f"Заявка отклонена: {comment}", data.actor
+            request,
+            EventKind.REJECTED,
+            f"Отказ: {comment}",
+            data.actor,
+            details=_step_details(
+                before, request, comment=comment, stage=AWAITING[before][1]
+            ),
         )
         write_audit(
             session,
@@ -529,8 +788,17 @@ def decide_request(
         _add_event(
             request,
             EventKind.APPROVED,
-            f"Сумма утверждена: {somoni(request.amount)}",
+            f"Утверждение суммы: {somoni(request.amount)}",
             data.actor,
+            details=_step_details(
+                before, request, amount_total=somoni(request.amount)
+            ),
+        )
+        _comment_event(request, comment, data.actor, AWAITING[before][1])
+        _move_event(
+            request,
+            "Передала заявку в бухгалтерию на оплату",
+            waiting=awaiting_people(session, request),
         )
         write_audit(
             session,
@@ -542,10 +810,7 @@ def decide_request(
     else:
         # Согласована потребность, не деньги: суммы ещё нет.
         request.decision_comment = comment
-        start_sourcing(session, request, actor=data.actor)
-
-    if comment:
-        _add_event(request, EventKind.COMMENTED, f"Комментарий: «{comment}»", data.actor)
+        start_sourcing(session, request, actor=data.actor, comment=comment)
 
     session.flush()
     return request
@@ -575,6 +840,7 @@ def pay_request(session: Session, request_id: int, data: PaymentIn) -> ExpenseRe
             "Дата выплаты раньше решения по заявке — проверьте, что вводите"
         )
 
+    before = request.status
     request.payment = Payment(
         amount=request.amount,
         method=data.method,
@@ -586,9 +852,17 @@ def pay_request(session: Session, request_id: int, data: PaymentIn) -> ExpenseRe
     _add_event(
         request,
         EventKind.PAID,
-        f"Выплачено {somoni(request.amount)}, документ {data.document}",
+        f"Оплата: {somoni(request.amount)}, документ {data.document}",
         data.actor or "ФИНАНСЫ",
+        details=_step_details(
+            before,
+            request,
+            amount_total=somoni(request.amount),
+            method=data.method,
+            document=data.document,
+        ),
     )
+    _move_event(request, "Перевела заявку в статус «Оплачена»")
     write_audit(
         session,
         entity="request",
@@ -712,8 +986,190 @@ def awaiting_people(session: Session, request: ExpenseRequest) -> list[str]:
     ]
 
 
+@dataclass(frozen=True)
+class Watcher:
+    """Тот, кто может сделать следующий шаг, и открывал ли он заявку."""
+
+    employee_id: int
+    full_name: str
+    role: str
+    viewed_at: datetime | None
+    times: int
+
+
+def awaiting_watch(session: Session, request: ExpenseRequest) -> list[Watcher]:
+    """Кто может сделать следующий шаг — и видел ли он заявку вообще.
+
+    Главное здесь второе. «У бухгалтерии третий день» и «у бухгалтерии
+    третий день, и туда никто не заходил» — разные новости: в первом
+    случае человек думает, во втором он про заявку не знает.
+    """
+    from app.core.permissions import Permission, has_permission
+
+    stage = awaiting_stage(request)
+    if stage == "closed":
+        return []
+
+    if stage == "author":
+        people = [request.employee] if request.employee else []
+    else:
+        permission = {
+            "manager": Permission.DECIDE_REQUEST,
+            "procurement": Permission.SOURCE_REQUEST,
+            "finance": Permission.PAY_REQUEST,
+        }[stage]
+        people = [
+            person
+            for person in session.scalars(
+                select(Employee)
+                .where(Employee.active.is_(True))
+                .order_by(Employee.full_name)
+            )
+            # Свою заявку человек не согласует, не оценивает и не
+            # оплачивает — значит, и ждать её он не может.
+            if has_permission(person.role, permission)
+            and person.id != request.employee_id
+        ]
+
+    seen = {view.employee_id: view for view in viewers(session, request)}
+    return [
+        Watcher(
+            employee_id=person.id,
+            full_name=person.full_name,
+            role=person.role.value,
+            viewed_at=seen[person.id].last_viewed_at if person.id in seen else None,
+            times=seen[person.id].times if person.id in seen else 0,
+        )
+        for person in people
+    ]
+
+
+#: Известные значения статуса. Подробности события — обычный JSON, и
+#: в старых записях там может лежать что угодно; неизвестное имя мы
+#: пропускаем, а не роняем на нём карточку заявки.
+_STATUS_VALUES = {status.value for status in RequestStatus}
+
+
+@dataclass(frozen=True)
+class Stay:
+    """Сколько заявка простояла на одном шаге и у кого."""
+
+    stage: str
+    holder: str
+    hours: float
+    ongoing: bool
+
+
+def stays(
+    request: ExpenseRequest, *, now: datetime | None = None
+) -> list[Stay]:
+    """Сколько времени заявка провела на каждом шаге.
+
+    Считается по самой ленте: событие сменило статус — предыдущий отрезок
+    закрылся. Отдельных полей под это заводить не нужно, а по ним же
+    видно и незакрытый отрезок: где заявка стоит прямо сейчас.
+
+    У записей до появления подробностей статуса нет, и такие заявки
+    честно не показывают ничего — выдумывать длительность по датам
+    решений значило бы подставить догадку вместо факта.
+    """
+    # Первый отрезок — черновик: он начинается созданием заявки, а не
+    # событием со статусом, и без него «сколько где стояла» умалчивает
+    # про самый первый шаг.
+    marks: list[tuple[str, datetime]] = [
+        (RequestStatus.DRAFT.value, request.created_at)
+    ]
+    for event in sorted(request.events, key=lambda e: e.created_at):
+        to = (event.details or {}).get("status")
+        # У человеческого события статус лежит парой, у системного —
+        # строкой: в первом случае важно «из чего», во втором — «во что».
+        value = to.get("to") if isinstance(to, dict) else to
+        if not isinstance(value, str) or value not in _STATUS_VALUES:
+            continue
+        if marks and marks[-1][0] == value:
+            continue
+        marks.append((value, event.created_at))
+
+    reference = now or utcnow()
+    result: list[Stay] = []
+    for index, (status, started) in enumerate(marks):
+        ends_at = marks[index + 1][1] if index + 1 < len(marks) else reference
+        ongoing = index + 1 == len(marks)
+        holder = AWAITING[RequestStatus(status)][1]
+        # Закрытая заявка нигде не «стоит»: отрезок от последнего
+        # события до сейчас — это не ожидание, а просто прошедшее время.
+        if ongoing and AWAITING[RequestStatus(status)][0] == "closed":
+            continue
+        result.append(
+            Stay(
+                stage=status,
+                holder=holder,
+                hours=round((ends_at - started).total_seconds() / 3600, 1),
+                ongoing=ongoing,
+            )
+        )
+    return result
+
+
 def pending_age_days(request: ExpenseRequest, *, now: datetime | None = None) -> int:
     """Сколько полных суток заявка ждёт решения."""
     started = request.submitted_at or request.created_at
     reference = now or utcnow()
     return max(0, (to_local(reference).date() - to_local(started).date()).days)
+
+
+#: Сколько ждать, прежде чем считать открытие карточки новым просмотром.
+#: Человек возвращается в заявку по десять раз за час — обновил страницу,
+#: ушёл в соседнюю вкладку, вернулся. Считать это десятью просмотрами
+#: значит превратить «кто видел» в бессмысленный счётчик.
+VIEW_WINDOW = timedelta(minutes=30)
+
+
+def record_view(
+    session: Session, request: ExpenseRequest, employee: Employee
+) -> RequestView:
+    """Отмечает, что человек открыл карточку заявки.
+
+    Одна строка на пару «заявка + сотрудник»: первый раз, последний раз и
+    сколько всего. Событием в ленту это не пишется — просмотров у активной
+    заявки десятки, и они вытеснили бы из ленты то, ради чего её открыли.
+
+    Кто именно открыл, решает не клиент, а сессия: `employee` приходит из
+    зависимости `CurrentUser`, тела запроса у эндпоинта нет вовсе.
+    """
+    now = utcnow()
+    view = session.scalar(
+        select(RequestView).where(
+            RequestView.request_id == request.id,
+            RequestView.employee_id == employee.id,
+        )
+    )
+    if view is None:
+        view = RequestView(
+            request_id=request.id,
+            employee_id=employee.id,
+            first_viewed_at=now,
+            last_viewed_at=now,
+            times=1,
+        )
+        session.add(view)
+        session.flush()
+        return view
+
+    if now - view.last_viewed_at >= VIEW_WINDOW:
+        view.times += 1
+    view.last_viewed_at = now
+    session.flush()
+    return view
+
+
+def viewers(session: Session, request: ExpenseRequest) -> list[RequestView]:
+    """Кто открывал заявку, недавние сверху."""
+    return list(
+        session.scalars(
+            select(RequestView)
+            .where(RequestView.request_id == request.id)
+            .options(selectinload(RequestView.employee))
+            .order_by(RequestView.last_viewed_at.desc())
+        )
+    )

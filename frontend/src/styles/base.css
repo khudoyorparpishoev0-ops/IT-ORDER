@@ -1481,3 +1481,141 @@ select.filter {
   display: grid;
   gap: 4px;
 }
+
+/* История заявки: вертикальная лента с линией слева. Линия рисуется
+   псевдоэлементом у каждого пункта, кроме последнего, — иначе она
+   свисает под последней точкой в пустоту. */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 12px;
+  padding: 0 0 16px;
+  align-items: start;
+}
+.tl-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--paper);
+  position: relative;
+  z-index: 1;
+}
+.tl-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 20px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.tl-item:last-child {
+  padding-bottom: 0;
+}
+.tl-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.tl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  justify-content: space-between;
+}
+/* Имя человека заметнее самого действия: журнал читают, чтобы понять,
+   к кому идти, а не чтобы перечитать формулировку. */
+.tl-actor {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tl-role {
+  font-size: 12px;
+  color: var(--slate);
+}
+.tl-text {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* Сколько заявка простояла на каждом шаге. */
+.stays {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--mist);
+}
+.stays-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+/* Кто может взять заявку дальше и открывал ли он её. */
+.watch-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.watch-row {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.watch-row > svg {
+  margin-top: 3px;
+}
+.watch-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* «Было → стало» под событием. Сетка в две колонки, на телефоне — в
+   одну: подпись и значение рядом не помещаются, а перенос по середине
+   значения читается хуже, чем строка под подписью. */
+.tl-details {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  display: grid;
+  gap: 4px;
+  background: var(--mist);
+  border-left: 2px solid var(--line);
+  font-size: 13px;
+}
+.tl-details > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 12px;
+}
+.tl-details dt {
+  color: var(--slate);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tl-details dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 720px) {
+  .tl-details > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
