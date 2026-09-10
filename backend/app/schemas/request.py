@@ -180,6 +180,12 @@ class RequestDetail(RequestListItem):
     decided_by: str | None
     sourced_by: str | None
     sourcing_comment: str | None
+    #: Поля категории как их ввёл человек: панель показывает по ним форму
+    #: правки черновика.
+    details: dict = Field(default_factory=dict)
+    #: Те же поля словами, только заполненные: «Человек — 4», «Дней — 2».
+    #: Готовы к показу — карточка их не пересобирает.
+    details_summary: list[tuple[str, str]] = Field(default_factory=list)
     #: Кто именно может сделать следующий шаг. Персональных назначений нет:
     #: заявку берёт любой, у кого есть право.
     awaiting_people: list[str]
@@ -197,12 +203,51 @@ class RequestDetail(RequestListItem):
 class RequestCreate(BaseModel):
     employee_id: int
     project_id: int
-    lines: list[ExpenseLineIn] = Field(min_length=1)
-    #: Бизнес-категория. Помощник предлагает, человек подтверждает; None —
-    #: не указана, и это честнее, чем свалить заявку в «Другое».
+    #: Смета строками. Обязательна у категорий со сметой (материалы,
+    #: оборудование, хозрасходы) и у заявки без категории; у остальных
+    #: строку собирает сервер по полям категории.
+    lines: list[ExpenseLineIn] = Field(default_factory=list)
+    #: Бизнес-категория. Она же решает, какие поля показать и нужен ли
+    #: отдел закупа. None — не указана: так подавали до появления
+    #: категорийных форм, и такие заявки идут прежним путём.
     category: RequestCategory | None = None
+    #: Поля категории: люди и дни у питания, маршрут и даты у
+    #: командировки, вес и таможня у карго. Что именно требуется, знает
+    #: `services/categories.py`, и проверяет это сервер.
+    details: dict = Field(default_factory=dict)
     #: true — сразу отправить на согласование, false — оставить черновиком.
     submit: bool = True
+
+
+class CategoryFieldOut(BaseModel):
+    """Описание одного поля формы. Панель рисует форму по нему, сервер по
+    нему же проверяет: набор полей обязан быть один."""
+
+    key: str
+    label: str
+    kind: str
+    required: bool
+    options: list[str] = Field(default_factory=list)
+    note: str | None = None
+    suffix: str | None = None
+
+
+class CategoryOut(BaseModel):
+    """Категория расхода со своей формой и маршрутом."""
+
+    code: RequestCategory
+    name: str
+    form_type: str
+    requires_procurement: bool
+    requires_amount_approval: bool
+    allows_initial_amount: bool
+    requires_unit: bool
+    requires_quantity: bool
+    workflow_type: str
+    #: Маршрут словами — показывается под выбором категории, чтобы
+    #: человек заранее видел, через кого пойдёт заявка.
+    route: list[str]
+    fields: list[CategoryFieldOut]
 
 
 class RequestUpdate(BaseModel):
@@ -211,6 +256,7 @@ class RequestUpdate(BaseModel):
     project_id: int | None = None
     category: RequestCategory | None = None
     lines: list[ExpenseLineIn] | None = Field(default=None, min_length=1)
+    details: dict | None = None
 
 
 class DecisionIn(BaseModel):

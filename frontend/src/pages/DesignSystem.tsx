@@ -80,6 +80,8 @@ const SAMPLE: RequestDetail = {
   awaiting_people: ['Отдел закупа'],
   awaiting_watch: [],
   stays: [],
+  details: {},
+  details_summary: [],
   viewers: [
     { employee_id: 2, employee_name: 'Мария Сидорова', role: 'manager', first_viewed_at: '04.09.2026, 18:10', last_viewed_at: '05.09.2026, 09:20', first_viewed_iso: '2026-09-04T13:10:00Z', times: 3 },
   ],

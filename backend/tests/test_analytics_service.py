@@ -195,7 +195,9 @@ def test_missing_category_is_noticed(session, employee, project) -> None:
 
 
 def test_category_set_is_not_flagged(session, employee, project) -> None:
-    submit(session, employee, project, "Бензин", category=RequestCategory.FUEL)
+    # Категория со сметой строками: у топлива и питания своя форма, и
+    # смету туда не подать — этим занимается test_categories.py.
+    submit(session, employee, project, "Цемент М500", category=RequestCategory.MATERIALS)
     assert "no_category" not in [i.code for i in inc.find_all(session)]
 
 
@@ -500,8 +502,12 @@ def test_category_is_optional(session, employee, project) -> None:
 
 
 def test_category_is_stored(session, employee, project) -> None:
-    request = submit(session, employee, project, "Бензин", category=RequestCategory.FUEL)
-    assert session.get(ExpenseRequest, request.id).category is RequestCategory.FUEL
+    request = submit(
+        session, employee, project, "Цемент М500", category=RequestCategory.MATERIALS
+    )
+    assert (
+        session.get(ExpenseRequest, request.id).category is RequestCategory.MATERIALS
+    )
 
 
 def test_category_survives_the_api(client, login, employee, project) -> None:
@@ -512,7 +518,12 @@ def test_category_survives_the_api(client, login, employee, project) -> None:
             "employee_id": employee.id,
             "project_id": project.id,
             "category": "TRANSPORT",
-            "lines": [{"title": "Такси до объекта", "quantity": 1, "unit": "поездка"}],
+            "details": {
+                "from_place": "Офис",
+                "to_place": "Объект «Регар»",
+                "what": "Бригада",
+                "amount": "80.00",
+            },
             "submit": False,
         },
     )

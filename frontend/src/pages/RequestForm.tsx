@@ -17,6 +17,7 @@ import {
   useRepeat,
   useSaveTemplate,
   useAssistantStatus,
+  useCategories,
   useCreateRequest,
   useEmployees,
   useMaterialAdvice,
@@ -37,7 +38,7 @@ import type {
   SimilarRequest,
   TemplateLine,
 } from '@/api/types';
-import { CATEGORY_LABEL } from '@/api/types';
+import { CategoryFields } from '@/components/CategoryFields';
 import { days, plural } from '@/data/format';
 import { STATUS } from '@/data/status';
 import { useShell } from '@/shell/ShellContext';
@@ -93,6 +94,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const { user, can } = useAuth();
   const { flash } = useShell();
   const projects = useProjects();
+  const categories = useCategories();
   const employees = useEmployees();
   const materials = useMaterials();
   const assistant = useAssistantStatus();
@@ -109,6 +111,11 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const [employeeId, setEmployeeId] = useState<number | null>(edit ? edit.employee_id : (user?.id ?? null));
   const [projectId, setProjectId] = useState<number | null>(edit ? edit.project_id : null);
   const [category, setCategory] = useState<RequestCategory | null>(edit?.category ?? null);
+  // Поля выбранной категории. Ключи и проверку задаёт сервер, здесь
+  // только введённые значения.
+  const [details, setDetails] = useState<Record<string, unknown>>(
+    edit ? { ...(edit.details ?? {}) } : {},
+  );
   const [lines, setLines] = useState<Line[]>(edit ? fromDetail(edit) : [{ ...EMPTY }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<'send' | 'draft' | null>(null);
@@ -120,6 +127,12 @@ function Form({ edit }: { edit?: RequestDetail }) {
   // Найденные прошлые варианты по кнопке «Как в прошлый раз».
   const [previous, setPrevious] = useState<RepeatOption[] | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
+
+  // Что за расход выбрали и какая у него форма. Категория не выбрана —
+  // работает прежняя смета строками: так подавали до появления
+  // категорийных форм, и ломать это не за чем.
+  const spec = (categories.data ?? []).find((c) => c.code === category) ?? null;
+  const linesForm = !spec || spec.form_type === 'lines';
 
   const activeProjects = (projects.data ?? []).filter((p) => p.active);
   const projectsNote = projects.isLoading
@@ -315,21 +328,42 @@ function Form({ edit }: { edit?: RequestDetail }) {
       setError('Выберите объект');
       return;
     }
-    if (!filled.length) {
+    if (linesForm && !filled.length) {
       setError('Добавьте хотя бы одну позицию: что нужно купить');
       return;
+    }
+    if (!linesForm && spec) {
+      // Те же обязательные поля, что проверит сервер. Здесь — чтобы
+      // человек увидел их сразу, а не после отправки.
+      const empty = spec.fields
+        .filter((f) => f.required)
+        .filter((f) => {
+          const raw = details[f.key];
+          if (raw === undefined || raw === null || String(raw).trim() === '') return true;
+          if (f.kind === 'number' || f.kind === 'money') {
+            return !(Number(String(raw).replace(',', '.')) > 0);
+          }
+          return false;
+        });
+      if (empty.length) {
+        setError(`Заполните: ${empty.map((f) => f.label.toLowerCase()).join(', ')}`);
+        return;
+      }
     }
     setError(null);
     setSaving(sendNow ? 'send' : 'draft');
     try {
-      const rows = payload();
+      // Что отправляем, решает вид формы: смету или поля категории.
+      // Слать и то и другое незачем — сервер всё равно возьмёт по
+      // категории, а лишнее только путает при разборе запроса.
+      const body = linesForm ? { lines: payload() } : { details };
       let saved: RequestDetail;
       if (edit) {
         saved = await update.mutateAsync({
           id: edit.id,
           project_id: projectId,
           category,
-          lines: rows,
+          ...body,
         });
         if (sendNow) saved = await send.mutateAsync(edit.id);
       } else {
@@ -337,8 +371,8 @@ function Form({ edit }: { edit?: RequestDetail }) {
           employee_id: employeeId,
           project_id: projectId,
           category,
-          lines: rows,
           submit: sendNow,
+          ...body,
         });
       }
       flash(
@@ -363,7 +397,18 @@ function Form({ edit }: { edit?: RequestDetail }) {
           </Link>
         }
         title={edit ? `Черновик ${edit.number}` : 'Новая заявка'}
-        lead="Что нужно купить, сколько и в чём считать. Цены назовёт отдел закупа."
+        lead={
+          // Подзаголовок под выбранный расход: «что нужно купить» у
+          // питания и командировки просто неправда, а неправда в первой
+          // же строке формы учит не читать подсказки вовсе.
+          !spec
+            ? 'Выберите, что за расход, — и форма подстроится под него.'
+            : linesForm
+              ? 'Что нужно купить, сколько и в чём считать. Цены назовёт отдел закупа.'
+              : spec.requires_procurement
+                ? 'Заполните поля расхода. Сумму проверит отдел закупа.'
+                : 'Заполните поля расхода. Сумму посчитает ORDER.'
+        }
       />
 
       <form
@@ -419,20 +464,30 @@ function Form({ edit }: { edit?: RequestDetail }) {
           </Field>
 
           <Field
-            label="Категория расхода"
-            note="Нужна отчётам: «сколько ушло на транспорт за месяц». Не знаете — оставьте пустой."
+            label="Что за расход"
+            note={
+              spec
+                ? `Маршрут: ${spec.route.join(' → ')}`
+                : 'От этого зависит, какие поля вы заполните. Не знаете — оставьте пустым, будет обычная смета.'
+            }
           >
             {(id) => (
               <select
                 id={id}
                 className="field"
                 value={category ?? ''}
-                onChange={(e) => setCategory((e.target.value as RequestCategory) || null)}
+                onChange={(e) => {
+                  setCategory((e.target.value as RequestCategory) || null);
+                  // Поля у категорий разные: оставить введённое от
+                  // прошлой значило бы отправить на сервер чужие ключи.
+                  setDetails({});
+                  setError(null);
+                }}
               >
-                <option value="">Не указана</option>
-                {(Object.keys(CATEGORY_LABEL) as RequestCategory[]).map((code) => (
-                  <option key={code} value={code}>
-                    {CATEGORY_LABEL[code]}
+                <option value="">Не указана — обычная смета</option>
+                {(categories.data ?? []).map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.name}
                   </option>
                 ))}
               </select>
@@ -440,6 +495,21 @@ function Form({ edit }: { edit?: RequestDetail }) {
           </Field>
         </section>
 
+        {spec && !linesForm && (
+          <CategoryFields
+            spec={spec}
+            values={details}
+            onChange={(key, value) =>
+              setDetails((prev) => ({ ...prev, [key]: value }))
+            }
+          />
+        )}
+
+        {/* Смета строками — только там, где человек её пишет сам.
+            У питания, поездки и карго свои поля: «Обед · 1 шт.» —
+            это не описание расхода, а попытка натянуть на него
+            чужую форму. */}
+        {linesForm && (<>
         <section className="card" style={{ display: 'grid', gap: 12 }}>
           <div className="row-between" style={{ alignItems: 'center' }}>
             <div className="label">
@@ -591,6 +661,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
             )
           )}
         </section>
+        </>)}
 
         {error && (
           <div className="field-error-text" role="alert">

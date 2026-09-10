@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
@@ -33,6 +33,7 @@ from app.db.models import (
     Project,
     RequestStatus,
 )
+from app.services import categories
 from app.services.material_norm import normalize
 from app.services.requests import title_of
 
@@ -83,8 +84,23 @@ def _since(days: int):
     return utcnow() - timedelta(days=days)
 
 
+#: Категории, где смету пишет человек. Только их строки и есть материалы.
+#:
+#: У питания, поездки и карго строку выводит сервер: «Обед и ужин»,
+#: «Карго, Оборудование Hikvision, Китай → Душанбе». В подсказках к полю
+#: «что нужно» им не место — их никто не «закажет ещё раз» с автодополнения,
+#: а ленту частого они забивают намертво.
+_MATERIAL_CATEGORIES = [
+    code for code, spec in categories.SPECS.items() if spec.form_type == categories.LINES
+]
+
+
 def _submitted_lines(*, employee_id: int | None = None, project_id: int | None = None) -> Select:
-    """Основа всех выборок: строки поданных заявок за период."""
+    """Основа всех выборок: строки поданных заявок за период.
+
+    Берутся только заявки со сметой строками: у остальных категорий
+    позицию собирает сервер, и материалом она не является.
+    """
     stmt = (
         select(ExpenseLine, ExpenseRequest)
         .join(ExpenseRequest, ExpenseLine.request_id == ExpenseRequest.id)
@@ -92,6 +108,10 @@ def _submitted_lines(*, employee_id: int | None = None, project_id: int | None =
             ExpenseRequest.status.in_(SUBMITTED),
             ExpenseRequest.created_at >= _since(HISTORY_DAYS),
             ExpenseLine.normalized_text != "",
+            or_(
+                ExpenseRequest.category.is_(None),
+                ExpenseRequest.category.in_(_MATERIAL_CATEGORIES),
+            ),
         )
     )
     if employee_id is not None:
