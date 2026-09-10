@@ -4,9 +4,16 @@ import { Icon } from '@/components/Icon';
 import { Kpi } from '@/components/Kpi';
 import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
-import { useAnalyticsAsk, useDigest } from '@/api/hooks';
+import { useAnalyticsAsk, useDigest, useIntelligence } from '@/api/hooks';
 import { money, plural } from '@/data/format';
-import type { AnalyticsReply, AnalyticsTurn, AttentionLevel, Digest } from '@/api/types';
+import type {
+  AiText,
+  AnalyticsReply,
+  AnalyticsTurn,
+  AttentionLevel,
+  Digest,
+  Intelligence as IntelligenceData,
+} from '@/api/types';
 
 /** Уровень внимания: цвет и слово. Эмодзи в интерфейсе запрещены. */
 const LEVEL: Record<AttentionLevel, { label: string; color: string }> = {
@@ -45,30 +52,40 @@ function decimal(value: number | null, unit: string): string {
  * объясняет: раздел работает и без AI, просто без текста.
  */
 export function Intelligence() {
-  const digest = useDigest();
+  // Объяснение модели берём из раздела ORDER Intelligence, а цифры
+  // разделов — из сводки без AI: иначе один заход в раздел стоил бы двух
+  // обращений к Claude вместо одного.
+  const intel = useIntelligence(true);
+  const digest = useDigest(true, false);
   const data = digest.data;
+  const brief = intel.data;
+
+  const refresh = () => {
+    void intel.refetch();
+    void digest.refetch();
+  };
 
   return (
     <>
       <PageHeader
         accent
-        title={data?.ai.headline ?? 'Что происходит в ORDER'}
+        title={brief?.ai.headline ?? 'Что происходит в ORDER'}
         lead={
-          data
-            ? `Данные на ${data.generated_at} · в работе ${data.totals.active} · требуют внимания ${
-                data.totals.critical + data.totals.attention
-              }`
+          brief
+            ? `Активных ${brief.overview.active_requests} · просрочено ${
+                brief.overview.overdue
+              } · требуют внимания ${brief.overview.requires_attention}`
             : 'Собираем данные…'
         }
         actions={
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => void digest.refetch()}
-            disabled={digest.isFetching}
+            onClick={refresh}
+            disabled={intel.isFetching || digest.isFetching}
           >
             <Icon name="ti-sparkles" size={18} />
-            {digest.isFetching ? 'Обновляем…' : 'Обновить'}
+            {intel.isFetching || digest.isFetching ? 'Обновляем…' : 'Обновить'}
           </button>
         }
       />
@@ -77,7 +94,8 @@ export function Intelligence() {
         {data && (
           <>
             <Ask />
-            <Summary data={data} />
+            {brief && <Summary ai={brief.ai} />}
+            {brief && <Executive data={brief} />}
 
             <div className="kpi-grid">
               <Kpi label="В работе" value={data.totals.active} note={`черновиков ${data.totals.drafts}`} />
@@ -277,41 +295,41 @@ function Ask() {
   );
 }
 
-function Summary({ data }: { data: Digest }) {
-  if (!data.ai.enabled) {
+function Summary({ ai }: { ai: AiText }) {
+  if (!ai.enabled) {
     return (
       <p className="caption" style={{ margin: 0 }}>
         Пояснений от AI нет: ключ Claude не задан. Все цифры ниже посчитаны сервером.
       </p>
     );
   }
-  if (!data.ai.available) {
+  if (!ai.available) {
     return (
       <p className="caption" style={{ margin: 0 }} role="alert">
         AI сейчас не ответил, поэтому сводка без пояснений. Цифры ниже на месте.
       </p>
     );
   }
-  if (data.ai.summary.length === 0 && data.ai.recommendations.length === 0) return null;
+  if (ai.summary.length === 0 && ai.recommendations.length === 0) return null;
   return (
     <section className="card card-accent" style={{ ['--accent' as string]: 'var(--green)' }}>
       <div className="label" style={{ marginBottom: 8 }}>
         Сводка
       </div>
       <ul className="plain-list">
-        {data.ai.summary.map((line) => (
+        {ai.summary.map((line) => (
           <li key={line} className="small">
             {line}
           </li>
         ))}
       </ul>
-      {data.ai.recommendations.length > 0 && (
+      {ai.recommendations.length > 0 && (
         <>
           <div className="label" style={{ margin: '16px 0 8px' }}>
             С чего начать
           </div>
           <ul className="plain-list">
-            {data.ai.recommendations.map((line) => (
+            {ai.recommendations.map((line) => (
               <li key={line} className="small">
                 {line}
               </li>
@@ -552,3 +570,126 @@ function Trends({ data }: { data: Digest }) {
     </section>
   );
 }
+
+
+/**
+ * Сводка руководителя и очередь внимания.
+ *
+ * Всё, что здесь показано, посчитала база. Модель эти числа не
+ * пересчитывает: по ним распоряжаются деньгами, а правдоподобная выдумка
+ * дороже отсутствия цифры.
+ */
+function Executive({ data }: { data: IntelligenceData }) {
+  const o = data.overview;
+  return (
+    <>
+      <div className="kpi-grid">
+        <Kpi label="Активных заявок" value={o.active_requests} note={`создано сегодня ${o.created_today}`} />
+        <Kpi
+          label="Просрочено"
+          value={o.overdue}
+          dot={o.overdue > 0 ? 'var(--dot-err)' : undefined}
+          note={`без движения ${o.stuck}`}
+        />
+        <Kpi
+          label="Требуют внимания"
+          value={o.requires_attention}
+          dot={o.requires_attention > 0 ? 'var(--dot-warn)' : undefined}
+          note={o.problems.map((p) => `${p.count} ${p.label}`).join(' · ') || 'всё в порядке'}
+        />
+        <Kpi
+          label="Сумма активных"
+          value={money(o.amount_active)}
+          note={`сомони · закрыто сегодня ${o.completed_today}`}
+        />
+      </div>
+
+      {data.attention.length > 0 && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2 className="h3">Требуют внимания</h2>
+            <span className="num">{data.attention.length}</span>
+          </div>
+          <div className="table-wrap">
+            <table className="tbl fit">
+              <thead>
+                <tr>
+                  <th>Заявка</th>
+                  <th>Объект</th>
+                  <th>Где стоит</th>
+                  <th>Почему</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.attention.map((item) => (
+                  <tr key={item.request_id} className="clickable">
+                    <td>
+                      <span
+                        className="dot"
+                        style={{ ['--dot' as string]: SEVERITY[item.severity] }}
+                        aria-hidden="true"
+                      />{' '}
+                      <Link to={`/requests/${item.request_id}`}>{item.number}</Link>
+                    </td>
+                    <td>{item.project}</td>
+                    <td className="caption">{item.stage_label}</td>
+                    <td className="caption">{item.reasons.join(' · ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {data.anomalies.length > 0 && (
+        <section className="card">
+          <div className="label" style={{ marginBottom: 8 }}>
+            Отличается от обычного уровня
+          </div>
+          {/* Отклонение — не нарушение: объект мог войти в активную фазу.
+              Вывод делает руководитель, мы называем факт. */}
+          <ul className="plain-list">
+            {data.anomalies.map((a) => (
+              <li key={a.code + a.subject} className="small">
+                <span
+                  className="dot"
+                  style={{ ['--dot' as string]: SEVERITY[a.severity] }}
+                  aria-hidden="true"
+                />{' '}
+                {a.detail}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {data.issues.length > 0 && (
+        <section className="card">
+          <div className="label" style={{ marginBottom: 8 }}>
+            Нестыковки
+          </div>
+          <ul className="plain-list">
+            {data.issues.slice(0, 8).map((issue) => (
+              <li key={`${issue.request_id}-${issue.code}`} className="small">
+                <span
+                  className="dot"
+                  style={{ ['--dot' as string]: SEVERITY[issue.severity] }}
+                  aria-hidden="true"
+                />{' '}
+                <Link to={`/requests/${issue.request_id}`}>{issue.number}</Link> — {issue.detail}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
+
+/** Цвет уровня. Цвет никогда не идёт без слова рядом. */
+const SEVERITY: Record<string, string> = {
+  critical: 'var(--dot-err)',
+  warning: 'var(--dot-warn)',
+  info: 'var(--dot-off)',
+};

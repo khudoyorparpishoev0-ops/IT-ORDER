@@ -14,6 +14,12 @@ from pydantic import BaseModel, Field
 #: Насколько заявка требует внимания. Цвет в панели даёт `data/status.ts`.
 Level = Literal["critical", "attention", "normal"]
 
+#: Насколько всё плохо в разделе ORDER Intelligence. Отдельно от `Level`:
+#: там речь о заявке («требует внимания»), здесь — о находке («критично,
+#: тревожно, к сведению»), и смешивать их значит однажды покрасить
+#: справочное замечание в красный.
+Severity = Literal["critical", "warning", "info"]
+
 
 class AttentionItem(BaseModel):
     """Заявка, на которую стоит посмотреть, и почему именно."""
@@ -208,3 +214,118 @@ class AnalyticsReplyOut(BaseModel):
     bullets: list[str] = []
     requests: list[AnalyticsRequestRef] = []
     recommendations: list[str] = []
+
+
+# --- ORDER Intelligence: сводка руководителя ----------------------------------
+
+
+class ProblemOut(BaseModel):
+    """Строка блока «требует внимания» на дашборде директора."""
+
+    code: str
+    label: str
+    count: int
+    severity: Severity
+
+
+class ExecutiveOverviewOut(BaseModel):
+    """Состояние компании одним экраном. Все числа считает сервер."""
+
+    generated_at: str
+    active_requests: int
+    created_today: int
+    completed_today: int
+    #: Вышли за норматив своего этапа.
+    overdue: int
+    #: Стоят без движения, но норматив ещё не нарушен.
+    stuck: int
+    #: Сколько заявок требуют внимания — без двойного счёта.
+    requires_attention: int
+    amount_active: Decimal
+    problems: list[ProblemOut] = []
+
+
+class StuckOut(BaseModel):
+    """Заявка без движения: где стоит, сколько и у кого."""
+
+    request_id: int
+    number: str
+    title: str
+    project: str
+    employee: str
+    status: str
+    stage_label: str
+    hours_in_status: int
+    norm_hours: int | None
+    assignee: str
+    severity: Severity
+    overdue: bool
+    reason: str
+
+
+class IssueOut(BaseModel):
+    """Нестыковка в заявке. Факт, а не обвинение."""
+
+    request_id: int
+    number: str
+    title: str
+    project: str
+    employee: str
+    severity: Severity
+    code: str
+    detail: str
+
+
+class AnomalyOut(BaseModel):
+    """Показатель, отличающийся от обычного уровня."""
+
+    code: str
+    subject: str
+    current: float
+    previous: float
+    change_pct: int
+    unit: str
+    detail: str
+    severity: Severity
+
+
+class AttentionOut(BaseModel):
+    """Заявка в очереди внимания со всеми причинами разом."""
+
+    request_id: int
+    number: str
+    title: str
+    project: str
+    employee: str
+    status: str
+    stage_label: str
+    hours_in_status: int
+    norm_hours: int | None
+    amount: Decimal
+    priced: bool
+    severity: Severity
+    reasons: list[str] = []
+    codes: list[str] = []
+
+
+class IntelligenceOut(BaseModel):
+    """Раздел ORDER Intelligence целиком."""
+
+    overview: ExecutiveOverviewOut
+    attention: list[AttentionOut] = []
+    stuck: list[StuckOut] = []
+    issues: list[IssueOut] = []
+    anomalies: list[AnomalyOut] = []
+    #: Слова модели поверх готовых чисел. Без ключа — enabled=false.
+    ai: AiText
+    blind_spots: list[str] = []
+
+
+class DigestOutText(BaseModel):
+    """Утренняя или вечерняя сводка одним сообщением."""
+
+    kind: str
+    title: str
+    lines: list[str] = []
+    problems: list[str] = []
+    text: str

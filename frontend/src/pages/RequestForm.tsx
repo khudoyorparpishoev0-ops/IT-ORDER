@@ -31,11 +31,13 @@ import type {
   ExpenseLineInput,
   MaterialAdvice,
   MemoryItem,
+  RequestCategory,
   RepeatOption,
   RequestDetail,
   SimilarRequest,
   TemplateLine,
 } from '@/api/types';
+import { CATEGORY_LABEL } from '@/api/types';
 import { days, plural } from '@/data/format';
 import { STATUS } from '@/data/status';
 import { useShell } from '@/shell/ShellContext';
@@ -44,6 +46,14 @@ type Line = {
   title: string;
   quantity: string;
   unit: string;
+  /**
+   * Что человек набрал своими руками, до правки помощником.
+   *
+   * Отдельно от `title`, потому что «Применить» на совете помощника
+   * переписывает `title`, и набранное исчезает. Панель — единственное
+   * место, где сырой ввод ещё есть: сервер получает его только отсюда.
+   */
+  original?: string;
   /** Совет помощника по этому названию; 'loading' — ждём ответ. */
   advice?: MaterialAdvice | 'loading';
   /** Для какого написания получен совет: повторно не спрашиваем. */
@@ -52,7 +62,12 @@ type Line = {
 const EMPTY: Line = { title: '', quantity: '1', unit: '' };
 
 function fromDetail(edit: RequestDetail): Line[] {
-  return edit.lines.map((l) => ({ title: l.title, quantity: String(l.quantity), unit: l.unit ?? '' }));
+  return edit.lines.map((l) => ({
+    title: l.title,
+    quantity: String(l.quantity),
+    unit: l.unit ?? '',
+    original: l.original_text || l.title,
+  }));
 }
 
 /** Страница формы: новая заявка или правка черновика (/requests/:id/edit). */
@@ -93,6 +108,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
   const forOthers = can('create_request_for_others') && !edit;
   const [employeeId, setEmployeeId] = useState<number | null>(edit ? edit.employee_id : (user?.id ?? null));
   const [projectId, setProjectId] = useState<number | null>(edit ? edit.project_id : null);
+  const [category, setCategory] = useState<RequestCategory | null>(edit?.category ?? null);
   const [lines, setLines] = useState<Line[]>(edit ? fromDetail(edit) : [{ ...EMPTY }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<'send' | 'draft' | null>(null);
@@ -127,7 +143,15 @@ function Form({ edit }: { edit?: RequestDetail }) {
     setLines((rows) =>
       rows.map((row, i) =>
         i === index
-          ? { ...row, title, unit: row.unit || known?.unit || '', advice: row.checked === title.trim() ? row.advice : undefined }
+          ? {
+              ...row,
+              title,
+              // Набранное человеком запоминаем здесь и больше не трогаем:
+              // ниже «Применить» перепишет title, а исходное нужно целым.
+              original: title,
+              unit: row.unit || known?.unit || '',
+              advice: row.checked === title.trim() ? row.advice : undefined,
+            }
           : row,
       ),
     );
@@ -276,6 +300,16 @@ function Form({ edit }: { edit?: RequestDetail }) {
 
   const filled = lines.filter((l) => l.title.trim());
 
+  const payload = (): ExpenseLineInput[] =>
+    filled.map((l) => ({
+      title: l.title.trim(),
+      // Не набирал — значит строка пришла из шаблона, повтора или от
+      // помощника: исходным считается итоговое название.
+      original_text: (l.original ?? l.title).trim(),
+      quantity: Number(l.quantity) || 1,
+      unit: l.unit.trim() || null,
+    }));
+
   const submit = async (sendNow: boolean) => {
     if (!employeeId || !projectId) {
       setError('Выберите объект');
@@ -288,17 +322,24 @@ function Form({ edit }: { edit?: RequestDetail }) {
     setError(null);
     setSaving(sendNow ? 'send' : 'draft');
     try {
-      const payload: ExpenseLineInput[] = filled.map((l) => ({
-        title: l.title.trim(),
-        quantity: Number(l.quantity) || 1,
-        unit: l.unit.trim() || null,
-      }));
+      const rows = payload();
       let saved: RequestDetail;
       if (edit) {
-        saved = await update.mutateAsync({ id: edit.id, project_id: projectId, lines: payload });
+        saved = await update.mutateAsync({
+          id: edit.id,
+          project_id: projectId,
+          category,
+          lines: rows,
+        });
         if (sendNow) saved = await send.mutateAsync(edit.id);
       } else {
-        saved = await create.mutateAsync({ employee_id: employeeId, project_id: projectId, lines: payload, submit: sendNow });
+        saved = await create.mutateAsync({
+          employee_id: employeeId,
+          project_id: projectId,
+          category,
+          lines: rows,
+          submit: sendNow,
+        });
       }
       flash(
         saved.status === 'draft' ? `Черновик ${saved.number} сохранён` : `Заявка ${saved.number} отправлена на согласование`,
@@ -371,6 +412,27 @@ function Form({ edit }: { edit?: RequestDetail }) {
                 {activeProjects.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <Field
+            label="Категория расхода"
+            note="Нужна отчётам: «сколько ушло на транспорт за месяц». Не знаете — оставьте пустой."
+          >
+            {(id) => (
+              <select
+                id={id}
+                className="field"
+                value={category ?? ''}
+                onChange={(e) => setCategory((e.target.value as RequestCategory) || null)}
+              >
+                <option value="">Не указана</option>
+                {(Object.keys(CATEGORY_LABEL) as RequestCategory[]).map((code) => (
+                  <option key={code} value={code}>
+                    {CATEGORY_LABEL[code]}
                   </option>
                 ))}
               </select>

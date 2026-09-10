@@ -86,6 +86,7 @@ def to_list_item(request: ExpenseRequest) -> RequestListItem:
         employee_position=request.employee.position,
         project_id=request.project_id,
         project_name=request.project.name,
+        category=request.category,
         title=svc.title_of(request),
         lines_count=len(request.lines),
         amount=request.amount,

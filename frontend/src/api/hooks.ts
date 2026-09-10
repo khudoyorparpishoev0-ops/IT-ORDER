@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, query } from './client';
 import type {
   AiSettings,
+  ExecutiveOverview,
+  Intelligence,
   DuplicateCheck,
   Memory,
   ApprovalQueueInfo,
@@ -61,6 +63,8 @@ export const keys = {
   materials: ['materials'] as const,
   assistant: ['materials', 'assistant'] as const,
   aiSettings: ['ai', 'settings'] as const,
+  executive: ['analytics', 'executive'] as const,
+  intelligence: (ai: boolean) => ['analytics', 'intelligence', ai] as const,
   templates: ['templates'] as const,
   feedbackReasons: ['ai', 'feedback', 'reasons'] as const,
   memory: (projectId: number | null) => ['assistant', 'memory', projectId] as const,
@@ -272,6 +276,31 @@ export function useMemory(projectId: number | null) {
     queryKey: keys.memory(projectId),
     queryFn: () =>
       api<Memory>(`/api/assistant/memory${projectId ? `?project_id=${projectId}` : ''}`),
+    refetchOnMount: 'always',
+  });
+}
+
+/**
+ * Сводка руководителя: состояние компании одним экраном.
+ *
+ * Модель здесь не участвует вовсе — только цифры. Карточка на дашборде
+ * зовёт именно её, чтобы каждый заход не стоил денег.
+ */
+export function useExecutiveOverview(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.executive,
+    queryFn: () => api<ExecutiveOverview>('/api/analytics/executive-overview'),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Раздел ORDER Intelligence целиком. `ai=false` — без обращения к модели. */
+export function useIntelligence(enabled: boolean, ai = true) {
+  return useQuery({
+    queryKey: keys.intelligence(ai),
+    queryFn: () => api<Intelligence>(`/api/analytics/intelligence?ai=${ai}`),
+    enabled,
     refetchOnMount: 'always',
   });
 }

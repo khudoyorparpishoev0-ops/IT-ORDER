@@ -47,6 +47,33 @@ class RequestStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class RequestCategory(str, enum.Enum):
+    """Бизнес-категория заявки. Не справочник материалов — их одиннадцать
+    на всю компанию, и меняются они раз в годы.
+
+    Нужна аналитике руководителя: «на транспорт за месяц ушло столько» —
+    вопрос, на который по названиям материалов не ответить. Материалы
+    по-прежнему никто не ведёт справочником, а категорий ровно столько,
+    сколько влезает в один выпадающий список.
+
+    Значение может отсутствовать: старые заявки её не знают, и заставлять
+    людей проставлять её задним числом никто не станет. NULL честно
+    значит «не указана», а не «Другое».
+    """
+
+    MATERIALS = "MATERIALS"
+    EQUIPMENT = "EQUIPMENT"
+    TRANSPORT = "TRANSPORT"
+    FUEL = "FUEL"
+    MEALS = "MEALS"
+    LODGING = "LODGING"
+    TRIP = "TRIP"
+    DELIVERY = "DELIVERY"
+    SERVICES = "SERVICES"
+    HOUSEHOLD = "HOUSEHOLD"
+    OTHER = "OTHER"
+
+
 class EmployeeRole(str, enum.Enum):
     """Роль в согласовании.
 
@@ -275,6 +302,12 @@ class ExpenseRequest(Base):
         nullable=False,
     )
     amount: Mapped[Money] = mapped_column(default=Decimal("0.00"), nullable=False)
+    #: Бизнес-категория: транспорт, топливо, питание. NULL — не указана;
+    #: старые заявки её не знают, и это честнее, чем свалить их в «Другое».
+    #: Помощник предлагает, человек подтверждает — сама не проставляется.
+    category: Mapped[RequestCategory | None] = mapped_column(
+        Enum(RequestCategory, name="request_category", native_enum=False, length=16)
+    )
 
     created_at: Mapped[CreatedAt]
     submitted_at: Mapped[Timestamp | None]
@@ -316,6 +349,7 @@ class ExpenseRequest(Base):
         CheckConstraint("amount >= 0", name="ck_requests_amount_non_negative"),
         Index("ix_requests_status_created", "status", "created_at"),
         Index("ix_requests_employee_created", "employee_id", "created_at"),
+        Index("ix_requests_category_created", "category", "created_at"),
     )
 
 
@@ -328,10 +362,18 @@ class ExpenseLine(Base):
     request_id: Mapped[int] = mapped_column(
         ForeignKey("expense_requests.id", ondelete="CASCADE"), nullable=False
     )
+    #: Итоговое название позиции — то, что вошло в заявку. Именно его
+    #: видят закуп, бухгалтерия и отчёты.
     title: Mapped[Name]
+    #: Что человек набрал своими руками, до всякой правки. Отдельно от
+    #: `title`, потому что это разные вещи: приняв поправку помощника
+    #: («гофра16» → «Гофра гибкая 16 мм»), человек меняет `title`, и
+    #: набранное им исчезает. По `original_text` видно, как люди на самом
+    #: деле называют вещи, — без этого нельзя ни проверить помощника, ни
+    #: понять, что стоит добавить в подсказки.
+    original_text: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     #: Приведённое написание (`services/material_norm.py`): по нему идёт
-    #: поиск, подсказки и поиск дублей. Показываем всегда `title` — то,
-    #: как написал человек.
+    #: поиск, подсказки и поиск дублей. Показываем всегда `title`.
     normalized_text: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Единица измерения словами: «шт.», «мешок», «м²». Сотрудник пишет

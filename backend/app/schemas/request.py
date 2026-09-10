@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.db.models import EventKind, PaymentMethod, RequestStatus
+from app.db.models import EventKind, PaymentMethod, RequestCategory, RequestStatus
 from app.schemas.common import ORMModel
 
 
@@ -19,6 +19,10 @@ class ExpenseLineIn(BaseModel):
     """
 
     title: str = Field(min_length=1, max_length=200)
+    #: Что человек набрал своими руками, до правки помощником. Пусто —
+    #: он ничего не набирал (шаблон, повтор, позиция от помощника), тогда
+    #: исходным считается итоговое название.
+    original_text: str | None = Field(default=None, max_length=200)
     quantity: int = Field(ge=1)
     #: «шт.», «мешок», «м²» — словами, справочника единиц нет.
     unit: str | None = Field(default=None, max_length=32)
@@ -27,6 +31,9 @@ class ExpenseLineIn(BaseModel):
 class ExpenseLineOut(ORMModel):
     id: int
     title: str
+    #: Что набрал человек до правки. Совпадает с `title`, если он ничего
+    #: не менял или если строка старше миграции 0016.
+    original_text: str = ""
     quantity: int
     unit: str | None
     #: NULL — строку ещё не оценил закуп.
@@ -88,6 +95,8 @@ class RequestListItem(BaseModel):
     employee_position: str
     project_id: int
     project_name: str
+    #: Бизнес-категория расхода. None — не указана.
+    category: RequestCategory | None = None
     #: Наименование для списка: первая строка сметы (+ «и ещё N»).
     title: str
     lines_count: int
@@ -124,6 +133,9 @@ class RequestCreate(BaseModel):
     employee_id: int
     project_id: int
     lines: list[ExpenseLineIn] = Field(min_length=1)
+    #: Бизнес-категория. Помощник предлагает, человек подтверждает; None —
+    #: не указана, и это честнее, чем свалить заявку в «Другое».
+    category: RequestCategory | None = None
     #: true — сразу отправить на согласование, false — оставить черновиком.
     submit: bool = True
 
@@ -132,6 +144,7 @@ class RequestUpdate(BaseModel):
     """Правка возможна только у черновика."""
 
     project_id: int | None = None
+    category: RequestCategory | None = None
     lines: list[ExpenseLineIn] | None = Field(default=None, min_length=1)
 
 

@@ -51,6 +51,7 @@ const SAMPLE: RequestDetail = {
   employee_position: 'Сотрудник отдела АХО',
   project_id: 1,
   project_name: 'Регар',
+  category: 'MATERIALS',
   title: 'Закуп кабеля UTP Cat6',
   lines_count: 2,
   amount: '0.00',
@@ -63,8 +64,8 @@ const SAMPLE: RequestDetail = {
   employee_email: 'i.petrov@it-hona.tj',
   employee_phone: null,
   lines: [
-    { id: 1, title: 'Кабель UTP Cat6, бухта 305 м', quantity: 2, unit: 'шт.', price: null, total: null, from_stock: false },
-    { id: 2, title: 'Коннектор RJ-45', quantity: 100, unit: 'шт.', price: null, total: null, from_stock: false },
+    { id: 1, title: 'Кабель UTP Cat6, бухта 305 м', original_text: 'кабель utp cat6', quantity: 2, unit: 'шт.', price: null, total: null, from_stock: false },
+    { id: 2, title: 'Коннектор RJ-45', original_text: 'Коннектор RJ-45', quantity: 100, unit: 'шт.', price: null, total: null, from_stock: false },
   ],
   events: [
     { kind: 'created', text: 'Черновик создан', actor: 'Иван Петров', meta: 'ИВАН ПЕТРОВ · 01.09.2026, 09:40', created_at: '2026-09-01T04:40:00Z' },

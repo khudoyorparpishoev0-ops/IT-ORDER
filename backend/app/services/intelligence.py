@@ -23,6 +23,7 @@ from app.config import get_settings
 from app.core import assistant
 from app.db.models import AiKind
 from app.core.money import money
+from app.core.time import utcnow as _utcnow
 from app.schemas.analytics import (
     AnalyticsReplyOut,
     AnalyticsRequestRef,
@@ -31,7 +32,8 @@ from app.schemas.analytics import (
     DigestOut,
 )
 from app.services import ai_log
-from app.services.analytics import digest_facts
+from app.services.analytics import BLIND_SPOTS, digest_facts, intents
+from app.services.analytics import scope as analytics_scope
 from app.services.analytics_prompt import analytics_prompt
 
 log = logging.getLogger(__name__)
@@ -296,3 +298,273 @@ def ask(
 
 def _ms(started: float) -> int:
     return int((time.monotonic() - started) * 1000)
+
+
+# --------------------------------------------------------------------------
+# ORDER Intelligence: объяснение готовой сводки руководителя
+# --------------------------------------------------------------------------
+def no_ai() -> AiText:
+    """Модель выключена. Цифры от этого не портятся."""
+    return AiText(enabled=False, available=False)
+
+
+def overview_facts(data, queue, deviations) -> str:
+    """Блок фактов для модели: только то, что уже посчитал сервер.
+
+    Ни одной строки отсюда модель не додумывает: она получает готовые
+    числа и пересказывает их словами. Список намеренно короткий — из
+    тридцати заявок в объяснение попадут три, а платить пришлось бы за
+    все тридцать.
+    """
+    lines = [
+        "СОСТОЯНИЕ",
+        f"Активных заявок: {data.active_requests}",
+        f"Создано сегодня: {data.created_today}",
+        f"Закрыто сегодня: {data.completed_today}",
+        f"Просрочено по нормативу: {data.overdue}",
+        f"Без движения: {data.stuck}",
+        f"Требуют внимания: {data.requires_attention}",
+        f"Сумма активных заявок: {data.amount_active} сомони",
+    ]
+
+    if queue:
+        lines.append("")
+        lines.append("ОЧЕРЕДЬ ВНИМАНИЯ (важное сверху)")
+        for item in queue[:10]:
+            lines.append(
+                f"{item.number} · {item.project} · {item.employee} · "
+                f"{item.stage_label} · {'; '.join(item.reasons[:2])}"
+            )
+
+    if deviations:
+        lines.append("")
+        lines.append("ОТЛИЧАЕТСЯ ОТ ОБЫЧНОГО УРОВНЯ")
+        lines.extend(a.detail for a in deviations)
+
+    lines.append("")
+    lines.append("ЧЕГО В ДАННЫХ НЕТ")
+    lines.extend(BLIND_SPOTS)
+    return "\n".join(lines)
+
+
+def explain_overview(session: Session, data, queue, deviations) -> AiText:
+    """Слова поверх готовых чисел. Сбой модели цифры не отменяет.
+
+    Обращение пишется в журнал наравне с остальными: сводка стоит денег
+    на каждом заходе в раздел, и счётчик расхода не должен об этом
+    умалчивать.
+    """
+    if not (get_settings().assistant_enabled or assistant._transport is not None):
+        return no_ai()
+
+    started = time.monotonic()
+    try:
+        text = assistant.ask(
+            system=analytics_prompt(),
+            prompt=(
+                "Объясни руководителю состояние ORDER по данным ниже. Числа "
+                "бери только отсюда; чего в данных нет — так и скажи. Если "
+                "причина задержки неизвестна, пиши: «Причина задержки в "
+                "системе не указана».\n\nДАННЫЕ\n"
+                + overview_facts(data, queue, deviations)
+            ),
+            schema=_Digest,
+            effort="medium",
+        )
+    except assistant.AssistantError as exc:
+        log.warning("Аналитик не объяснил сводку: %s", exc)
+        ai_log.record(
+            session,
+            kind=AiKind.ANALYTICS,
+            question="Сводка руководителя",
+            ok=False,
+            error=str(exc),
+            duration_ms=_ms(started),
+        )
+        return AiText(enabled=True, available=False)
+
+    ai_log.record(
+        session,
+        kind=AiKind.ANALYTICS,
+        question="Сводка руководителя",
+        answer=text.headline,
+        duration_ms=_ms(started),
+        usage=assistant.last_usage(),
+    )
+    return AiText(
+        enabled=True,
+        available=True,
+        headline=text.headline.strip() or None,
+        summary=[s.strip() for s in text.summary if s.strip()][:5],
+        recommendations=[r.strip() for r in text.recommendations if r.strip()][:3],
+    )
+
+
+# --------------------------------------------------------------------------
+# «Спросить ORDER AI»: намерение выбирает модель, данные достаёт сервер
+# --------------------------------------------------------------------------
+class _Intent(BaseModel):
+    """Какую из разрешённых возможностей аналитики спрашивают."""
+
+    intent: str = Field(description="Одно имя из списка возможностей")
+
+
+def _pick_intent(question: str) -> str:
+    """Просит модель назвать намерение. Никаких данных ей при этом не даём.
+
+    Отдельный запрос вместо «пусть сама сходит в базу»: SQL от модели —
+    это произвольный запрос в боевую базу от имени приложения. Здесь она
+    выбирает из списка, а исполняет выбранное сервер — тем же кодом, что
+    уже проверен тестами и уже знает про права.
+
+    Запрос дешёвый: вопрос и список имён, без единой цифры. Не ответила —
+    берём общее состояние, а не отказываем человеку.
+    """
+    try:
+        picked = assistant.ask(
+            system=(
+                "Ты определяешь, что именно спрашивают у аналитики ORDER. "
+                "Ответь ровно одним именем возможности из списка. Ничего "
+                "не добавляй и не объясняй."
+            ),
+            prompt=(
+                f"Вопрос руководителя: {question.strip()}\n\n"
+                f"Возможности:\n{intents.catalog()}"
+            ),
+            schema=_Intent,
+            effort="low",
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Ловим шире, чем AssistantError: модель может вернуть ответ не по
+        # схеме, и это не повод отказать человеку в ответе. Общее
+        # состояние — разумное умолчание для любого вопроса.
+        log.warning("Намерение не определено: %s", exc)
+        return intents.DEFAULT
+    name = (picked.intent or "").strip()
+    return name if name in intents.REGISTRY else intents.DEFAULT
+
+
+def _render(name: str, result) -> str:
+    """Результат намерения — плоским текстом для модели.
+
+    Никаких JSON-структур: модель пересказывает словами, а не разбирает
+    схему, и лишние скобки — это только лишние токены.
+    """
+    if result is None:
+        return "Данных нет."
+    if isinstance(result, list):
+        if not result:
+            return "Ничего не найдено."
+        return "\n".join(_line(item) for item in result[: intents.ROWS_LIMIT])
+    if isinstance(result, dict):
+        return "\n".join(f"{key}:\n{_render(key, value)}" for key, value in result.items())
+    return _line(result)
+
+
+def _line(item) -> str:
+    """Одна строка результата. Поля берём те, что есть у объекта."""
+    if isinstance(item, str):
+        return item
+    data = vars(item) if hasattr(item, "__dict__") else dict(item)
+    if not data and hasattr(item, "model_dump"):
+        data = item.model_dump()
+    parts = []
+    for key, value in data.items():
+        if value in (None, "", [], {}):
+            continue
+        if key.endswith("_id") or key in ("codes", "generated_at"):
+            continue
+        if isinstance(value, list):
+            value = "; ".join(str(v) for v in value[:3])
+        parts.append(f"{key}={value}")
+    return " · ".join(parts)
+
+
+def ask_by_intent(
+    session: Session,
+    *,
+    question: str,
+    history: list[AnalyticsTurn] | None = None,
+    now: datetime | None = None,
+    scope=None,
+) -> AnalyticsReplyOut:
+    """Вопрос руководителя обычными словами через разрешённые намерения.
+
+    Три шага, и ни на одном модель не касается базы: она называет
+    намерение → сервер выполняет разрешённую функцию → она пересказывает
+    полученное словами. Номер заявки становится ссылкой, только если он
+    есть в фактах: выдуманный отбрасывается.
+    """
+    enabled = get_settings().assistant_enabled or assistant._transport is not None
+    if not enabled:
+        return AnalyticsReplyOut(enabled=False, available=False)
+
+    moment = now or _utcnow()
+    if scope is None:
+        scope = analytics_scope.Scope(employee_id=0)
+
+    name = _pick_intent(question)
+    result = intents.run(session, name, scope=scope, now=moment)
+
+    # Номера, которые сервер действительно отдал модели. Всё, чего здесь
+    # нет, она придумала — ссылку на такое не делаем.
+    known = _numbers(session, moment)
+
+    turns = [(turn.role, turn.text) for turn in (history or [])][-MAX_HISTORY:]
+    started = time.monotonic()
+    try:
+        reply = assistant.ask(
+            system=analytics_prompt(),
+            prompt=(
+                f"Вопрос руководителя: {question.strip()}\n\n"
+                f"Ниже — данные, которые сервер посчитал по запросу «{name}». "
+                "Отвечай только по ним; чего в них нет — так и скажи. Если "
+                "причина задержки неизвестна, пиши: «Причина задержки в "
+                "системе не указана».\n\n"
+                f"ДАННЫЕ ({name})\n{_render(name, result)}"
+            ),
+            schema=_Answer,
+            history=turns,
+            effort="medium",
+        )
+    except assistant.AssistantError as exc:
+        log.warning("Аналитик не ответил на вопрос: %s", exc)
+        ai_log.record(
+            session,
+            kind=AiKind.ANALYTICS,
+            question=question,
+            ok=False,
+            error=str(exc),
+            duration_ms=_ms(started),
+        )
+        return AnalyticsReplyOut(enabled=True, available=False)
+
+    ai_log.record(
+        session,
+        kind=AiKind.ANALYTICS,
+        question=f"[{name}] {question}",
+        answer=reply.answer,
+        duration_ms=_ms(started),
+        usage=assistant.last_usage(),
+    )
+
+    refs = [
+        AnalyticsRequestRef(id=known[ref.number], number=ref.number, why=ref.why.strip())
+        for ref in reply.requests
+        if ref.number in known
+    ]
+    return AnalyticsReplyOut(
+        enabled=True,
+        available=True,
+        answer=reply.answer.strip(),
+        bullets=[b.strip() for b in reply.bullets if b.strip()][:5],
+        requests=refs[:5],
+        recommendations=[r.strip() for r in reply.recommendations if r.strip()][:3],
+    )
+
+
+def _numbers(session: Session, now: datetime) -> dict[str, int]:
+    """Номера заявок, которые сервер может подтвердить."""
+    from app.services.analytics.stale import in_work
+
+    return {r.number: r.id for r in in_work(session)}

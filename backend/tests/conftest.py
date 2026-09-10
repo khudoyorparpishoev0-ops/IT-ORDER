@@ -171,6 +171,10 @@ def assistant_box(monkeypatch):
 
     class Box:
         answer = None
+        #: Ответ для конкретной схемы: {"_Intent": {"intent": "overdue"}}.
+        #: Аналитик спрашивает модель дважды — сначала о намерении, потом
+        #: об ответе, — и схемы у этих запросов разные.
+        by_schema: dict[str, dict] = {}
         prompts: list[str] = []
         histories: list[list] = []
         systems: list[str] = []
@@ -179,11 +183,15 @@ def assistant_box(monkeypatch):
             self.prompts.append(prompt)
             self.histories.append(list(history or []))
             self.systems.append(system)
+            special = self.by_schema.get(schema.__name__)
+            if special is not None:
+                return schema(**special)
             if self.answer is None:
                 raise assistant.AssistantError("модель не отвечает")
             return schema(**self.answer)
 
     box = Box()
+    box.by_schema = {}
     assistant.set_transport(box)
     yield box
     assistant.set_transport(None)

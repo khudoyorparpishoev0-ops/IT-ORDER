@@ -43,6 +43,7 @@ ACTION_LABEL: dict[str, str] = {
     "template_updated": "Шаблон изменён",
     "template_deleted": "Шаблон удалён",
     # AI
+    "analytics_view": "Открыл аналитику",
     "ai_question": "Вопрос AI-аналитику",
     # Справочники
     "create": "Создание",

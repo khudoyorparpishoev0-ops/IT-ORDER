@@ -6,11 +6,18 @@ import { PageHeader } from '@/components/PageHeader';
 import { QueryState } from '@/components/QueryState';
 import { RequestsTable } from '@/components/RequestsTable';
 import { useAuth } from '@/api/auth';
-import { useDigest, useOverview, useRequests } from '@/api/hooks';
+import { useExecutiveOverview, useOverview, useRequests } from '@/api/hooks';
 import { ROLE_LABEL } from '@/shell/config';
 import { DELAY_DAYS, STATUS } from '@/data/status';
 import { days, money, monthAfterZa, plural, today } from '@/data/format';
 import type { Overview, RequestListItem } from '@/api/types';
+
+/** Цвет уровня в блоке ORDER Intelligence. Цвет всегда идёт со словом. */
+const SEVERITY: Record<string, string> = {
+  critical: 'var(--dot-err)',
+  warning: 'var(--dot-warn)',
+  info: 'var(--dot-off)',
+};
 
 /** Зелёная шкала по этапам: черновик светлый, оплата — forest. */
 const CHART = ['var(--chart-5)', 'var(--chart-4)', 'var(--chart-3)', 'var(--chart-2)', 'var(--chart-1)'];
@@ -86,7 +93,9 @@ export function Dashboard() {
   const overview = useOverview();
   // Только цифры: платить за текст модели на каждом заходе на дашборд
   // незачем — объяснения живут в разделе «Аналитика AI».
-  const digest = useDigest(can('view_reports'), false);
+  // Только цифры: карточка на дашборде не должна стоить денег на
+  // каждом заходе — объяснения живут в разделе «Аналитика AI».
+  const exec = useExecutiveOverview(can('view_reports'));
   const list = useRequests({ limit: 5 });
   const [decision, setDecision] = useState<RequestListItem | null>(null);
 
@@ -111,22 +120,32 @@ export function Dashboard() {
         }
       />
 
-      {digest.data && (digest.data.totals.critical > 0 || digest.data.totals.attention > 0) && (
+      {exec.data && exec.data.requires_attention > 0 && (
         <section className="card card-accent" style={{ ['--accent' as string]: 'var(--dot-warn)' }}>
           <div className="row-between" style={{ alignItems: 'center' }}>
             <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
-              <div className="label">Аналитика</div>
+              <div className="label">ORDER Intelligence</div>
               <div className="h3">
-                {digest.data.totals.critical > 0
-                  ? `${digest.data.totals.critical} ${plural(digest.data.totals.critical, 'заявка требует', 'заявки требуют', 'заявок требуют')} внимания срочно`
-                  : `${digest.data.totals.attention} ${plural(digest.data.totals.attention, 'заявка вышла', 'заявки вышли', 'заявок вышли')} за норматив`}
+                Сегодня требуют внимания: {exec.data.requires_attention}
               </div>
-              <div className="small" style={{ color: 'var(--slate)' }}>
-                {digest.data.attention.slice(0, 2).map((item) => `${item.number}: ${item.reasons[0]}`).join(' · ')}
-              </div>
+              {/* Разбивка по причинам, а не общий счётчик: директору важно,
+                  что именно случилось, — просрочка и дубль лечатся
+                  по-разному. */}
+              <ul className="plain-list small" style={{ color: 'var(--slate)' }}>
+                {exec.data.problems.map((problem) => (
+                  <li key={problem.code} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      className="dot"
+                      style={{ ['--dot' as string]: SEVERITY[problem.severity] }}
+                      aria-hidden="true"
+                    />
+                    {problem.count} {problem.label}
+                  </li>
+                ))}
+              </ul>
             </div>
             <Link to="/intelligence" className="btn btn-secondary">
-              Разобрать
+              Посмотреть все
             </Link>
           </div>
         </section>
