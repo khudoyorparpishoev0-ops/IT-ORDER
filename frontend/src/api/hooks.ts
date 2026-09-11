@@ -59,6 +59,15 @@ import type {
   RequestTemplate,
   TemplateApply,
   TemplateLine,
+  StockBalance,
+  StockDocument,
+  StockDocumentDetail,
+  StockItem,
+  StockItemCard,
+  StockLineIn,
+  StockMove,
+  StockOverview,
+  Warehouse,
 } from './types';
 
 export const keys = {
@@ -78,6 +87,8 @@ export const keys = {
   telegram: ['telegram'] as const,
   push: ['push'] as const,
   jobs: ['jobs'] as const,
+  stock: ['stock'] as const,
+  stockItem: (id: number) => ['stock', 'item', id] as const,
   employees: ['employees'] as const,
   employeeAccess: ['employees', 'access'] as const,
   team: ['team'] as const,
@@ -860,5 +871,175 @@ export function useAuditActors(enabled = true) {
     queryFn: () => api<AuditActor[]>('/api/audit/actors'),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+
+// --------------------------------------------------------------------------
+// Склад
+// --------------------------------------------------------------------------
+/** Сбрасываем всё разом: документ меняет и остатки, и ленту, и обзор. */
+function invalidateStock(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: keys.stock });
+}
+
+export function useStockOverview(enabled = true) {
+  return useQuery({
+    queryKey: [...keys.stock, 'overview'] as const,
+    queryFn: () => api<StockOverview>('/api/stock/overview'),
+    enabled,
+  });
+}
+
+export function useWarehouses(enabled = true, onlyActive = false) {
+  return useQuery({
+    queryKey: [...keys.stock, 'warehouses', onlyActive] as const,
+    queryFn: () => api<Warehouse[]>(`/api/stock/warehouses${query({ only_active: onlyActive })}`),
+    enabled,
+  });
+}
+
+export function useStockItems(
+  params: { search?: string; lowOnly?: boolean; onlyActive?: boolean } = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [...keys.stock, 'items', params] as const,
+    queryFn: () =>
+      api<StockItem[]>(
+        `/api/stock/items${query({
+          search: params.search,
+          low_only: params.lowOnly,
+          only_active: params.onlyActive,
+        })}`,
+      ),
+    enabled,
+  });
+}
+
+export function useStockItemCard(id: number | null) {
+  return useQuery({
+    queryKey: keys.stockItem(id ?? 0),
+    queryFn: () => api<StockItemCard>(`/api/stock/items/${id}`),
+    enabled: id !== null,
+  });
+}
+
+export function useStockBalances(
+  params: { warehouseId?: number | null; search?: string } = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [...keys.stock, 'balances', params] as const,
+    queryFn: () =>
+      api<StockBalance[]>(
+        `/api/stock/balances${query({
+          warehouse_id: params.warehouseId ?? undefined,
+          search: params.search,
+        })}`,
+      ),
+    enabled,
+  });
+}
+
+export function useStockDocuments(
+  params: { kind?: string; warehouseId?: number | null; search?: string } = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [...keys.stock, 'documents', params] as const,
+    queryFn: () =>
+      api<StockDocument[]>(
+        `/api/stock/documents${query({
+          kind: params.kind,
+          warehouse_id: params.warehouseId ?? undefined,
+          search: params.search,
+        })}`,
+      ),
+    enabled,
+  });
+}
+
+export function useStockDocument(id: number | null) {
+  return useQuery({
+    queryKey: [...keys.stock, 'document', id] as const,
+    queryFn: () => api<StockDocumentDetail>(`/api/stock/documents/${id}`),
+    enabled: id !== null,
+  });
+}
+
+export function useStockMoves(
+  params: { warehouseId?: number | null; limit?: number } = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: [...keys.stock, 'moves', params] as const,
+    queryFn: () =>
+      api<StockMove[]>(
+        `/api/stock/moves${query({
+          warehouse_id: params.warehouseId ?? undefined,
+          limit: params.limit,
+        })}`,
+      ),
+    enabled,
+  });
+}
+
+export type StockDocumentIn = {
+  warehouse_id: number;
+  recipient_id?: number;
+  project_id?: number | null;
+  supplier?: string | null;
+  comment?: string | null;
+  lines: StockLineIn[];
+};
+
+/** Приход, выдача и возврат — один хук: тела запросов различаются
+ *  полями, а не смыслом, и три почти одинаковых хука разошлись бы. */
+export function useStockDocumentCreate(kind: 'receipts' | 'issues' | 'returns') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: StockDocumentIn) =>
+      api<StockDocumentDetail>(`/api/stock/${kind}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => invalidateStock(qc),
+  });
+}
+
+export function useStockDocumentCancel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      api<StockDocumentDetail>(`/api/stock/documents/${id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => invalidateStock(qc),
+  });
+}
+
+export function useWarehouseSave() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id?: number } & Record<string, unknown>) =>
+      api<Warehouse>(id ? `/api/stock/warehouses/${id}` : '/api/stock/warehouses', {
+        method: id ? 'PATCH' : 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => invalidateStock(qc),
+  });
+}
+
+export function useStockItemSave() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id?: number } & Record<string, unknown>) =>
+      api<StockItem>(id ? `/api/stock/items/${id}` : '/api/stock/items', {
+        method: id ? 'PATCH' : 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => invalidateStock(qc),
   });
 }

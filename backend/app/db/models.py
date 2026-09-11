@@ -23,7 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, CreatedAt, Money, Name, ShortStr, Timestamp
+from app.db.base import Base, CreatedAt, Money, Name, Quantity, ShortStr, Timestamp
 
 
 class RequestStatus(str, enum.Enum):
@@ -95,6 +95,10 @@ class EmployeeRole(str, enum.Enum):
     MANAGER = "manager"
     #: Отдел закупа: проверяет склад и проставляет цены.
     PROCUREMENT = "procurement"
+    #: Кладовщик: принимает, выдаёт и возвращает на склад. Не согласует,
+    #: не платит и не ведёт справочники — это другой человек и другая
+    #: ответственность, а не закуп под другим именем.
+    WAREHOUSE = "warehouse"
     FINANCE = "finance"
     ADMIN = "admin"
 
@@ -973,6 +977,387 @@ class JobRun(Base):
     __table_args__ = (Index("ix_job_runs_job", "job", "started_at"),)
 
 
+# --------------------------------------------------------------------------
+# Склад
+# --------------------------------------------------------------------------
+#: Счётчик номеров складских документов. Как у заявок — последовательность,
+#: а не max(number): отменённый документ не возвращает свой номер в оборот.
+STOCK_DOCUMENT_NUMBER_SEQ = Sequence(
+    "stock_document_number_seq", start=1, metadata=Base.metadata
+)
+
+
+class StockDocKind(str, enum.Enum):
+    """Что за складской документ.
+
+    Три вида на фазу 1 — ровно те, из которых состоит обычный день
+    кладовщика. Перемещение, списание и инвентаризация появятся фазой 3,
+    и добавить их сюда будет нечего менять в схеме.
+    """
+
+    #: Приход: привезли от поставщика или закупа.
+    RECEIPT = "RECEIPT"
+    #: Выдача: со склада человеку на объект.
+    ISSUE = "ISSUE"
+    #: Возврат: не пригодилось, вернули на склад.
+    RETURN = "RETURN"
+
+
+class StockDocStatus(str, enum.Enum):
+    """Состояние документа.
+
+    Черновика нет намеренно: документ создаётся сразу проведённым. Склад
+    с «почти оформленным приходом» — это остаток, которому нельзя верить,
+    а кладовщик всё равно оформляет по факту, когда товар уже приехал.
+    Ошибка исправляется отменой и новым документом, а не правкой.
+    """
+
+    POSTED = "POSTED"
+    #: Отменён сторнирующими движениями. Сами движения остаются на месте.
+    CANCELLED = "CANCELLED"
+
+
+class StockMoveKind(str, enum.Enum):
+    """Что за движение. У сторно свой вид, а не «приход со знаком минус»:
+    иначе по ленте нельзя отличить настоящую приёмку от исправления."""
+
+    RECEIPT = "RECEIPT"
+    ISSUE = "ISSUE"
+    RETURN = "RETURN"
+    #: Отмена ранее проведённого документа.
+    REVERSAL = "REVERSAL"
+
+
+class SerialStatus(str, enum.Enum):
+    """Где сейчас единица с серийным номером (фаза 3)."""
+
+    IN_STOCK = "IN_STOCK"
+    ISSUED = "ISSUED"
+    WRITTEN_OFF = "WRITTEN_OFF"
+
+
+class Warehouse(Base):
+    """Место хранения: центральный склад, склад на объекте.
+
+    Привязка к объекту — ссылкой на `projects`, а не своим списком
+    площадок: объект в ORDER уже есть, и второй справочник тех же строек
+    разошёлся бы с первым через месяц.
+    """
+
+    __tablename__ = "warehouses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[Name] = mapped_column(unique=True)
+    #: Объект, на котором стоит склад. NULL — центральный, он не про объект.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT")
+    )
+    address: Mapped[str | None] = mapped_column(String(200))
+    #: Материально ответственный. Ссылка, а не строка: он меняется, и
+    #: история о нём хранится в документах, а не здесь.
+    keeper_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[CreatedAt]
+
+    project: Mapped[Project | None] = relationship()
+    keeper: Mapped[Employee | None] = relationship()
+
+    __table_args__ = (
+        Index("ix_warehouses_project", "project_id"),
+        Index("ix_warehouses_keeper", "keeper_id"),
+    )
+
+
+class StockItem(Base):
+    """Позиция номенклатуры: то, у чего бывает остаток.
+
+    Справочника материалов в ORDER не было намеренно — вести его никто не
+    станет. Здесь он всё-таки появляется, и вот почему: у остатка должен
+    быть устойчивый ключ. «Цемент М500» и «цемент м-500» — одна куча на
+    складе, и если ключом будет строка из заявки, куча немедленно
+    расползётся на пять остатков, каждый из которых неверен.
+
+    Поэтому ключом служит приведённое написание
+    (`services/material_norm.normalize`) — тот же алгоритм, что у строк
+    заявки, и уникальное. Заводит позицию кладовщик в момент приёмки:
+    ждать администратора на каждой новой марке кабеля нельзя.
+    """
+
+    __tablename__ = "stock_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[Name]
+    #: Ключ сопоставления: по нему позиция находится и по нему же она
+    #: не заводится дважды.
+    normalized_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    #: Единица измерения словами, как у строки заявки: «шт.», «м», «кг».
+    unit: Mapped[str] = mapped_column(String(32), default="шт.", nullable=False)
+    #: Артикул поставщика или внутренний код. Необязателен: у мешка
+    #: цемента его нет, а у роутера есть.
+    article: Mapped[str | None] = mapped_column(String(64))
+    #: Ниже этого остатка позиция считается заканчивающейся. 0 — не следим.
+    min_quantity: Mapped[Quantity] = mapped_column(
+        default=Decimal("0.000"), nullable=False
+    )
+    #: Учитывать каждую единицу отдельно по серийному номеру (фаза 3).
+    track_serial: Mapped[bool] = mapped_column(default=False, nullable=False)
+    active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[CreatedAt]
+
+    __table_args__ = (
+        CheckConstraint("min_quantity >= 0", name="ck_stock_items_min_non_negative"),
+        Index("ix_stock_items_active_name", "active", "name"),
+    )
+
+
+class StockBalance(Base):
+    """Сведённый остаток по паре «склад + позиция».
+
+    Это не источник истины, а его свёртка: истина — лента `stock_moves`,
+    и остаток из неё пересобирается. Держим отдельно, потому что вопрос
+    «сколько есть» задаётся на каждый экран, а суммировать всю ленту на
+    каждый экран — это перебор таблицы, которая растёт вечно.
+
+    `CHECK (quantity >= 0)` — последняя линия обороны, а не украшение:
+    проверка в сервисе объясняет человеку, чего не хватает, а минус в
+    остатке не даёт записать именно она — включая прямой SQL и будущий
+    код, который про проверку забудет.
+    """
+
+    __tablename__ = "stock_balances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    quantity: Mapped[Quantity] = mapped_column(default=Decimal("0.000"), nullable=False)
+    updated_at: Mapped[Timestamp | None]
+
+    warehouse: Mapped[Warehouse] = relationship()
+    item: Mapped[StockItem] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("warehouse_id", "item_id", name="uq_stock_balance_pair"),
+        CheckConstraint("quantity >= 0", name="ck_stock_balance_non_negative"),
+        Index("ix_stock_balances_item", "item_id"),
+    )
+
+
+class StockDocument(Base):
+    """Приход, выдача или возврат — один документ склада.
+
+    Проведённый документ неизменяем: ни API, ни панель не умеют его
+    править или удалять. Ошибку исправляет отмена (сторно), которая
+    добавляет обратные движения, а не стирает прежние. То же правило,
+    что у `audit_log` и `request_events`: запись, которую можно поправить
+    задним числом, ничего не доказывает.
+    """
+
+    __tablename__ = "stock_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: Человекочитаемый номер: «ПР-0007», «ВД-0042», «ВЗ-0003».
+    number: Mapped[ShortStr] = mapped_column(unique=True)
+    kind: Mapped[StockDocKind] = mapped_column(
+        Enum(StockDocKind, name="stock_doc_kind", native_enum=False, length=16),
+        nullable=False,
+    )
+    status: Mapped[StockDocStatus] = mapped_column(
+        Enum(StockDocStatus, name="stock_doc_status", native_enum=False, length=16),
+        default=StockDocStatus.POSTED,
+        nullable=False,
+    )
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False
+    )
+    #: Кто оформил. Берётся из сессии, а не из тела запроса.
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    #: Имя оформившего на момент действия — снимок, как в истории заявки.
+    created_by: Mapped[str | None] = mapped_column(String(200))
+    #: Кому выдали (у выдачи) или кто вернул (у возврата).
+    recipient_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    #: На какой объект ушло. По нему считается расход склада по стройкам.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT")
+    )
+    #: Заявка, по которой оформлен документ (фаза 2). Пока не заполняется.
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("expense_requests.id", ondelete="SET NULL")
+    )
+    #: От кого приход: поставщик, магазин. Строкой — справочника
+    #: контрагентов в ORDER нет, и заводить его ради одного поля незачем.
+    supplier: Mapped[str | None] = mapped_column(String(200))
+    comment: Mapped[str | None] = mapped_column(Text)
+    #: Итог документа в деньгах. NULL — цены не проставляли: приход
+    #: бывает и без них, а нулём это писать нельзя, ноль значит «даром».
+    total: Mapped[Money | None] = mapped_column()
+
+    created_at: Mapped[CreatedAt]
+    cancelled_at: Mapped[Timestamp | None]
+    cancelled_by: Mapped[str | None] = mapped_column(String(200))
+    cancel_reason: Mapped[str | None] = mapped_column(Text)
+
+    warehouse: Mapped[Warehouse] = relationship()
+    employee: Mapped[Employee | None] = relationship(foreign_keys=[employee_id])
+    recipient: Mapped[Employee | None] = relationship(foreign_keys=[recipient_id])
+    project: Mapped[Project | None] = relationship()
+    lines: Mapped[list[StockDocumentLine]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="StockDocumentLine.id",
+    )
+
+    __table_args__ = (
+        Index("ix_stock_docs_kind_created", "kind", "created_at"),
+        Index("ix_stock_docs_warehouse", "warehouse_id", "created_at"),
+        Index("ix_stock_docs_employee", "employee_id"),
+        Index("ix_stock_docs_recipient", "recipient_id"),
+        Index("ix_stock_docs_project", "project_id"),
+        Index("ix_stock_docs_request", "request_id"),
+    )
+
+
+class StockDocumentLine(Base):
+    """Строка складского документа: позиция, количество, цена."""
+
+    __tablename__ = "stock_document_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_documents.id", ondelete="CASCADE"), nullable=False
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    quantity: Mapped[Quantity] = mapped_column(nullable=False)
+    #: Закупочная цена за единицу. NULL — цену не знают: выдача со склада
+    #: идёт без цены, и подставлять туда ноль значит соврать про деньги.
+    price: Mapped[Money | None] = mapped_column()
+    total: Mapped[Money | None] = mapped_column()
+    comment: Mapped[str | None] = mapped_column(String(200))
+
+    document: Mapped[StockDocument] = relationship(back_populates="lines")
+    item: Mapped[StockItem] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_stock_doc_line_quantity_positive"),
+        CheckConstraint("price IS NULL OR price >= 0", name="ck_stock_doc_line_price"),
+        Index("ix_stock_doc_lines_document", "document_id"),
+        Index("ix_stock_doc_lines_item", "item_id"),
+    )
+
+
+class StockMove(Base):
+    """Движение склада. Лента только дописывается — это и есть остаток.
+
+    Количество со знаком: `+` пришло, `−` ушло. Так остаток — это сумма,
+    а не разбор видов документа в каждом запросе, и ошибиться знаком
+    в отчёте невозможно.
+    """
+
+    __tablename__ = "stock_moves"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_documents.id", ondelete="RESTRICT"), nullable=False
+    )
+    warehouse_id: Mapped[int] = mapped_column(
+        ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[StockMoveKind] = mapped_column(
+        Enum(StockMoveKind, name="stock_move_kind", native_enum=False, length=16),
+        nullable=False,
+    )
+    #: Со знаком: приход и возврат положительны, выдача отрицательна.
+    quantity: Mapped[Quantity] = mapped_column(nullable=False)
+    price: Mapped[Money | None] = mapped_column()
+    #: Кто сделал — снимком, как везде в истории.
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    actor: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[CreatedAt]
+
+    document: Mapped[StockDocument] = relationship()
+    item: Mapped[StockItem] = relationship()
+    warehouse: Mapped[Warehouse] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("quantity <> 0", name="ck_stock_move_quantity_nonzero"),
+        Index("ix_stock_moves_item_created", "item_id", "created_at"),
+        Index("ix_stock_moves_warehouse_created", "warehouse_id", "created_at"),
+        Index("ix_stock_moves_document", "document_id"),
+        Index("ix_stock_moves_employee", "employee_id"),
+    )
+
+
+class StockSerial(Base):
+    """Единица с серийным номером (фаза 3).
+
+    Таблица заводится вместе с остальной схемой, а не отдельной миграцией
+    позже: структура известна сейчас, а лишняя миграция на боевой базе —
+    это лишний риск на пустом месте. Заполнять её начнёт фаза 3.
+    """
+
+    __tablename__ = "stock_serials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("stock_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    serial: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[SerialStatus] = mapped_column(
+        Enum(SerialStatus, name="serial_status", native_enum=False, length=16),
+        default=SerialStatus.IN_STOCK,
+        nullable=False,
+    )
+    warehouse_id: Mapped[int | None] = mapped_column(
+        ForeignKey("warehouses.id", ondelete="RESTRICT")
+    )
+    #: У кого на руках, если выдан.
+    holder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL")
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT")
+    )
+    received_move_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stock_moves.id", ondelete="SET NULL")
+    )
+    issued_move_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stock_moves.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[CreatedAt]
+    updated_at: Mapped[Timestamp | None]
+
+    item: Mapped[StockItem] = relationship()
+
+    __table_args__ = (
+        # Номер уникален в пределах позиции, а не на весь склад: у двух
+        # разных вещей номера совпадают чаще, чем кажется.
+        UniqueConstraint("item_id", "serial", name="uq_stock_serial_per_item"),
+        Index("ix_stock_serials_status", "status"),
+        Index("ix_stock_serials_warehouse", "warehouse_id"),
+        Index("ix_stock_serials_holder", "holder_id"),
+        Index("ix_stock_serials_project", "project_id"),
+        Index("ix_stock_serials_received", "received_move_id"),
+        Index("ix_stock_serials_issued", "issued_move_id"),
+    )
+
+
 __all__ = [
     "AuditLog",
     "Base",
@@ -990,4 +1375,16 @@ __all__ = [
     "RequestEvent",
     "REQUEST_NUMBER_SEQ",
     "RequestStatus",
+    "SerialStatus",
+    "StockBalance",
+    "StockDocKind",
+    "StockDocStatus",
+    "StockDocument",
+    "StockDocumentLine",
+    "StockItem",
+    "StockMove",
+    "StockMoveKind",
+    "StockSerial",
+    "STOCK_DOCUMENT_NUMBER_SEQ",
+    "Warehouse",
 ]

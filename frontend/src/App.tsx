@@ -21,6 +21,7 @@ import { RequestForm } from '@/pages/RequestForm';
 import { RequestPage } from '@/pages/RequestPage';
 import { Settings } from '@/pages/Settings';
 import { Sourcing } from '@/pages/Sourcing';
+import { Stock } from '@/pages/Stock';
 import { Team } from '@/pages/Team';
 import type { ReactElement } from 'react';
 
@@ -98,6 +99,14 @@ export function App() {
           element={
             <Guarded need="source_request">
               <Sourcing />
+            </Guarded>
+          }
+        />
+        <Route
+          path="stock"
+          element={
+            <Guarded need="view_stock">
+              <Stock />
             </Guarded>
           }
         />

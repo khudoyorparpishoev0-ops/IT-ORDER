@@ -28,6 +28,41 @@ export function money(value: string | number | null | undefined): string {
   return `${negative ? '-' : ''}${groups.join(NBSP)},${frac}`;
 }
 
+/**
+ * Количество на складе. Зеркалит `app/core/quantity.py`: три знака
+ * после запятой, хвостовые нули не показываем — человек видит сорок
+ * мешков, а не «40,000». Приходит строкой, как и суммы.
+ */
+export function quantity(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—';
+
+  const raw = typeof value === 'number' ? value.toFixed(3) : value.trim();
+  const negative = raw.startsWith('-');
+  const [wholeRaw = '0', fracRaw = ''] = raw.replace('-', '').split('.');
+
+  const frac = fracRaw.replace(/0+$/, '');
+  const groups: string[] = [];
+  let whole = wholeRaw;
+  while (whole.length > 3) {
+    groups.unshift(whole.slice(-3));
+    whole = whole.slice(0, -3);
+  }
+  groups.unshift(whole);
+
+  const head = `${negative ? '-' : ''}${groups.join(NBSP)}`;
+  return frac ? `${head},${frac}` : head;
+}
+
+/** Количество с единицей: «40 меш.». Единицу пишем как её завели —
+ *  склонять её мы не умеем и выдумывать не будем. */
+export function withUnit(
+  value: string | number | null | undefined,
+  unit: string | null | undefined,
+): string {
+  const text = quantity(value);
+  return unit ? `${text} ${unit}` : text;
+}
+
 /** Сумма со словом «сомони» — для текста, не для колонок таблиц. */
 export function somoni(value: string | number | null | undefined): string {
   const formatted = money(value);

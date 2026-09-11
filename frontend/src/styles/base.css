@@ -1059,6 +1059,31 @@ select.filter {
   }
 }
 
+/* ---------- Строка складского документа ---------- */
+.stock-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.stock-line > input:first-child {
+  flex: 3 1 160px;
+  min-width: 0;
+}
+.stock-line > input {
+  flex: 1 1 84px;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  /* На телефоне поля идут в столбик: втиснуть три поля и кнопку в
+     360 px нельзя, и попытка кончается прокруткой страницы вбок. */
+  .stock-line {
+    flex-wrap: wrap;
+  }
+  .stock-line > input:first-child {
+    flex: 1 1 100%;
+  }
+}
+
 /* ---------- Строки сметы в форме заявки ---------- */
 .line-head,
 .line-row {

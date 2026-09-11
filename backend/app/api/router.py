@@ -15,6 +15,7 @@ from app.api.routes import (
     push,
     reports,
     requests,
+    stock,
     telegram,
     templates,
 )
@@ -27,6 +28,7 @@ api_router.include_router(assistant.router)
 api_router.include_router(analytics.router)
 api_router.include_router(ai.router)
 api_router.include_router(requests.router)
+api_router.include_router(stock.router)
 api_router.include_router(templates.router)
 api_router.include_router(reports.router)
 api_router.include_router(exports.router)

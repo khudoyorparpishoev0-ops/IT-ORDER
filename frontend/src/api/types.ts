@@ -699,7 +699,10 @@ export type Permission =
   | 'view_reports'
   | 'manage_reference'
   | 'source_request'
-  | 'view_audit';
+  | 'view_audit'
+  | 'view_stock'
+  | 'manage_stock'
+  | 'view_stock_cost';
 
 export type CurrentUser = {
   id: number;
@@ -1144,4 +1147,128 @@ export type Intelligence = {
   anomalies: Anomaly[];
   ai: AiText;
   blind_spots: string[];
+};
+
+// --------------------------------------------------------------------------
+// Склад
+// --------------------------------------------------------------------------
+
+/** Место хранения: центральный склад или склад на объекте. */
+export type Warehouse = {
+  id: number;
+  name: string;
+  project_id: number | null;
+  project_name: string | null;
+  address: string | null;
+  keeper_id: number | null;
+  keeper_name: string | null;
+  active: boolean;
+  items_count: number;
+  /** NULL — нет права видеть закупочную стоимость. */
+  value: string | null;
+};
+
+/** Позиция номенклатуры. Количества приходят строками, как и суммы. */
+export type StockItem = {
+  id: number;
+  name: string;
+  unit: string;
+  article: string | null;
+  min_quantity: string;
+  track_serial: boolean;
+  active: boolean;
+  note: string | null;
+  quantity: string;
+  low: boolean;
+};
+
+/** Остаток по паре «склад + позиция». Только для чтения: остаток
+ *  меняют документы, а не человек с клавиатурой. */
+export type StockBalance = {
+  warehouse_id: number;
+  warehouse_name: string;
+  item_id: number;
+  item_name: string;
+  unit: string;
+  quantity: string;
+  low: boolean;
+};
+
+export type StockDocKind = 'RECEIPT' | 'ISSUE' | 'RETURN';
+export type StockDocStatus = 'POSTED' | 'CANCELLED';
+export type StockMoveKind = 'RECEIPT' | 'ISSUE' | 'RETURN' | 'REVERSAL';
+
+export type StockDocumentLine = {
+  id: number;
+  item_id: number;
+  item_name: string;
+  unit: string;
+  quantity: string;
+  price: string | null;
+  total: string | null;
+  comment: string | null;
+};
+
+export type StockDocument = {
+  id: number;
+  number: string;
+  kind: StockDocKind;
+  status: StockDocStatus;
+  warehouse_id: number;
+  warehouse_name: string;
+  created_by: string | null;
+  recipient_name: string | null;
+  project_name: string | null;
+  supplier: string | null;
+  comment: string | null;
+  total: string | null;
+  lines_count: number;
+  created_at: string;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
+};
+
+export type StockDocumentDetail = StockDocument & { lines: StockDocumentLine[] };
+
+/** Движение ленты. Количество со знаком: «+» пришло, «−» ушло. */
+export type StockMove = {
+  id: number;
+  document_id: number;
+  document_number: string;
+  kind: StockMoveKind;
+  warehouse_id: number;
+  warehouse_name: string;
+  item_id: number;
+  item_name: string;
+  unit: string;
+  quantity: string;
+  price: string | null;
+  actor: string | null;
+  created_at: string;
+};
+
+export type StockItemCard = {
+  item: StockItem;
+  balances: StockBalance[];
+  moves: StockMove[];
+};
+
+export type StockOverview = {
+  warehouses: number;
+  items: number;
+  low_items: number;
+  value: string | null;
+  moves_today: number;
+};
+
+/** Строка документа в форме. Позиция задаётся ссылкой или названием —
+ *  новую заводит сервер в момент приёмки. */
+export type StockLineIn = {
+  item_id?: number | null;
+  title?: string | null;
+  unit?: string | null;
+  quantity: string;
+  price?: string | null;
+  comment?: string | null;
 };
