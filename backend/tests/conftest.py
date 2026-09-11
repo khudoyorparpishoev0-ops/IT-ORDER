@@ -35,7 +35,14 @@ os.environ.setdefault("SCHEDULER_ENABLED", "false")
 
 from app.api.deps import get_db  # noqa: E402
 from app.config import get_settings  # noqa: E402
-from app.db.models import Base, Employee, EmployeeRole, MonthlyBudget, Project  # noqa: E402
+from app.db.models import (  # noqa: E402
+    Base,
+    Employee,
+    EmployeeRole,
+    MonthlyBudget,
+    Project,
+    Warehouse,
+)
 from app.main import app  # noqa: E402
 
 
@@ -60,6 +67,7 @@ def session(engine) -> Iterator[Session]:
         # RESTART IDENTITY сбрасывает только счётчики колонок таблиц.
         # Номера заявок живут в отдельной последовательности — её вручную.
         conn.execute(text("ALTER SEQUENCE request_number_seq RESTART WITH 1"))
+        conn.execute(text("ALTER SEQUENCE stock_document_number_seq RESTART WITH 1"))
     db = factory()
     try:
         yield db
@@ -352,6 +360,26 @@ def procurement(session) -> Employee:
         email="o.kuznetsova@it-hona.tj",
         role=EmployeeRole.PROCUREMENT,
     )
+
+
+@pytest.fixture
+def keeper(session) -> Employee:
+    """Кладовщик: принимает и выдаёт, в согласовании не участвует."""
+    return make_employee(
+        session,
+        full_name="Фируз Сафаров",
+        position="Кладовщик",
+        email="f.safarov@it-hona.tj",
+        role=EmployeeRole.WAREHOUSE,
+    )
+
+
+@pytest.fixture
+def warehouse(session) -> Warehouse:
+    w = Warehouse(name="Центральный склад")
+    session.add(w)
+    session.flush()
+    return w
 
 
 @pytest.fixture

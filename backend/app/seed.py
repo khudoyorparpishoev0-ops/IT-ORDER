@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.core.logging import setup_logging
+from app.core.audit_context import Actor, set_actor
 from app.core.security import hash_password
 from app.core.time import utcnow
 from app.db.models import (
@@ -27,6 +28,7 @@ from app.db.models import (
     MonthlyBudget,
     PaymentMethod,
     Project,
+    Warehouse,
 )
 from app.db.session import get_session_factory
 from app.schemas.request import (
@@ -37,7 +39,9 @@ from app.schemas.request import (
     SourcingIn,
     SourcingLineIn,
 )
+from app.schemas.stock import DocumentLineIn, ReceiptIn
 from app.services import requests as svc
+from app.services import stock as stock_svc
 from app.services.reports import current_period
 
 log = logging.getLogger("seed")
@@ -70,6 +74,7 @@ EMPLOYEES: list[tuple[str, str, str, EmployeeRole]] = [
     ("Анна Лебедева", "Архитектор", "a.lebedeva", EmployeeRole.EMPLOYEE),
     ("Артём Ковалёв", "Руководитель отдела", "a.kovalev", EmployeeRole.MANAGER),
     ("Нигина Рахимова", "Бухгалтер", "n.rahimova", EmployeeRole.FINANCE),
+    ("Фируз Сафаров", "Кладовщик", "f.safarov", EmployeeRole.WAREHOUSE),
     ("Администратор", "Администратор системы", "admin", EmployeeRole.ADMIN),
 ]
 
@@ -122,6 +127,18 @@ SOURCING_PRICES: dict[str, str | None] = {
     "Перфоратор в аренду": "1200.00",
     "Буры": "95.00",
 }
+
+
+#: Что лежит на демо-складе: позиция, единица, количество, цена прихода.
+#: Ровно столько, чтобы раздел «Склад» открывался не пустым, и не больше:
+#: демо-набор показывает, как это выглядит, а не заменяет учёт.
+STOCK: list[tuple[str, str, str, str]] = [
+    ("Цемент М500", "меш.", "40", "85.00"),
+    ("Кабель UTP Cat6 Outdoor", "м", "500", "4.20"),
+    ("Гофра гибкая 16 мм", "м", "300", "3.50"),
+    ("Перчатки рабочие", "пара", "60", "12.00"),
+    ("Стремянка 5 ступеней", "шт.", "3", "780.00"),
+]
 
 
 def seed() -> None:
@@ -246,6 +263,37 @@ def seed() -> None:
                         actor="ФИНАНСЫ",
                     ),
                 )
+
+        # Склад: одно место хранения и один приход. Выдачу не делаем —
+        # её показывают кнопками, а демо-набор не должен решать за
+        # кладовщика, что и кому уже выдали.
+        warehouse = session.scalar(select(Warehouse).where(Warehouse.name == "Центральный склад"))
+        if warehouse is None:
+            warehouse = Warehouse(
+                name="Центральный склад",
+                address="Душанбе, база",
+                keeper_id=employees["Фируз Сафаров"].id,
+            )
+            session.add(warehouse)
+            session.flush()
+            set_actor(Actor(id=employees["Фируз Сафаров"].id, name="Фируз Сафаров", role="warehouse"))
+            stock_svc.create_receipt(
+                session,
+                ReceiptIn(
+                    warehouse_id=warehouse.id,
+                    supplier="Демо-поставка",
+                    lines=[
+                        DocumentLineIn(
+                            title=title,
+                            unit=unit,
+                            quantity=Decimal(quantity),
+                            price=Decimal(price),
+                        )
+                        for title, unit, quantity, price in STOCK
+                    ],
+                ),
+            )
+            set_actor(None)
 
         session.commit()
         log.info(

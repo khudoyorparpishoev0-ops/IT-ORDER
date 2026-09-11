@@ -12,9 +12,16 @@ export const ENTITY_LABEL: Record<string, string> = {
   request: 'Заявка',
   analytics: 'AI-аналитика',
   template: 'Шаблон заявки',
+  warehouse: 'Склад',
+  stock_item: 'Позиция номенклатуры',
+  stock_document: 'Складской документ',
 };
 
 export const ACTION_LABEL: Record<string, string> = {
+  stock_receipt: 'Приход на склад',
+  stock_issue: 'Выдача со склада',
+  stock_return: 'Возврат на склад',
+  stock_cancel: 'Складской документ отменён',
   template_created: 'Шаблон создан',
   template_updated: 'Шаблон изменён',
   template_deleted: 'Шаблон удалён',
@@ -98,6 +105,10 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
   {
     label: 'Шаблоны',
     actions: ['template_created', 'template_updated', 'template_deleted'],
+  },
+  {
+    label: 'Склад',
+    actions: ['stock_receipt', 'stock_issue', 'stock_return', 'stock_cancel'],
   },
   { label: 'AI', actions: ['ai_question'] },
 ];

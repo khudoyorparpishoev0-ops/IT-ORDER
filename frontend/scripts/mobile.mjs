@@ -23,7 +23,7 @@ const ROLES = [
   {
     label: 'manager',
     email: `a.kovalev@${DOMAIN}`,
-    routes: ['/', '/requests', '/approvals', '/reports', '/team', '/finance', '/settings'],
+    routes: ['/', '/requests', '/approvals', '/stock', '/reports', '/team', '/finance', '/settings'],
   },
   {
     label: 'employee',

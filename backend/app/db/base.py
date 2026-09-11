@@ -17,6 +17,12 @@ class Base(DeclarativeBase):
 #: Деньги: 12 знаков, 2 после запятой. Хватает до 9 999 999 999,99 сомони.
 Money = Annotated[Decimal, mapped_column(Numeric(12, 2))]
 
+#: Количество на складе: 14 знаков, 3 после запятой. Кабель метрами,
+#: цемент килограммами — целым числом склад не считается. У строки
+#: заявки количество по-прежнему целое: её пишет человек словами, а не
+#: кладовщик по накладной.
+Quantity = Annotated[Decimal, mapped_column(Numeric(14, 3))]
+
 #: Время всегда с таймзоной. PostgreSQL хранит в UTC.
 Timestamp = Annotated[datetime, mapped_column(DateTime(timezone=True))]
 

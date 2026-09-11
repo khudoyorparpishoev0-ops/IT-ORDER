@@ -16,6 +16,9 @@ ENTITY_LABEL: dict[str, str] = {
     "budget": "Бюджет месяца",
     "template": "Шаблон заявки",
     "analytics": "AI-аналитика",
+    "warehouse": "Склад",
+    "stock_item": "Позиция номенклатуры",
+    "stock_document": "Складской документ",
 }
 
 ACTION_LABEL: dict[str, str] = {
@@ -60,6 +63,11 @@ ACTION_LABEL: dict[str, str] = {
     "reject": "Отклонена",
     "auto_approve": "Одобрена автоматически",
     "pay": "Выплата проведена",
+    # Склад
+    "stock_receipt": "Приход на склад",
+    "stock_issue": "Выдача со склада",
+    "stock_return": "Возврат на склад",
+    "stock_cancel": "Складской документ отменён",
     # Фоновые задачи
     "job_run": "Задача запущена вручную",
 }
