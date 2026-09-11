@@ -270,7 +270,11 @@ def test_pdf_fonts_cover_russian_and_tajik() -> None:
     from reportlab.pdfbase import pdfmetrics
 
     register_fonts()
-    probe = "АБВЯабвя ғӣқӯҳҷ ABCabc 0123 №«»—"
+    # Знаки, которые действительно встречаются в документах: единицы
+    # («м³»), умножение в расчёте, кавычки, тире. Пропущенный глиф
+    # reportlab не рисует вовсе — расчёт «2 чел. × 1 день» превратился бы
+    # в «2 чел. 1 день», и никто бы не заметил.
+    probe = "АБВЯабвя ғӣқӯҳҷ ABCabc 0123 №«»—·×²³"
     for name in ("Manrope", "Manrope-Bold", "JetBrainsMono", "JetBrainsMono-SemiBold"):
         face = pdfmetrics.getFont(name).face
         missing = [c for c in probe if c != " " and ord(c) not in face.charToGlyph]

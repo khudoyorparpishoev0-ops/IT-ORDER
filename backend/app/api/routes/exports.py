@@ -151,7 +151,11 @@ def request_pdf(session: DbSession, user: CurrentUser, request_id: int):
     _ensure_can_view(user, request)
     detail = to_detail(session, request)
     content = pdf.request_pdf(detail)
-    return _attachment(content, f"IT-HONA_{request.number}.pdf", "application/pdf")
+    # Имя файла — по документу, а не по системе: в папке бухгалтера
+    # рядом лежат десятки таких, и «IT-HONA_РЗ-0017» не говорит, что это.
+    return _attachment(
+        content, f"Заявка на оплату {request.number}.pdf", "application/pdf"
+    )
 
 
 @router.get("/audit.xlsx", dependencies=[audit_access])
