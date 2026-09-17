@@ -29,6 +29,7 @@ AUTHOR_TEXT: dict[RequestStatus, str] = {
     RequestStatus.PAID: "оплачена",
     RequestStatus.FULFILLED: "закрыта: всё нашлось на складе",
     RequestStatus.REJECTED: "отклонена",
+    RequestStatus.CANCELLED: "отменена",
 }
 
 #: Кого зовём, когда заявка легла на их шаг.
@@ -83,7 +84,9 @@ def notify_request_state(session: Session, request_id: int) -> None:
             f"Ваша заявка {_headline(request)}\n"
             f"{escape(what.capitalize())}."
         )
-        if request.status is RequestStatus.REJECTED and request.decision_comment:
+        # Причина нужна и у отказа, и у отмены: «отменена» без объяснения
+        # заставляет автора идти выяснять, что случилось.
+        if request.status in (RequestStatus.REJECTED, RequestStatus.CANCELLED) and request.decision_comment:
             text += f"\n\nПричина: {escape(request.decision_comment)}"
         send_quietly(
             Message(

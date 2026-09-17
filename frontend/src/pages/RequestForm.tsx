@@ -40,6 +40,7 @@ import type {
 } from '@/api/types';
 import { CategoryFields } from '@/components/CategoryFields';
 import { days, plural } from '@/data/format';
+import { UNITS, UNITS_LIST_ID } from '@/data/units';
 import { STATUS } from '@/data/status';
 import { useShell } from '@/shell/ShellContext';
 
@@ -555,6 +556,11 @@ function Form({ edit }: { edit?: RequestDetail }) {
             <span className="line-unit">Единица</span>
             <span className="line-del" />
           </div>
+          <datalist id={UNITS_LIST_ID}>
+            {UNITS.map((unit) => (
+              <option key={unit} value={unit} />
+            ))}
+          </datalist>
           <datalist id="known-materials">
             {(materials.data ?? []).map((m) => (
               <option key={m.title} value={m.title}>
@@ -590,6 +596,7 @@ function Form({ edit }: { edit?: RequestDetail }) {
                   className="field line-unit"
                   aria-label={`Единица в строке ${index + 1}`}
                   placeholder="шт."
+                  list={UNITS_LIST_ID}
                   value={line.unit}
                   onChange={(e) => setLine(index, { unit: e.target.value })}
                 />

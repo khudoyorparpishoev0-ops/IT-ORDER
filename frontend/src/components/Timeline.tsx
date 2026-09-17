@@ -42,15 +42,18 @@ const OF_TAB: Record<Exclude<Tab, "all" | "views">, EventKind[]> = {
     "approved",
     "auto_approved",
     "rejected",
+    "cancelled",
     "fulfilled",
   ],
   comments: ["commented"],
-  changes: ["created", "edited", "priced"],
+  changes: ["created", "edited", "priced", "sourcing_edited"],
   system: ["moved", "sourcing"],
 };
 
 const ICON: Record<EventKind, IconName> = {
   created: "ti-plus",
+  cancelled: "ti-circle-x",
+  sourcing_edited: "ti-checklist",
   edited: "ti-checklist",
   submitted: "ti-file-text",
   need_approved: "ti-circle-check",

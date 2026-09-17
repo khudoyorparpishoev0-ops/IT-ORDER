@@ -44,22 +44,44 @@ class ExpenseLineOut(ORMModel):
 
 
 class SourcingLineIn(BaseModel):
-    """Решение закупа по одной строке: со склада или почём купить."""
+    """Решение закупа по одной строке: со склада, почём купить или снять.
+
+    Состав заявки после подачи неизменяем — кроме этого места. Закуп
+    ищет товар в жизни, а не в справочнике: позиции может не быть в
+    продаже вовсе, или она продаётся другим объёмом. Раньше на такой
+    случай оставалось отклонить всю заявку целиком, из-за одной строки
+    из восьми. Правка идёт с записью «было → стало» в историю: молча
+    менять то, что человек написал, нельзя — отвечать за заявку ему.
+    """
 
     id: int
     from_stock: bool = False
     price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    #: Снять позицию: не нашлась и не будет куплена.
+    drop: bool = False
+    #: Уточнённое написание и объём. None — оставить как есть.
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    quantity: int | None = Field(default=None, ge=1)
+    unit: str | None = Field(default=None, max_length=32)
 
     @model_validator(mode="after")
     def price_required_unless_from_stock(self) -> "SourcingLineIn":
-        if self.from_stock:
-            # Цена со склада не нужна: денег по этой строке не будет.
+        if self.drop or self.from_stock:
+            # Снятой строки и строки со склада в сумме нет: цена не нужна.
             return self
         if self.price is None:
             raise ValueError(
                 "Укажите цену или отметьте, что материал есть на складе"
             )
         return self
+
+
+class CancelIn(BaseModel):
+    """Отмена заявки. Причина обязательна: заявка закрывается навсегда, и
+    через месяц «отменена» без объяснения не скажет ничего ни автору, ни
+    руководителю."""
+
+    reason: str = Field(min_length=3, max_length=2000)
 
 
 class SourcingIn(BaseModel):

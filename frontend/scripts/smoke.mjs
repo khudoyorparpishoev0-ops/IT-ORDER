@@ -94,7 +94,9 @@ async function run(role, theme, { screenshots = true } = {}) {
 
   await page.goto(BASE + '/', { waitUntil: 'networkidle' });
   await page.getByLabel('Корпоративная почта').fill(role.email);
-  await page.getByLabel('Пароль').fill(PASSWORD);
+  // Ищем по началу имени: подпись поля — «Пароль *», а рядом стоит
+  // кнопка «Показать пароль», и простое вхождение находит оба элемента.
+  await page.getByLabel(/^Пароль/).fill(PASSWORD);
   await page.getByRole('button', { name: 'Войти' }).click();
 
   // Ролям с обязательным вторым фактором показывается настройка. Дымовой

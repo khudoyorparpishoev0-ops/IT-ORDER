@@ -16,6 +16,8 @@ export type RequestStatus =
   | 'paid'
   /** Всё нашлось на складе — денег не потребовалось. */
   | 'fulfilled'
+  /** Отменена автором или закупом: потребность отпала, товар не нашли. */
+  | 'cancelled'
   | 'rejected';
 export type PaymentMethod = 'card' | 'cash';
 export type EmployeeRole =
@@ -40,6 +42,8 @@ export type EventKind =
   | 'paid'
   | 'edited'
   | 'need_approved'
+  | 'cancelled'
+  | 'sourcing_edited'
   | 'moved';
 
 /** Суммы приходят строками: Decimal нельзя переводить в number без потерь. */
@@ -428,6 +432,11 @@ export type SourcingLineInput = {
   id: number;
   from_stock: boolean;
   price: Money | null;
+  /** Снять позицию: не нашлась и куплена не будет. */
+  drop?: boolean;
+  /** Уточнённое написание и объём. null — оставить как есть. */
+  title?: string | null;
+  quantity?: number | null;
 };
 
 export type SourcingInput = {

@@ -1059,6 +1059,36 @@ select.filter {
   }
 }
 
+/* ---------- Поле пароля с кнопкой «показать» ---------- */
+.password-field {
+  position: relative;
+}
+.password-field .field {
+  /* Место под кнопку: текст не должен заезжать под неё. */
+  padding-right: 44px;
+}
+.password-eye {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  color: var(--slate);
+  cursor: pointer;
+}
+.password-eye:hover {
+  color: var(--ink);
+}
+.password-eye:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
 /* ---------- Строка складского документа ---------- */
 .stock-line {
   display: flex;

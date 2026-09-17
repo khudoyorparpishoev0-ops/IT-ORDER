@@ -18,6 +18,7 @@ export const ENTITY_LABEL: Record<string, string> = {
 };
 
 export const ACTION_LABEL: Record<string, string> = {
+  cancel: 'Заявка отменена',
   stock_receipt: 'Приход на склад',
   stock_issue: 'Выдача со склада',
   stock_return: 'Возврат на склад',
@@ -99,7 +100,17 @@ export const ACTION_GROUPS: { label: string; actions: string[] }[] = [
   },
   {
     label: 'Заявки',
-    actions: ['submit', 'sourcing', 'priced', 'fulfilled', 'approve', 'auto_approve', 'reject', 'pay'],
+    actions: [
+      'submit',
+      'sourcing',
+      'priced',
+      'fulfilled',
+      'approve',
+      'auto_approve',
+      'reject',
+      'cancel',
+      'pay',
+    ],
   },
   { label: 'Справочники', actions: ['create', 'update', 'delete'] },
   {

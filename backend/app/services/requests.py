@@ -54,6 +54,7 @@ from app.db.models import (
 )
 from app.services import categories
 from app.schemas.request import (
+    CancelIn,
     DecisionIn,
     ExpenseLineIn,
     PaymentIn,
@@ -78,6 +79,16 @@ SPENT_STATUSES = (
 #: Заявка «в работе»: у кого-то на руках, путь не закончен.
 IN_WORK_STATUSES = (
     RequestStatus.DRAFT,
+    RequestStatus.PENDING,
+    RequestStatus.SOURCING,
+    RequestStatus.PRICED,
+    RequestStatus.APPROVED,
+)
+
+#: Из каких статусов заявку ещё можно отменить. Оплаченную — нельзя:
+#: деньги ушли, и «отменить» их уже не значит ничего; такую историю
+#: правят возвратом, а не задним числом. Черновик не отменяют, а удаляют.
+CANCELLABLE = (
     RequestStatus.PENDING,
     RequestStatus.SOURCING,
     RequestStatus.PRICED,
@@ -763,12 +774,59 @@ def apply_sourcing(
             "Ответ закупа должен покрывать все строки заявки, и только их"
         )
 
+    if all(decision.drop for decision in decisions.values()):
+        # Снять всё — это не оценка, а «покупать нечего». У такого исхода
+        # свой способ: отмена с причиной. Пустая заявка не должна доехать
+        # до руководителя и заставлять его утверждать ноль.
+        raise ValidationError(
+            "Нельзя снять все позиции. Если покупать нечего — отмените заявку"
+        )
+
     # Снимок «до» по каждой строке: закуп ставит цену впервые (было «не
     # оценена») или меняет уже поставленную, и в ленте это разные вещи.
     priced_before = {
         line.id: (somoni(line.price) if line.price is not None else None)
         for line in request.lines
     }
+
+    # Правка состава закупом: снятые и уточнённые строки. Пишется отдельным
+    # событием и до всего остального — человек сперва разобрался, что есть
+    # в продаже, и только потом проставил цены.
+    changes: list[dict] = []
+    dropped: list[ExpenseLine] = []
+    for line in request.lines:
+        decision = decisions[line.id]
+        if decision.drop:
+            changes.append({"title": line.title, "from": _line_text(line), "to": "снята"})
+            dropped.append(line)
+            continue
+        before_text = _line_text(line)
+        if decision.title is not None:
+            title = " ".join(decision.title.split())
+            if title:
+                line.title = title
+                line.normalized_text = normalize(title)
+        if decision.quantity is not None:
+            line.quantity = decision.quantity
+        if decision.unit is not None:
+            line.unit = decision.unit.strip() or None
+        after_text = _line_text(line)
+        if after_text != before_text:
+            changes.append({"title": line.title, "from": before_text, "to": after_text})
+
+    for line in dropped:
+        request.lines.remove(line)
+        decisions.pop(line.id, None)
+
+    if changes:
+        _add_event(
+            request,
+            EventKind.SOURCING_EDITED,
+            "Состав изменён закупом: "
+            + ", ".join(entry["title"] for entry in changes),
+            actor,
+            details={"lines": changes},
+        )
 
     for line in request.lines:
         decision = decisions[line.id]
@@ -867,6 +925,61 @@ def apply_sourcing(
         action=action,
         username=actor,
         details=somoni(request.amount) if to_buy else "закрыто складом",
+    )
+    session.flush()
+    return request
+
+
+def _line_text(line: ExpenseLine) -> str:
+    """Строка сметы одной фразой: «Цемент М500 — 40 меш.»."""
+    amount = f"{line.quantity}" + (f" {line.unit}" if line.unit else "")
+    return f"{line.title} — {amount}"
+
+
+def cancel_request(session: Session, request_id: int, data: CancelIn) -> ExpenseRequest:
+    """Отмена заявки: потребность отпала или товар не нашли.
+
+    Отдельно от отклонения намеренно. Отклоняет руководитель — «компания
+    этого не покупает»; отменяют автор и закуп — «покупать больше нечего».
+    Свалить их в один статус значит потерять, почему заявка закрыта, а
+    через месяц это и есть единственное, что от неё останется.
+
+    Кто вправе отменить, решает роутер: автор свою, закуп — любую, у него
+    лежащую. Оплаченную не отменяет никто: деньги ушли, и «отменить» их
+    задним числом нельзя — это уже возврат, а не отмена.
+    """
+    request = get_request(session, request_id, full=True)
+    if request.status not in CANCELLABLE:
+        raise ConflictError(
+            f"Заявку {request.number} уже нельзя отменить "
+            f"(статус {request.status.value})"
+        )
+
+    reason = " ".join((data.reason or "").split())
+    if len(reason) < 3:
+        raise ValidationError("Укажите причину отмены")
+
+    who = current_actor()
+    actor = (who.name if who else None) or SYSTEM_ACTOR
+    before = request.status
+    stage = AWAITING[before][1]
+
+    request.status = RequestStatus.CANCELLED
+    request.decided_at = utcnow()
+    request.decided_by = actor
+    request.decision_comment = reason
+    _add_event(
+        request,
+        EventKind.CANCELLED,
+        f"Отмена заявки: {reason}",
+        details=_step_details(before, request, comment=reason, stage=stage),
+    )
+    write_audit(
+        session,
+        entity="request",
+        entity_id=request.number,
+        action="cancel",
+        details=reason,
     )
     session.flush()
     return request
@@ -1062,6 +1175,7 @@ AWAITING: dict[RequestStatus, tuple[str, str]] = {
     RequestStatus.PAID: ("closed", "Выплачена"),
     RequestStatus.FULFILLED: ("closed", "Закрыта складом"),
     RequestStatus.REJECTED: ("closed", "Отклонена"),
+    RequestStatus.CANCELLED: ("closed", "Отменена"),
 }
 
 

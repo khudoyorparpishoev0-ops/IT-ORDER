@@ -43,6 +43,7 @@ STATUS_LABEL: dict[RequestStatus, str] = {
     RequestStatus.PAID: "Оплачена",
     RequestStatus.FULFILLED: "Выдано со склада",
     RequestStatus.REJECTED: "Отклонена",
+    RequestStatus.CANCELLED: "Отменена",
 }
 
 METHOD_LABEL: dict[PaymentMethod, str] = {

@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import select
 
-from app.core.time import utcnow
+from app.core.time import to_local, utcnow
 from app.db.models import (
     EmployeeRole,
     ExpenseRequest,
@@ -41,9 +41,17 @@ def subscribe(session, employee, **kwargs):
     return employee
 
 
-def at(hour: int, minute: int = 0, *, day: int = 15) -> datetime:
-    """Момент в поясе Душанбе, приведённый к UTC: сравнивать удобнее так."""
-    return datetime(2026, 9, day, hour, minute, tzinfo=DUSHANBE)
+def at(hour: int, minute: int = 0, *, day: int = 0) -> datetime:
+    """Момент в поясе Душанбе: сегодня в hour:minute, `day` — сдвиг в сутках.
+
+    Считается от сегодняшней даты, а не от прописанной в коде. Прошитая
+    дата работала ровно до неё: «застрявшая заявка» в фикстуре
+    отсчитывается от `utcnow()`, и однажды наступил день, когда заявка
+    оказывалась поданной ПОЗЖЕ момента рассылки. Тест начинал падать сам
+    по себе, без единой правки кода.
+    """
+    base = to_local(utcnow()).date() + timedelta(days=day)
+    return datetime(base.year, base.month, base.day, hour, minute, tzinfo=DUSHANBE)
 
 
 def stuck(session, employee, project, *, hours: int = 40, title: str = "Цемент М500"):
@@ -192,8 +200,8 @@ def test_next_day_brings_a_new_digest(
     stuck(session, employee, project)
     subscribe(session, manager)
 
-    notify.send_digests(session, IntelligenceKind.MORNING, now=at(9, 5, day=15))
-    notify.send_digests(session, IntelligenceKind.MORNING, now=at(9, 5, day=16))
+    notify.send_digests(session, IntelligenceKind.MORNING, now=at(9, 5, day=0))
+    notify.send_digests(session, IntelligenceKind.MORNING, now=at(9, 5, day=1))
 
     assert len(telegram_box) == 2
 

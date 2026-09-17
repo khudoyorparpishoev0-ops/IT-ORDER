@@ -30,6 +30,7 @@ from app.db.models import Employee, ExpenseRequest, RequestStatus
 from app.schemas.common import Page
 from app.schemas.report import Overview
 from app.schemas.request import (
+    CancelIn,
     CategoryFieldOut,
     CategoryOut,
     DecisionIn,
@@ -502,6 +503,41 @@ def pay_request(
     request = svc.pay_request(session, request_id, payment)
     detail = to_detail(session, request)
     background.add_task(_notify_telegram_later, request_id)
+    return detail
+
+
+@router.post("/{request_id}/cancel", response_model=RequestDetail)
+def cancel_request(
+    session: DbSession,
+    user: CurrentUser,
+    request_id: int,
+    data: CancelIn,
+    background: BackgroundTasks,
+):
+    """Отмена заявки: потребность отпала или товар не нашли.
+
+    Отменяет автор свою заявку и отдел закупа — ту, что лежит у него:
+    именно он упирается в «этого нет в продаже», и до сих пор ему
+    оставалось только вернуть заявку руководителю с нулём. Руководителю
+    отмена не нужна — у него есть отклонение, и это разные вещи.
+
+    Право проверяется здесь, а не таблицей ролей: «своя заявка» — это
+    свойство заявки, а не роли, и в матрице прав его не выразить.
+    """
+    request = svc.get_request(session, request_id)
+    _ensure_can_view(user, request)
+
+    own = request.employee_id == user.id
+    sourcing = request.status is RequestStatus.SOURCING and has_permission(
+        user.role, Permission.SOURCE_REQUEST
+    )
+    admin = has_permission(user.role, Permission.CREATE_REQUEST_FOR_OTHERS)
+    if not (own or sourcing or admin):
+        raise _forbidden()
+
+    result = svc.cancel_request(session, request_id, data)
+    detail = to_detail(session, result)
+    background.add_task(_notify_telegram_later, result.id)
     return detail
 
 

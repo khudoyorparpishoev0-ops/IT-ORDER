@@ -2,7 +2,8 @@ import { STATUS } from '@/data/status';
 import { days } from '@/data/format';
 import type { RequestDetail, RequestStatus } from '@/api/types';
 
-/** Основной путь заявки. Ветви «Выдано со склада» и «Отклонена» — отдельно. */
+/** Основной путь заявки. Ветви «Выдано со склада», «Отклонена» и
+ *  «Отменена» — отдельно: это выходы из пути, а не его этапы. */
 const MAIN: RequestStatus[] = ['draft', 'pending', 'sourcing', 'priced', 'approved', 'paid'];
 
 const STAGE_INDEX: Record<RequestStatus, number> = {
@@ -14,6 +15,7 @@ const STAGE_INDEX: Record<RequestStatus, number> = {
   paid: 5,
   fulfilled: 3,
   rejected: -1,
+  cancelled: -1,
 };
 
 /** Даты входа в этап — из событий истории (первое подходящее событие). */
@@ -26,6 +28,7 @@ const EVENT_OF_STAGE: Record<RequestStatus, string[]> = {
   paid: ['paid'],
   fulfilled: ['fulfilled'],
   rejected: ['rejected'],
+  cancelled: ['cancelled'],
 };
 
 function stageDate(detail: RequestDetail, stage: RequestStatus): string | null {

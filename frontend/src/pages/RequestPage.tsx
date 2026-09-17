@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { CancelModal } from '@/components/CancelModal';
 import { DecisionModal } from '@/components/DecisionModal';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
@@ -42,7 +43,7 @@ export function RequestPage() {
   const submitDraft = useSubmitRequest();
   const deleteDraft = useDeleteRequest();
   const markViewed = useMarkViewed();
-  const [modal, setModal] = useState<'approve' | 'reject' | 'pay' | 'delete' | null>(null);
+  const [modal, setModal] = useState<RequestModal>(null);
 
   const detail = query.data;
 
@@ -105,13 +106,16 @@ export function RequestPage() {
   );
 }
 
+/** Какое окно открыто над карточкой заявки. */
+type RequestModal = 'approve' | 'reject' | 'pay' | 'delete' | 'cancel' | null;
+
 type BodyProps = {
   detail: RequestDetail;
   userId: number;
   userName: string;
   can: (p: 'decide_request' | 'source_request' | 'pay_request' | 'create_request_for_others' | 'view_reports') => boolean;
-  modal: 'approve' | 'reject' | 'pay' | 'delete' | null;
-  setModal: (m: 'approve' | 'reject' | 'pay' | 'delete' | null) => void;
+  modal: RequestModal;
+  setModal: (m: RequestModal) => void;
   busy: string | null;
   onPdf: () => void;
   onSend: () => void;
@@ -132,7 +136,19 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
   const canPay = detail.status === 'approved' && can('pay_request');
   const decidedBySelf = detail.decided_by === userName;
   const ownDraft = detail.status === 'draft' && (own || can('create_request_for_others'));
-  const hasActions = ownDraft || (canDecide && !own) || (canPay && !own && !decidedBySelf);
+  // Отменить может автор свою заявку и закуп — ту, что лежит у него:
+  // именно он упирается в «этого нет в продаже». Оплаченную не отменяет
+  // никто: деньги ушли, и это уже возврат, а не отмена.
+  const cancellable =
+    detail.status === 'pending' ||
+    detail.status === 'sourcing' ||
+    detail.status === 'priced' ||
+    detail.status === 'approved';
+  const canCancel =
+    cancellable &&
+    (own || can('create_request_for_others') || (detail.status === 'sourcing' && can('source_request')));
+  const hasActions =
+    ownDraft || canCancel || (canDecide && !own) || (canPay && !own && !decidedBySelf);
 
   const actions = (
     <>
@@ -158,6 +174,11 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
             {detail.status === 'priced' ? 'Утвердить сумму' : 'Согласовать'}
           </button>
         </>
+      )}
+      {canCancel && (
+        <button type="button" className="btn btn-secondary" onClick={() => setModal('cancel')}>
+          Отменить заявку
+        </button>
       )}
       {canPay && !own && !decidedBySelf && (
         <button type="button" className="btn btn-primary" onClick={() => setModal('pay')}>
@@ -341,6 +362,7 @@ function Body({ detail, userId, userName, can, modal, setModal, busy, onPdf, onS
       {(modal === 'approve' || modal === 'reject') && (
         <DecisionModal request={detail} approve={modal === 'approve'} onClose={() => setModal(null)} />
       )}
+      {modal === 'cancel' && <CancelModal request={detail} onClose={() => setModal(null)} />}
       {modal === 'pay' && <PaymentModal request={detail} onClose={() => setModal(null)} />}
       {modal === 'delete' && (
         <ConfirmModal
