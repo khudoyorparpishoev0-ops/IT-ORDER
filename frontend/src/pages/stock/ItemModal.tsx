@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal';
 import { useAuth } from '@/api/auth';
 import { useStockItemCard, useStockItemSave } from '@/api/hooks';
 import { formatDateTime, quantity, withUnit } from '@/data/format';
+import { UNITS, UNITS_LIST_ID } from '@/data/units';
 
 /**
  * Карточка позиции: где лежит, что с ней происходило и настройки.
@@ -113,11 +114,17 @@ export function ItemModal({
                   id={id}
                   className="field"
                   maxLength={32}
+                  list={UNITS_LIST_ID}
                   value={unit}
                   onChange={(e) => setUnit(e.target.value)}
                 />
               )}
             </Field>
+            <datalist id={UNITS_LIST_ID}>
+              {UNITS.map((entry) => (
+                <option key={entry} value={entry} />
+              ))}
+            </datalist>
             <Field label="Артикул">
               {(id) => (
                 <input

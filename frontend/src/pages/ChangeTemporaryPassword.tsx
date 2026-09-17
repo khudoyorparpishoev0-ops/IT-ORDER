@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Field } from '@/components/Field';
+import { PasswordField } from '@/components/PasswordField';
 import { api } from '@/api/client';
 import { useAuth } from '@/api/auth';
 import { AuthScreen } from './PasswordReset';
@@ -57,54 +57,31 @@ export function ChangeTemporaryPassword() {
           </p>
         </div>
 
-        <Field label="Временный пароль" required>
-          {(id) => (
-            <input
-              id={id}
-              className="field"
-              type="password"
-              autoComplete="current-password"
-              autoFocus
-              required
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-            />
-          )}
-        </Field>
+        <PasswordField
+          label="Временный пароль"
+          required
+          autoFocus
+          value={current}
+          onChange={setCurrent}
+        />
 
-        <Field
+        <PasswordField
           label="Новый пароль"
           required
           note="Возьмите фразу от десяти символов: длинную проще запомнить и труднее подобрать"
-        >
-          {(id) => (
-            <input
-              id={id}
-              className={`field${error ? ' field-error' : ''}`}
-              type="password"
-              autoComplete="new-password"
-              required
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-              aria-invalid={Boolean(error)}
-            />
-          )}
-        </Field>
+          autoComplete="new-password"
+          value={next}
+          onChange={setNext}
+        />
 
-        <Field label="Повторите новый пароль" required error={error}>
-          {(id) => (
-            <input
-              id={id}
-              className={`field${error ? ' field-error' : ''}`}
-              type="password"
-              autoComplete="new-password"
-              required
-              value={repeat}
-              onChange={(e) => setRepeat(e.target.value)}
-              aria-invalid={Boolean(error)}
-            />
-          )}
-        </Field>
+        <PasswordField
+          label="Повторите новый пароль"
+          required
+          error={error}
+          autoComplete="new-password"
+          value={repeat}
+          onChange={setRepeat}
+        />
 
         <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
           <button

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Field } from '@/components/Field';
+import { PasswordField } from '@/components/PasswordField';
 import { useAuth, useAuthPolicy } from '@/api/auth';
 import { useSessionExpired } from '@/api/session';
 import { TotpSetup } from '@/components/TotpSetup';
@@ -112,20 +113,13 @@ export function Login() {
             )}
           </Field>
 
-          <Field label="Пароль" required error={error}>
-            {(id) => (
-              <input
-                id={id}
-                className={`field${error ? ' field-error' : ''}`}
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                aria-invalid={Boolean(error)}
-              />
-            )}
-          </Field>
+          <PasswordField
+            label="Пароль"
+            required
+            error={error}
+            value={password}
+            onChange={setPassword}
+          />
 
           <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             <button

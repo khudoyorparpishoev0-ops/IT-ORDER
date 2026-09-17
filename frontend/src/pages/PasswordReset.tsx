@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Field } from '@/components/Field';
+import { PasswordField } from '@/components/PasswordField';
 import { api } from '@/api/client';
 import { useAuthPolicy } from '@/api/auth';
 import { OrderLogoStacked } from '@/components/Logo';
@@ -153,36 +154,23 @@ function SetNewPassword({ token, onBack }: { token: string; onBack: () => void }
         note="Возьмите фразу от десяти символов: длинную проще запомнить и труднее подобрать"
       />
 
-      <Field label="Новый пароль" required>
-        {(id) => (
-          <input
-            id={id}
-            className={`field${error ? ' field-error' : ''}`}
-            type="password"
-            autoComplete="new-password"
-            autoFocus
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            aria-invalid={Boolean(error)}
-          />
-        )}
-      </Field>
+      <PasswordField
+        label="Новый пароль"
+        required
+        autoComplete="new-password"
+        autoFocus
+        value={password}
+        onChange={setPassword}
+      />
 
-      <Field label="Повторите пароль" required error={error}>
-        {(id) => (
-          <input
-            id={id}
-            className={`field${error ? ' field-error' : ''}`}
-            type="password"
-            autoComplete="new-password"
-            required
-            value={repeat}
-            onChange={(e) => setRepeat(e.target.value)}
-            aria-invalid={Boolean(error)}
-          />
-        )}
-      </Field>
+      <PasswordField
+        label="Повторите пароль"
+        required
+        error={error}
+        autoComplete="new-password"
+        value={repeat}
+        onChange={setRepeat}
+      />
 
       <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
         <button

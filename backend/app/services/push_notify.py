@@ -32,6 +32,7 @@ AUTHOR_TEXT: dict[RequestStatus, str] = {
     RequestStatus.PAID: "оплачена",
     RequestStatus.FULFILLED: "закрыта: всё нашлось на складе",
     RequestStatus.REJECTED: "отклонена",
+    RequestStatus.CANCELLED: "отменена",
 }
 
 #: Кого зовём, когда заявка легла на их шаг.
@@ -197,7 +198,7 @@ def notify_request_state(session: Session, request_id: int) -> None:
     to_author = 0
     if author is not None and author.active and what:
         body = f"{_headline(request)}\n{what.capitalize()}."
-        if request.status is RequestStatus.REJECTED and request.decision_comment:
+        if request.status in (RequestStatus.REJECTED, RequestStatus.CANCELLED) and request.decision_comment:
             body += f"\nПричина: {request.decision_comment}"
         to_author = notify_employee(
             session,

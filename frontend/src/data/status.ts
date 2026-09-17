@@ -15,6 +15,9 @@ export const STATUS: Record<RequestStatus, { label: string; color: string }> = {
   paid: { label: 'Оплачена', color: 'var(--green)' },
   fulfilled: { label: 'Выдано со склада', color: 'var(--green)' },
   rejected: { label: 'Отклонена', color: 'var(--red)' },
+  // Отмена не отказ: заявку закрыли автор или закуп, а не руководитель.
+  // Цвет серый, как у черновика, — это не провал согласования.
+  cancelled: { label: 'Отменена', color: 'var(--grey)' },
 };
 
 /** Порядок статусов в фильтрах. */
@@ -26,6 +29,7 @@ export const STATUS_ORDER: RequestStatus[] = [
   'paid',
   'fulfilled',
   'rejected',
+  'cancelled',
   'draft',
 ];
 

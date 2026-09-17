@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { Field } from '@/components/Field';
+import { PasswordField } from '@/components/PasswordField';
 import { PageHeader } from '@/components/PageHeader';
 import {
   useAiSettings,
@@ -212,52 +213,28 @@ function PasswordCard({ onDone }: { onDone: () => void }) {
   return (
     <Card title="Смена пароля">
       <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
-        <Field label="Текущий пароль" required>
-          {(id) => (
-            <input
-              id={id}
-              className="field"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-            />
-          )}
-        </Field>
-        <Field label="Новый пароль" required>
-          {(id) => (
-            <input
-              id={id}
-              className={`field${error ? ' field-error' : ''}`}
-              type="password"
-              autoComplete="new-password"
-              required
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-              aria-invalid={Boolean(error)}
-            />
-          )}
-        </Field>
-        <Field
+        <PasswordField
+          label="Текущий пароль"
+          required
+          value={current}
+          onChange={setCurrent}
+        />
+        <PasswordField
+          label="Новый пароль"
+          required
+          autoComplete="new-password"
+          value={next}
+          onChange={setNext}
+        />
+        <PasswordField
           label="Повторите новый пароль"
           required
           error={error}
           note="Возьмите фразу от десяти символов: длинную проще запомнить и труднее подобрать."
-        >
-          {(id) => (
-            <input
-              id={id}
-              className={`field${error ? ' field-error' : ''}`}
-              type="password"
-              autoComplete="new-password"
-              required
-              value={repeat}
-              onChange={(e) => setRepeat(e.target.value)}
-              aria-invalid={Boolean(error)}
-            />
-          )}
-        </Field>
+          autoComplete="new-password"
+          value={repeat}
+          onChange={setRepeat}
+        />
         <Actions>
           <button type="submit" className="btn btn-primary" disabled={saving || !current || !next || !repeat}>
             {saving ? 'Сохраняем…' : 'Сменить пароль'}

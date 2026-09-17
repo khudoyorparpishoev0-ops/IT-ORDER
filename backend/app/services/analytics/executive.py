@@ -26,8 +26,13 @@ from app.services.analytics.facts import find_duplicates
 from app.services.analytics.scope import Scope
 from app.services.requests import SPENT_STATUSES
 
-#: Заявка закрыта: оплачена, закрыта складом или отклонена.
-DONE_STATUSES = (RequestStatus.PAID, RequestStatus.FULFILLED, RequestStatus.REJECTED)
+#: Заявка закрыта: оплачена, закрыта складом, отклонена или отменена.
+DONE_STATUSES = (
+    RequestStatus.PAID,
+    RequestStatus.FULFILLED,
+    RequestStatus.REJECTED,
+    RequestStatus.CANCELLED,
+)
 
 
 @dataclass(frozen=True)

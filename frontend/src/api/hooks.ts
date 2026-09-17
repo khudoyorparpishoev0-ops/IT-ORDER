@@ -829,6 +829,20 @@ export function useDecision() {
   });
 }
 
+/** Отмена заявки: потребность отпала или товар не нашли. Отдельно от
+ *  решения руководителя — это разные вещи и разные люди. */
+export function useCancelRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      api<RequestDetail>(`/api/requests/${id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => invalidateRequests(qc),
+  });
+}
+
 export type AuditFilters = {
   entity?: string;
   action?: string;
